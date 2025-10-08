@@ -13,7 +13,6 @@ exports.getCharacters = async (req, res) => {
       success: true,
       characters: characters.map(char => ({
         id: char._id,
-        characterName: char.characterName,
         characterClass: char.characterClass,
         level: char.level,
         experience: char.experience,
@@ -36,29 +35,11 @@ exports.getCharacters = async (req, res) => {
   }
 };
 
-// Создать нового персонажа
-exports.createCharacter = async (req, res) => {
+// Создать/получить персонажа по классу (если уже есть - вернуть существующий)
+exports.selectOrCreateCharacter = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { characterName, characterClass } = req.body;
-
-    // Проверка количества персонажей (максимум 5)
-    const characterCount = await Character.countDocuments({ userId });
-    if (characterCount >= 5) {
-      return res.status(400).json({
-        success: false,
-        message: 'Достигнут максимум персонажей (5)'
-      });
-    }
-
-    // Проверка существования имени
-    const existingChar = await Character.findOne({ userId, characterName });
-    if (existingChar) {
-      return res.status(400).json({
-        success: false,
-        message: 'Персонаж с таким именем уже существует'
-      });
-    }
+    const { characterClass } = req.body;
 
     // Проверка класса
     const validClasses = ['Warrior', 'Mage', 'Archer', 'Rogue', 'Paladin'];
@@ -69,26 +50,33 @@ exports.createCharacter = async (req, res) => {
       });
     }
 
-    // Создание персонажа с начальными характеристиками в зависимости от класса
-    const baseStats = getClassBaseStats(characterClass);
+    // Пытаемся найти существующего персонажа этого класса
+    let character = await Character.findOne({ userId, characterClass });
 
-    const character = new Character({
-      userId,
-      characterName,
-      characterClass,
-      stats: baseStats.stats,
-      health: baseStats.health,
-      mana: baseStats.mana
-    });
+    // Если персонажа нет - создаем нового
+    if (!character) {
+      const baseStats = getClassBaseStats(characterClass);
 
-    await character.save();
+      character = new Character({
+        userId,
+        characterClass,
+        stats: baseStats.stats,
+        health: baseStats.health,
+        mana: baseStats.mana
+      });
+
+      await character.save();
+    } else {
+      // Если персонаж уже есть - обновляем lastPlayed
+      character.lastPlayed = Date.now();
+      await character.save();
+    }
 
     res.json({
       success: true,
-      message: 'Персонаж успешно создан!',
+      message: character.createdAt === character.lastPlayed ? 'Персонаж создан!' : 'Персонаж загружен!',
       character: {
         id: character._id,
-        characterName: character.characterName,
         characterClass: character.characterClass,
         level: character.level,
         experience: character.experience,
@@ -96,6 +84,7 @@ exports.createCharacter = async (req, res) => {
         stats: character.stats,
         health: character.health,
         mana: character.mana,
+        position: character.position,
         equipment: character.equipment,
         createdAt: character.createdAt,
         lastPlayed: character.lastPlayed
@@ -103,10 +92,10 @@ exports.createCharacter = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Create character error:', error);
+    console.error('Select or create character error:', error);
     res.status(500).json({
       success: false,
-      message: 'Ошибка создания персонажа'
+      message: 'Ошибка выбора персонажа'
     });
   }
 };
@@ -142,53 +131,6 @@ exports.deleteCharacter = async (req, res) => {
   }
 };
 
-// Выбрать персонажа (обновить lastPlayed)
-exports.selectCharacter = async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const { characterId } = req.params;
-
-    const character = await Character.findOne({ _id: characterId, userId });
-
-    if (!character) {
-      return res.status(404).json({
-        success: false,
-        message: 'Персонаж не найден'
-      });
-    }
-
-    // Обновляем время последней игры
-    character.lastPlayed = Date.now();
-    await character.save();
-
-    res.json({
-      success: true,
-      message: 'Персонаж выбран',
-      character: {
-        id: character._id,
-        characterName: character.characterName,
-        characterClass: character.characterClass,
-        level: character.level,
-        experience: character.experience,
-        gold: character.gold,
-        stats: character.stats,
-        health: character.health,
-        mana: character.mana,
-        position: character.position,
-        equipment: character.equipment,
-        createdAt: character.createdAt,
-        lastPlayed: character.lastPlayed
-      }
-    });
-
-  } catch (error) {
-    console.error('Select character error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Ошибка выбора персонажа'
-    });
-  }
-};
 
 // Получить базовые характеристики класса
 function getClassBaseStats(characterClass) {

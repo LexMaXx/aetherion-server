@@ -8,15 +8,8 @@ const CharacterSchema = new mongoose.Schema({
     required: true
   },
 
-  // Основная информация
-  characterName: {
-    type: String,
-    required: true,
-    minlength: 3,
-    maxlength: 20
-  },
-
-  // Класс персонажа
+  // Класс персонажа (используется как уникальный идентификатор)
+  // У игрока может быть только ОДИН персонаж каждого класса
   characterClass: {
     type: String,
     required: true,
@@ -100,9 +93,7 @@ const CharacterSchema = new mongoose.Schema({
   }
 });
 
-// Индексы для быстрого поиска
-CharacterSchema.index({ userId: 1 });
-CharacterSchema.index({ characterName: 1 });
-CharacterSchema.index({ userId: 1, characterName: 1 }, { unique: true }); // Уникальное имя для каждого игрока
+// ВАЖНО: Один игрок может иметь только ОДНОГО персонажа каждого класса
+CharacterSchema.index({ userId: 1, characterClass: 1 }, { unique: true });
 
 module.exports = mongoose.model('Character', CharacterSchema);

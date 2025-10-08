@@ -21,34 +21,23 @@ const validate = (req, res, next) => {
 // @access  Private
 router.get('/', auth, characterController.getCharacters);
 
-// @route   POST /api/character
-// @desc    Создать нового персонажа
+// @route   POST /api/character/select
+// @desc    Выбрать класс персонажа (создать если нет, загрузить если есть)
 // @access  Private
-router.post('/',
+router.post('/select',
   auth,
   [
-    body('characterName')
-      .trim()
-      .isLength({ min: 3, max: 20 })
-      .withMessage('Имя персонажа должно быть от 3 до 20 символов')
-      .matches(/^[a-zA-Z0-9_а-яА-ЯёЁ]+$/)
-      .withMessage('Имя может содержать только буквы, цифры и _'),
     body('characterClass')
       .isIn(['Warrior', 'Mage', 'Archer', 'Rogue', 'Paladin'])
       .withMessage('Недопустимый класс персонажа')
   ],
   validate,
-  characterController.createCharacter
+  characterController.selectOrCreateCharacter
 );
 
 // @route   DELETE /api/character/:characterId
 // @desc    Удалить персонажа
 // @access  Private
 router.delete('/:characterId', auth, characterController.deleteCharacter);
-
-// @route   POST /api/character/:characterId/select
-// @desc    Выбрать персонажа для игры
-// @access  Private
-router.post('/:characterId/select', auth, characterController.selectCharacter);
 
 module.exports = router;
