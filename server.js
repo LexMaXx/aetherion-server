@@ -22,6 +22,7 @@ app.use((req, res, next) => {
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/character', require('./routes/character'));
 
 // Health check
 app.get('/', (req, res) => {
