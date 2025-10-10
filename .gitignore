@@ -1,0 +1,51 @@
+# Unity
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+MemoryCaptures/
+sysinfo.txt
+*.stackdump
+*.apk
+*.unitypackage
+*.app
+
+# Visual Studio / Visual Studio Code
+.vs/
+.vscode/
+*.csproj
+*.sln
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# Rider
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+*.log
+
+# Node.js (for SERVER_CODE)
+SERVER_CODE/node_modules/
+SERVER_CODE/.env
+SERVER_CODE/npm-debug.log*
+SERVER_CODE/yarn-debug.log*
+SERVER_CODE/yarn-error.log*
+SERVER_CODE/package-lock.json
+
+# Unity Asset Store
+AssetStoreTools/
