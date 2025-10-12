@@ -49,8 +49,11 @@ public class SocketIOManager : MonoBehaviour
 
     void OnDestroy()
     {
+        Debug.LogWarning("[SocketIO] ⚠️ OnDestroy вызван! SocketIOManager уничтожается!");
+
         if (socket != null)
         {
+            Debug.LogWarning("[SocketIO] Отключаем socket перед уничтожением...");
             socket.Disconnect();
             socket.Dispose();
         }
@@ -100,7 +103,14 @@ public class SocketIOManager : MonoBehaviour
         socket.OnDisconnected += (sender, e) =>
         {
             isConnected = false;
-            DebugLog("❌ Отключено от сервера");
+            Debug.LogError($"[SocketIO] ❌ Отключено от сервера! Причина: {e}");
+
+            // Логируем дополнительную информацию
+            UnityMainThreadDispatcher.Instance().Enqueue(() =>
+            {
+                Debug.LogError($"[SocketIO] Отключение произошло в комнате: {currentRoomId}");
+                Debug.LogError($"[SocketIO] Username: {myUsername}");
+            });
         };
 
         // Событие ошибки
@@ -296,10 +306,13 @@ public class SocketIOManager : MonoBehaviour
     {
         if (!isConnected) return;
 
+        // ВАЖНО: Преобразуем Quaternion в Euler angles (градусы) для сервера
+        Vector3 eulerRotation = rotation.eulerAngles;
+
         var data = new
         {
             position = new { x = position.x, y = position.y, z = position.z },
-            rotation = new { x = rotation.x, y = rotation.y, z = rotation.z, w = rotation.w },
+            rotation = new { x = eulerRotation.x, y = eulerRotation.y, z = eulerRotation.z },
             velocity = new { x = velocity.x, y = velocity.y, z = velocity.z },
             isGrounded = isGrounded
         };

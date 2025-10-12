@@ -290,17 +290,48 @@ public class NetworkSyncManager : MonoBehaviour
     /// </summary>
     private void OnPlayerMoved(string jsonData)
     {
-        var data = JsonUtility.FromJson<PlayerMovedEvent>(jsonData);
-
-        // Skip our own updates - server should not send us our own position
-        // but check anyway
-
-        if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer player))
+        try
         {
-            Vector3 pos = new Vector3(data.position.x, data.position.y, data.position.z);
-            Quaternion rot = Quaternion.Euler(data.rotation.x, data.rotation.y, data.rotation.z);
+            // ОТЛАДКА: Логируем сырой JSON
+            Debug.Log($"[NetworkSync] 🔍 RAW JSON for player_moved: {jsonData}");
 
-            player.UpdatePosition(pos, rot);
+            var data = JsonUtility.FromJson<PlayerMovedEvent>(jsonData);
+
+            // ОТЛАДКА: Логируем результат десериализации
+            if (data == null)
+            {
+                Debug.LogError($"[NetworkSync] ❌ PlayerMovedEvent is null after deserialization!");
+                return;
+            }
+
+            Debug.Log($"[NetworkSync] 🔍 Deserialized: socketId='{data.socketId}', position=({data.position?.x}, {data.position?.y}, {data.position?.z})");
+
+            if (string.IsNullOrEmpty(data.socketId))
+            {
+                Debug.LogError($"[NetworkSync] ❌ socketId is null or empty after deserialization!");
+                Debug.LogError($"[NetworkSync] 🔍 Full PlayerMovedEvent object: socketId='{data.socketId}', timestamp={data.timestamp}");
+                return;
+            }
+
+            // Skip our own updates - server should not send us our own position
+            // but check anyway
+
+            if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer player))
+            {
+                Vector3 pos = new Vector3(data.position.x, data.position.y, data.position.z);
+                Quaternion rot = Quaternion.Euler(data.rotation.x, data.rotation.y, data.rotation.z);
+
+                player.UpdatePosition(pos, rot);
+                Debug.Log($"[NetworkSync] ✅ Updated position for {data.socketId}");
+            }
+            else
+            {
+                Debug.LogWarning($"[NetworkSync] ⚠️ Network player {data.socketId} not found in dictionary. Available: {string.Join(", ", networkPlayers.Keys)}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[NetworkSync] ❌ Error in OnPlayerMoved: {ex.Message}\n{ex.StackTrace}\nJSON: {jsonData}");
         }
     }
 
