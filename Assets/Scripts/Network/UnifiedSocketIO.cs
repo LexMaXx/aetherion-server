@@ -135,6 +135,10 @@ public class UnifiedSocketIO : MonoBehaviour
                 lastHeartbeat = Time.time;
 
                 DebugLog($"✅ Подключено! Session ID: {sessionId}");
+
+                // ТЕСТ: Отправим ping для проверки связи
+                StartCoroutine(TestPing());
+
                 onComplete?.Invoke(true);
 
                 // Start listening for events
@@ -322,6 +326,16 @@ public class UnifiedSocketIO : MonoBehaviour
     }
 
     /// <summary>
+    /// ТЕСТ: Отправить ping сразу после подключения
+    /// </summary>
+    private IEnumerator TestPing()
+    {
+        yield return new WaitForSeconds(0.5f);
+        Debug.Log("[SocketIO] 🧪 TEST: Отправляем ping событие...");
+        Emit("ping", "{}");
+    }
+
+    /// <summary>
     /// Корутина прослушивания сообщений от сервера
     /// </summary>
     private IEnumerator ListenCoroutine()
@@ -365,6 +379,12 @@ public class UnifiedSocketIO : MonoBehaviour
     /// </summary>
     private void ParseSocketIOMessages(string response)
     {
+        // ДЛЯ ОТЛАДКИ: Логируем ВСЕ сообщения от сервера
+        if (response.Length > 2)
+        {
+            Debug.Log($"[SocketIO] 🔍 RAW MESSAGE: {response}");
+        }
+
         if (response.StartsWith("42["))
         {
             try
@@ -383,10 +403,16 @@ public class UnifiedSocketIO : MonoBehaviour
                         string jsonData = response.Substring(dataStart, dataEnd - dataStart);
                         messagesReceived++;
                         DebugLog($"📨 Получено событие: {eventName}");
+                        Debug.Log($"[SocketIO] 📦 Данные: {jsonData.Substring(0, Math.Min(200, jsonData.Length))}...");
 
                         if (eventCallbacks.ContainsKey(eventName))
                         {
+                            Debug.Log($"[SocketIO] ✅ Вызываем callback для '{eventName}'");
                             eventCallbacks[eventName]?.Invoke(jsonData);
+                        }
+                        else
+                        {
+                            Debug.LogWarning($"[SocketIO] ⚠️ Нет подписчиков на событие '{eventName}'");
                         }
                     }
                 }

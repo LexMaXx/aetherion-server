@@ -46,8 +46,27 @@ app.get('/', (req, res) => {
   });
 });
 
+// ТЕСТ: Добавим тестовый обработчик Socket.IO для диагностики
+io.on('connection', (socket) => {
+  console.log(`🧪 TEST: Socket connected: ${socket.id}`);
+
+  socket.on('ping', (data) => {
+    console.log(`🧪 TEST: Received ping from ${socket.id}`);
+    socket.emit('pong', { message: 'Server is alive!' });
+  });
+
+  socket.on('disconnect', () => {
+    console.log(`🧪 TEST: Socket disconnected: ${socket.id}`);
+  });
+});
+
 // Multiplayer logic
-require('./multiplayer')(io);
+try {
+  require('./multiplayer')(io);
+  console.log('✅ Multiplayer module loaded successfully');
+} catch (error) {
+  console.error('❌ Failed to load multiplayer module:', error.message);
+}
 
 // Error handling middleware
 app.use((err, req, res, next) => {
