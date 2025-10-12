@@ -161,14 +161,14 @@ public class SocketIOManager : MonoBehaviour
 
                 if (response.Count > 0)
                 {
-                    // ПРАВИЛЬНЫЙ СПОСОБ: GetValue() возвращает JsonElement, ToString() даёт JSON
+                    // ПРАВИЛЬНЫЙ СПОСОБ: GetValue() возвращает JsonElement, используем GetRawText()
                     var firstArg = response.GetValue();
 
                     // Логируем тип для отладки
-                    DebugLog($"🔍 Event '{eventName}' firstArg type: {firstArg?.GetType().FullName ?? "null"}");
+                    DebugLog($"🔍 Event '{eventName}' firstArg type: {firstArg.GetType().FullName}");
 
-                    // Если это JsonElement, используем его RawText
-                    if (firstArg != null && firstArg.GetType().Name == "JsonElement")
+                    // Проверяем, является ли это JsonElement
+                    if (firstArg.GetType().Name == "JsonElement")
                     {
                         // Получаем сырой JSON текст из JsonElement
                         var jsonElement = (System.Text.Json.JsonElement)firstArg;
