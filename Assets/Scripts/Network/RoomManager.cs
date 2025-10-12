@@ -127,6 +127,10 @@ public class RoomManager : MonoBehaviour
                 currentRoomId = response.room.roomId;
                 isInRoom = true;
 
+                // ВАЖНО: Сохраняем CurrentRoomId СРАЗУ для NetworkSyncManager
+                PlayerPrefs.SetString("CurrentRoomId", currentRoomId);
+                PlayerPrefs.Save();
+
                 Debug.Log($"[RoomManager] ✅ Комната создана: {response.room.roomName} (ID: {currentRoomId})");
                 OnRoomCreated?.Invoke(response.room);
                 onSuccess?.Invoke(response.room);
@@ -197,6 +201,10 @@ public class RoomManager : MonoBehaviour
                 currentRoom = response.room;
                 currentRoomId = response.room.roomId;
                 isInRoom = true;
+
+                // ВАЖНО: Сохраняем CurrentRoomId СРАЗУ для NetworkSyncManager
+                PlayerPrefs.SetString("CurrentRoomId", currentRoomId);
+                PlayerPrefs.Save();
 
                 Debug.Log($"[RoomManager] ✅ Вошли в комнату: {response.room.roomName}");
                 OnRoomJoined?.Invoke(response.room);
