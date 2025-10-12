@@ -87,15 +87,25 @@ public class RoomManager : MonoBehaviour
         string token = PlayerPrefs.GetString("UserToken", "");
         string url = $"{serverUrl}/api/room/create";
 
+        // Получаем данные персонажа из PlayerPrefs
+        string characterClass = PlayerPrefs.GetString("SelectedCharacterClass", "Warrior");
+        string username = PlayerPrefs.GetString("Username", "Player");
+        // Level можно получить из характеристик персонажа, пока используем 1
+        int level = 1;
+
         CreateRoomRequest requestData = new CreateRoomRequest
         {
             roomName = roomName,
             maxPlayers = maxPlayers,
             isPrivate = isPrivate,
-            password = password
+            password = password,
+            characterClass = characterClass,
+            username = username,
+            level = level
         };
 
         string json = JsonUtility.ToJson(requestData);
+        Debug.Log($"[RoomManager] Create room request: {json}");
 
         UnityWebRequest request = new UnityWebRequest(url, "POST");
         byte[] bodyRaw = System.Text.Encoding.UTF8.GetBytes(json);
@@ -130,7 +140,10 @@ public class RoomManager : MonoBehaviour
         }
         else
         {
+            // Логируем тело ответа даже при ошибке для дебага
+            string errorBody = request.downloadHandler != null ? request.downloadHandler.text : "No response body";
             Debug.LogError($"[RoomManager] ❌ HTTP ошибка: {request.error}");
+            Debug.LogError($"[RoomManager] Error response body: {errorBody}");
             onError?.Invoke(request.error);
         }
     }
@@ -148,13 +161,22 @@ public class RoomManager : MonoBehaviour
         string token = PlayerPrefs.GetString("UserToken", "");
         string url = $"{serverUrl}/api/room/join";
 
+        // Получаем данные персонажа из PlayerPrefs
+        string characterClass = PlayerPrefs.GetString("SelectedCharacterClass", "Warrior");
+        string username = PlayerPrefs.GetString("Username", "Player");
+        int level = 1;
+
         JoinRoomRequest requestData = new JoinRoomRequest
         {
             roomId = roomId,
-            password = password
+            password = password,
+            characterClass = characterClass,
+            username = username,
+            level = level
         };
 
         string json = JsonUtility.ToJson(requestData);
+        Debug.Log($"[RoomManager] Join room request: {json}");
 
         UnityWebRequest request = new UnityWebRequest(url, "POST");
         byte[] bodyRaw = System.Text.Encoding.UTF8.GetBytes(json);
@@ -189,7 +211,10 @@ public class RoomManager : MonoBehaviour
         }
         else
         {
+            // Логируем тело ответа даже при ошибке для дебага
+            string errorBody = request.downloadHandler != null ? request.downloadHandler.text : "No response body";
             Debug.LogError($"[RoomManager] ❌ HTTP ошибка: {request.error}");
+            Debug.LogError($"[RoomManager] Error response body: {errorBody}");
             onError?.Invoke(request.error);
         }
     }
@@ -236,6 +261,10 @@ public class RoomManager : MonoBehaviour
             isInRoom = false;
             currentRoomId = "";
             currentRoom = null;
+
+            // Очищаем PlayerPrefs
+            PlayerPrefs.DeleteKey("CurrentRoomId");
+            PlayerPrefs.Save();
 
             OnRoomLeft?.Invoke();
             onComplete?.Invoke(true);
@@ -339,18 +368,18 @@ public class RoomManager : MonoBehaviour
     {
         string token = PlayerPrefs.GetString("UserToken", "");
 
-        // Connect to WebSocket
-        WebSocketClient.Instance.Connect(token, (success) =>
+        // Connect to SimpleWebSocketClient
+        SimpleWebSocketClient.Instance.Connect(token, (success) =>
         {
             if (success)
             {
-                Debug.Log("[RoomManager] WebSocket подключен, входим в комнату...");
+                Debug.Log("[RoomManager] 🚀 OptimizedWebSocket подключен, входим в комнату...");
 
                 // Start listening for messages
-                WebSocketClient.Instance.StartListening();
+                SimpleWebSocketClient.Instance.StartListening();
 
                 // Join room via WebSocket
-                WebSocketClient.Instance.JoinRoom(roomId, characterClass, (joined) =>
+                SimpleWebSocketClient.Instance.JoinRoom(roomId, characterClass, (joined) =>
                 {
                     if (joined)
                     {
@@ -412,6 +441,9 @@ public class CreateRoomRequest
     public int maxPlayers;
     public bool isPrivate;
     public string password;
+    public string characterClass;  // Класс персонажа
+    public string username;         // Имя пользователя
+    public int level;               // Уровень персонажа
 }
 
 [Serializable]
@@ -427,6 +459,9 @@ public class JoinRoomRequest
 {
     public string roomId;
     public string password;
+    public string characterClass;  // Класс персонажа
+    public string username;         // Имя пользователя
+    public int level;               // Уровень персонажа
 }
 
 [Serializable]

@@ -56,7 +56,18 @@ router.post('/create', auth, async (req, res) => {
     try {
         const { roomName, maxPlayers, isPrivate, password } = req.body;
         const userIdStr = req.user.id; // Из JWT токена (string)
-        const userId = mongoose.Types.ObjectId(userIdStr); // Конвертируем в ObjectId
+
+        // Конвертируем userId в ObjectId с обработкой ошибок
+        let userId;
+        try {
+            userId = new mongoose.Types.ObjectId(userIdStr);
+        } catch (err) {
+            console.error('[Room] Invalid userId format:', userIdStr, err);
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid user ID format'
+            });
+        }
 
         // Проверяем что игрок не в другой комнате
         const existingRoom = await Room.findOne({
@@ -133,7 +144,18 @@ router.post('/join', auth, async (req, res) => {
     try {
         const { roomId, password } = req.body;
         const userIdStr = req.user.id; // Из JWT токена (string)
-        const userId = mongoose.Types.ObjectId(userIdStr); // Конвертируем в ObjectId
+
+        // Конвертируем userId в ObjectId с обработкой ошибок
+        let userId;
+        try {
+            userId = new mongoose.Types.ObjectId(userIdStr);
+        } catch (err) {
+            console.error('[Room] Invalid userId format:', userIdStr, err);
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid user ID format'
+            });
+        }
 
         // Находим комнату
         const room = await Room.findOne({ roomId });
@@ -228,7 +250,16 @@ router.post('/leave', auth, async (req, res) => {
     try {
         const { roomId } = req.body;
         const userIdStr = req.user.id;
-        const userId = mongoose.Types.ObjectId(userIdStr);
+        let userId;
+        try {
+            userId = new mongoose.Types.ObjectId(userIdStr);
+        } catch (err) {
+            console.error('[Room] Invalid userId format:', userIdStr, err);
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid user ID format'
+            });
+        }
 
         const room = await Room.findOne({ roomId });
 
@@ -316,7 +347,16 @@ router.post('/start', auth, async (req, res) => {
     try {
         const { roomId } = req.body;
         const userIdStr = req.user.id;
-        const userId = mongoose.Types.ObjectId(userIdStr);
+        let userId;
+        try {
+            userId = new mongoose.Types.ObjectId(userIdStr);
+        } catch (err) {
+            console.error('[Room] Invalid userId format:', userIdStr, err);
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid user ID format'
+            });
+        }
 
         const room = await Room.findOne({ roomId });
 
