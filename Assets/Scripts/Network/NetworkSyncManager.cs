@@ -67,7 +67,7 @@ public class NetworkSyncManager : MonoBehaviour
         if (!syncEnabled) return;
 
         // Проверяем подключение перед отправкой
-        if (SimpleWebSocketClient.Instance == null || !SimpleWebSocketClient.Instance.IsConnected)
+        if (SocketIOClient.Instance == null || !SocketIOClient.Instance.IsConnected)
         {
             return;
         }
@@ -85,38 +85,43 @@ public class NetworkSyncManager : MonoBehaviour
     /// </summary>
     private void SubscribeToNetworkEvents()
     {
-        if (SimpleWebSocketClient.Instance == null)
+        if (SocketIOClient.Instance == null)
         {
-            Debug.LogError("[NetworkSync] WebSocketClient не найден!");
+            Debug.LogError("[NetworkSync] SocketIOClient не найден!");
             return;
         }
 
+        // Room players list (when we join)
+        SocketIOClient.Instance.On("room_players", OnRoomPlayers);
+
         // Player joined room
-        SimpleWebSocketClient.Instance.On("player_joined", OnPlayerJoined);
+        SocketIOClient.Instance.On("player_joined", OnPlayerJoined);
 
         // Player left room
-        SimpleWebSocketClient.Instance.On("player_left", OnPlayerLeft);
+        SocketIOClient.Instance.On("player_left", OnPlayerLeft);
 
-        // Position update
-        SimpleWebSocketClient.Instance.On("position_update", OnPositionUpdate);
+        // Player moved (position/rotation update)
+        SocketIOClient.Instance.On("player_moved", OnPlayerMoved);
+
+        // Player animation changed
+        SocketIOClient.Instance.On("player_animation_changed", OnAnimationChanged);
 
         // Player attacked
-        SimpleWebSocketClient.Instance.On("player_attacked", OnPlayerAttacked);
+        SocketIOClient.Instance.On("player_attacked", OnPlayerAttacked);
 
-        // Player used skill
-        SimpleWebSocketClient.Instance.On("skill_used", OnSkillUsed);
-
-        // Health update
-        SimpleWebSocketClient.Instance.On("health_update", OnHealthUpdate);
+        // Player health changed
+        SocketIOClient.Instance.On("player_health_changed", OnHealthChanged);
 
         // Player died
-        SimpleWebSocketClient.Instance.On("player_died", OnPlayerDied);
+        SocketIOClient.Instance.On("player_died", OnPlayerDied);
 
         // Player respawned
-        SimpleWebSocketClient.Instance.On("player_respawned", OnPlayerRespawned);
+        SocketIOClient.Instance.On("player_respawned", OnPlayerRespawned);
 
-        // Room state (full player list)
-        SimpleWebSocketClient.Instance.On("room_state", OnRoomState);
+        // Enemy events
+        SocketIOClient.Instance.On("enemy_health_changed", OnEnemyHealthChanged);
+        SocketIOClient.Instance.On("enemy_died", OnEnemyDied);
+        SocketIOClient.Instance.On("enemy_respawned", OnEnemyRespawned);
 
         Debug.Log("[NetworkSync] ✅ Подписан на сетевые события");
     }
@@ -136,14 +141,13 @@ public class NetworkSyncManager : MonoBehaviour
     /// </summary>
     private void SyncLocalPlayerPosition()
     {
-        if (localPlayer == null || SimpleWebSocketClient.Instance == null || !SimpleWebSocketClient.Instance.IsConnected)
+        if (localPlayer == null || SocketIOClient.Instance == null || !SocketIOClient.Instance.IsConnected)
             return;
-
-        // Get animation state
-        string animState = GetLocalPlayerAnimationState();
 
         // Get velocity (для Dead Reckoning в будущем)
         Vector3 velocity = Vector3.zero;
+        bool isGrounded = true;
+
         var rigidbody = localPlayer.GetComponent<Rigidbody>();
         if (rigidbody != null)
         {
@@ -155,15 +159,16 @@ public class NetworkSyncManager : MonoBehaviour
             if (controller != null)
             {
                 velocity = controller.velocity;
+                isGrounded = controller.isGrounded;
             }
         }
 
         // Send to server
-        SimpleWebSocketClient.Instance.UpdatePosition(
+        SocketIOClient.Instance.UpdatePosition(
             localPlayer.transform.position,
             localPlayer.transform.rotation,
-            animState,
-            velocity
+            velocity,
+            isGrounded
         );
     }
 
@@ -199,22 +204,72 @@ public class NetworkSyncManager : MonoBehaviour
     // ===== NETWORK EVENT HANDLERS =====
 
     /// <summary>
+    /// Обработать список игроков в комнате (когда мы входим)
+    /// </summary>
+    private void OnRoomPlayers(string jsonData)
+    {
+        Debug.Log($"[NetworkSync] 📦 Получен список игроков в комнате. JSON: {jsonData}");
+
+        try
+        {
+            var data = JsonUtility.FromJson<RoomPlayersResponse>(jsonData);
+
+            if (data == null || data.players == null)
+            {
+                Debug.LogError("[NetworkSync] ❌ Failed to parse RoomPlayersResponse");
+                return;
+            }
+
+            Debug.Log($"[NetworkSync] В комнате {data.players.Length} игроков");
+            Debug.Log($"[NetworkSync] Мой socketId: {data.yourSocketId}");
+
+            // Spawn all existing players
+            foreach (var playerData in data.players)
+            {
+                Debug.Log($"[NetworkSync] Игрок: {playerData.username} (socketId: {playerData.socketId}, class: {playerData.characterClass})");
+
+                // Skip ourselves
+                if (playerData.socketId == data.yourSocketId)
+                {
+                    Debug.Log($"[NetworkSync] ⏭️ Это мы сами, пропускаем");
+                    continue;
+                }
+
+                // Spawn if not already exists
+                if (!networkPlayers.ContainsKey(playerData.socketId))
+                {
+                    Debug.Log($"[NetworkSync] 🎭 Spawning network player: {playerData.username}");
+                    Vector3 pos = new Vector3(playerData.position.x, playerData.position.y, playerData.position.z);
+                    SpawnNetworkPlayer(playerData.socketId, playerData.username, playerData.characterClass, pos);
+                }
+            }
+
+            Debug.Log($"[NetworkSync] 📊 Всего сетевых игроков: {networkPlayers.Count}");
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[NetworkSync] ❌ Error in OnRoomPlayers: {ex.Message}\n{ex.StackTrace}");
+        }
+    }
+
+    /// <summary>
     /// Обработать подключение нового игрока
     /// </summary>
     private void OnPlayerJoined(string jsonData)
     {
-        var data = JsonUtility.FromJson<PlayerJoinedData>(jsonData);
+        var data = JsonUtility.FromJson<PlayerJoinedEvent>(jsonData);
         Debug.Log($"[NetworkSync] Игрок подключился: {data.username} ({data.characterClass})");
 
         // Don't create network player for ourselves
-        if (data.socketId == SimpleWebSocketClient.Instance.SessionId)
+        if (data.socketId == SocketIOClient.Instance.SessionId)
         {
             Debug.Log("[NetworkSync] Это мы сами, пропускаем");
             return;
         }
 
         // Spawn network player
-        SpawnNetworkPlayer(data.socketId, data.username, data.characterClass, data.position);
+        Vector3 pos = new Vector3(data.position.x, data.position.y, data.position.z);
+        SpawnNetworkPlayer(data.socketId, data.username, data.characterClass, pos);
     }
 
     /// <summary>
@@ -222,8 +277,8 @@ public class NetworkSyncManager : MonoBehaviour
     /// </summary>
     private void OnPlayerLeft(string jsonData)
     {
-        var data = JsonUtility.FromJson<PlayerLeftData>(jsonData);
-        Debug.Log($"[NetworkSync] Игрок отключился: {data.socketId}");
+        var data = JsonUtility.FromJson<PlayerLeftEvent>(jsonData);
+        Debug.Log($"[NetworkSync] Игрок отключился: {data.username} ({data.socketId})");
 
         RemoveNetworkPlayer(data.socketId);
     }
@@ -231,20 +286,35 @@ public class NetworkSyncManager : MonoBehaviour
     /// <summary>
     /// Обработать обновление позиции
     /// </summary>
-    private void OnPositionUpdate(string jsonData)
+    private void OnPlayerMoved(string jsonData)
     {
-        var data = JsonUtility.FromJson<PositionUpdateEventData>(jsonData);
+        var data = JsonUtility.FromJson<PlayerMovedEvent>(jsonData);
 
         // Skip our own updates
-        if (data.socketId == SimpleWebSocketClient.Instance.SessionId) return;
+        if (data.socketId == SocketIOClient.Instance.SessionId) return;
 
         if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer player))
         {
-            Vector3 pos = new Vector3(data.x, data.y, data.z);
-            Quaternion rot = Quaternion.Euler(0, data.rotationY, 0);
+            Vector3 pos = new Vector3(data.position.x, data.position.y, data.position.z);
+            Quaternion rot = Quaternion.Euler(data.rotation.x, data.rotation.y, data.rotation.z);
 
             player.UpdatePosition(pos, rot);
-            player.UpdateAnimation(data.animationState);
+        }
+    }
+
+    /// <summary>
+    /// Обработать изменение анимации
+    /// </summary>
+    private void OnAnimationChanged(string jsonData)
+    {
+        var data = JsonUtility.FromJson<AnimationChangedEvent>(jsonData);
+
+        // Skip our own updates
+        if (data.socketId == SocketIOClient.Instance.SessionId) return;
+
+        if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer player))
+        {
+            player.UpdateAnimation(data.animation);
         }
     }
 
@@ -253,53 +323,38 @@ public class NetworkSyncManager : MonoBehaviour
     /// </summary>
     private void OnPlayerAttacked(string jsonData)
     {
-        var data = JsonUtility.FromJson<PlayerAttackedData>(jsonData);
-        Debug.Log($"[NetworkSync] Атака: {data.attackerSocketId} -> {data.targetSocketId}, Урон: {data.damage}");
+        var data = JsonUtility.FromJson<PlayerAttackedEvent>(jsonData);
+        Debug.Log($"[NetworkSync] ⚔️ Атака: {data.socketId}, тип: {data.attackType}, цель: {data.targetType} {data.targetId}");
 
-        // Play attack animation on attacker
-        if (networkPlayers.TryGetValue(data.attackerSocketId, out NetworkPlayer attacker))
+        // Play attack animation on attacker (if not us)
+        if (data.socketId != SocketIOClient.Instance.SessionId)
         {
-            attacker.PlayAttackAnimation(data.attackType);
+            if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer attacker))
+            {
+                attacker.PlayAttackAnimation(data.attackType);
+            }
         }
 
-        // Show damage on target
-        if (data.targetSocketId == SimpleWebSocketClient.Instance.SessionId)
+        // If target is a player and it's us, apply damage
+        if (data.targetType == "player" && data.targetId == SocketIOClient.Instance.SessionId)
         {
-            // We got hit!
+            Debug.Log($"[NetworkSync] 💥 Мы получили урон: {data.damage}");
             ApplyDamageToLocalPlayer(data.damage);
         }
-        else if (networkPlayers.TryGetValue(data.targetSocketId, out NetworkPlayer target))
-        {
-            target.ShowDamage(data.damage);
-        }
     }
 
     /// <summary>
-    /// Обработать использование скилла
+    /// Обработать обновление здоровья игрока
     /// </summary>
-    private void OnSkillUsed(string jsonData)
+    private void OnHealthChanged(string jsonData)
     {
-        var data = JsonUtility.FromJson<SkillUsedData>(jsonData);
-        Debug.Log($"[NetworkSync] Скилл использован: {data.socketId}, Skill ID: {data.skillId}");
+        var data = JsonUtility.FromJson<HealthChangedEvent>(jsonData);
+        Debug.Log($"[NetworkSync] 💔 Здоровье игрока {data.socketId}: {data.currentHealth}/{data.maxHealth}");
 
         if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer player))
         {
-            player.PlayAttackAnimation("skill");
-        }
-
-        // TODO: Spawn skill visual effects
-    }
-
-    /// <summary>
-    /// Обработать обновление здоровья
-    /// </summary>
-    private void OnHealthUpdate(string jsonData)
-    {
-        var data = JsonUtility.FromJson<HealthUpdateEventData>(jsonData);
-
-        if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer player))
-        {
-            player.UpdateHealth(data.currentHP, data.maxHP, data.currentMP, data.maxMP);
+            player.ShowDamage(data.damage);
+            // TODO: Update health bar
         }
     }
 
@@ -308,17 +363,18 @@ public class NetworkSyncManager : MonoBehaviour
     /// </summary>
     private void OnPlayerDied(string jsonData)
     {
-        var data = JsonUtility.FromJson<PlayerDiedData>(jsonData);
-        Debug.Log($"[NetworkSync] Игрок погиб: {data.deadPlayerSocketId}, Убийца: {data.killerSocketId}");
+        var data = JsonUtility.FromJson<PlayerDiedEvent>(jsonData);
+        Debug.Log($"[NetworkSync] ☠️ Игрок погиб: {data.socketId}, Убийца: {data.killerId}");
 
-        if (data.deadPlayerSocketId == SimpleWebSocketClient.Instance.SessionId)
+        if (data.socketId == SocketIOClient.Instance.SessionId)
         {
             // We died!
             OnLocalPlayerDied();
         }
-        else if (networkPlayers.TryGetValue(data.deadPlayerSocketId, out NetworkPlayer player))
+        else if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer player))
         {
-            player.UpdateHealth(0, player.MaxHP, player.CurrentMP, player.MaxMP);
+            // Play death animation
+            player.UpdateAnimation("Dead");
         }
     }
 
@@ -327,77 +383,59 @@ public class NetworkSyncManager : MonoBehaviour
     /// </summary>
     private void OnPlayerRespawned(string jsonData)
     {
-        var data = JsonUtility.FromJson<PlayerRespawnedData>(jsonData);
-        Debug.Log($"[NetworkSync] Игрок возродился: {data.socketId}");
+        var data = JsonUtility.FromJson<PlayerRespawnedEvent>(jsonData);
+        Debug.Log($"[NetworkSync] 🔄 Игрок возродился: {data.socketId}");
 
         if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer player))
         {
-            Vector3 spawnPos = new Vector3(data.spawnX, data.spawnY, data.spawnZ);
+            Vector3 spawnPos = new Vector3(data.position.x, data.position.y, data.position.z);
             player.OnRespawn(spawnPos);
         }
     }
 
     /// <summary>
-    /// Обработать полное состояние комнаты (список всех игроков)
+    /// Обработать изменение здоровья врага
     /// </summary>
-    private void OnRoomState(string jsonData)
+    private void OnEnemyHealthChanged(string jsonData)
     {
-        Debug.Log($"[NetworkSync] 📦 OnRoomState called. JSON: {jsonData}");
+        var data = JsonUtility.FromJson<EnemyHealthChangedEvent>(jsonData);
+        Debug.Log($"[NetworkSync] 🐺 Враг {data.enemyId} получил урон: {data.damage}, здоровье: {data.currentHealth}");
 
-        try
-        {
-            var data = JsonUtility.FromJson<RoomStateData>(jsonData);
-
-            if (data == null || data.players == null)
-            {
-                Debug.LogError("[NetworkSync] ❌ Failed to parse RoomStateData or players is null");
-                return;
-            }
-
-            Debug.Log($"[NetworkSync] Получено состояние комнаты: {data.players.Length} игроков");
-
-            // Log our session ID
-            string mySessionId = SimpleWebSocketClient.Instance != null ? SimpleWebSocketClient.Instance.SessionId : "NULL";
-            Debug.Log($"[NetworkSync] My sessionId: {mySessionId}");
-
-            // Spawn all existing players
-            foreach (var playerData in data.players)
-            {
-                Debug.Log($"[NetworkSync] Player in room: {playerData.username} (socketId: {playerData.socketId}, class: {playerData.characterClass})");
-
-                // Skip ourselves
-                if (playerData.socketId == mySessionId)
-                {
-                    Debug.Log($"[NetworkSync] ⏭️ Skipping ourselves: {playerData.username}");
-                    continue;
-                }
-
-                // Spawn if not already exists
-                if (!networkPlayers.ContainsKey(playerData.socketId))
-                {
-                    Debug.Log($"[NetworkSync] 🎭 Spawning network player: {playerData.username}");
-                    SpawnNetworkPlayer(playerData.socketId, playerData.username, playerData.characterClass, playerData.position);
-                }
-                else
-                {
-                    Debug.Log($"[NetworkSync] ✓ Player already spawned: {playerData.username}");
-                }
-            }
-
-            Debug.Log($"[NetworkSync] 📊 Total network players: {networkPlayers.Count}");
-        }
-        catch (Exception ex)
-        {
-            Debug.LogError($"[NetworkSync] ❌ Error in OnRoomState: {ex.Message}\n{ex.StackTrace}");
-        }
+        // TODO: Find enemy by ID and update its health
+        // This will be implemented when we have enemy manager
     }
+
+    /// <summary>
+    /// Обработать смерть врага
+    /// </summary>
+    private void OnEnemyDied(string jsonData)
+    {
+        var data = JsonUtility.FromJson<EnemyDiedEvent>(jsonData);
+        Debug.Log($"[NetworkSync] 💀 Враг {data.enemyId} убит игроком {data.killerUsername}");
+
+        // TODO: Find enemy by ID and play death animation
+        // This will be implemented when we have enemy manager
+    }
+
+    /// <summary>
+    /// Обработать респавн врага
+    /// </summary>
+    private void OnEnemyRespawned(string jsonData)
+    {
+        var data = JsonUtility.FromJson<EnemyRespawnedEvent>(jsonData);
+        Debug.Log($"[NetworkSync] 🔄 Враг {data.enemyId} ({data.enemyType}) возродился");
+
+        // TODO: Respawn enemy at position
+        // This will be implemented when we have enemy manager
+    }
+
 
     // ===== NETWORK PLAYER MANAGEMENT =====
 
     /// <summary>
     /// Создать сетевого игрока
     /// </summary>
-    private void SpawnNetworkPlayer(string socketId, string username, string characterClass, PositionData position)
+    private void SpawnNetworkPlayer(string socketId, string username, string characterClass, Vector3 position)
     {
         GameObject prefab = GetCharacterPrefab(characterClass);
         if (prefab == null)
@@ -406,8 +444,7 @@ public class NetworkSyncManager : MonoBehaviour
             return;
         }
 
-        Vector3 spawnPos = new Vector3(position.x, position.y, position.z);
-        GameObject playerObj = Instantiate(prefab, spawnPos, Quaternion.identity);
+        GameObject playerObj = Instantiate(prefab, position, Quaternion.identity);
         playerObj.name = $"NetworkPlayer_{username}";
 
         // Add NetworkPlayer component
@@ -492,7 +529,14 @@ public class NetworkSyncManager : MonoBehaviour
     /// </summary>
     private void RequestRespawn()
     {
-        SimpleWebSocketClient.Instance.RequestRespawn();
+        if (localPlayer != null && spawnPoints != null && spawnPoints.Length > 0)
+        {
+            // Choose random spawn point
+            Transform spawnPoint = spawnPoints[UnityEngine.Random.Range(0, spawnPoints.Length)];
+            Vector3 spawnPos = spawnPoint != null ? spawnPoint.position : Vector3.zero;
+
+            SocketIOClient.Instance.SendRespawn(spawnPos);
+        }
     }
 
     /// <summary>
@@ -514,123 +558,198 @@ public class NetworkSyncManager : MonoBehaviour
     void OnDestroy()
     {
         // Unsubscribe from events
-        if (SimpleWebSocketClient.Instance != null)
+        if (SocketIOClient.Instance != null)
         {
-            SimpleWebSocketClient.Instance.Off("player_joined");
-            SimpleWebSocketClient.Instance.Off("player_left");
-            SimpleWebSocketClient.Instance.Off("position_update");
-            SimpleWebSocketClient.Instance.Off("player_attacked");
-            SimpleWebSocketClient.Instance.Off("skill_used");
-            SimpleWebSocketClient.Instance.Off("health_update");
-            SimpleWebSocketClient.Instance.Off("player_died");
-            SimpleWebSocketClient.Instance.Off("player_respawned");
-            SimpleWebSocketClient.Instance.Off("room_state");
+            SocketIOClient.Instance.Off("room_players");
+            SocketIOClient.Instance.Off("player_joined");
+            SocketIOClient.Instance.Off("player_left");
+            SocketIOClient.Instance.Off("player_moved");
+            SocketIOClient.Instance.Off("player_animation_changed");
+            SocketIOClient.Instance.Off("player_attacked");
+            SocketIOClient.Instance.Off("player_health_changed");
+            SocketIOClient.Instance.Off("player_died");
+            SocketIOClient.Instance.Off("player_respawned");
+            SocketIOClient.Instance.Off("enemy_health_changed");
+            SocketIOClient.Instance.Off("enemy_died");
+            SocketIOClient.Instance.Off("enemy_respawned");
         }
     }
 }
 
-// ===== EVENT DATA CLASSES =====
+// ===== EVENT DATA CLASSES (matching multiplayer.js server) =====
+
+/// <summary>
+/// Response when joining a room (room_players event)
+/// </summary>
+[Serializable]
+public class RoomPlayersResponse
+{
+    public RoomPlayerInfo[] players;
+    public string yourSocketId;
+}
 
 [Serializable]
-public class PlayerJoinedData
+public class RoomPlayerInfo
 {
     public string socketId;
     public string username;
     public string characterClass;
-    public PositionData position;
+    public Vector3Data position;
+    public Vector3Data rotation;
+    public string animation;
+    public float health;
+    public float maxHealth;
 }
 
+/// <summary>
+/// Player joined event
+/// </summary>
 [Serializable]
-public class PlayerLeftData
+public class PlayerJoinedEvent
 {
     public string socketId;
+    public string username;
+    public string characterClass;
+    public Vector3Data position;
+    public Vector3Data rotation;
 }
 
+/// <summary>
+/// Player left event
+/// </summary>
 [Serializable]
-public class PositionUpdateEventData
+public class PlayerLeftEvent
 {
     public string socketId;
-    public float x;
-    public float y;
-    public float z;
-    public float rotationY;
-    public string animationState;
+    public string username;
 }
 
+/// <summary>
+/// Player moved event
+/// </summary>
 [Serializable]
-public class PlayerAttackedData
+public class PlayerMovedEvent
 {
-    public string attackerSocketId;
-    public string targetSocketId;
-    public float damage;
+    public string socketId;
+    public Vector3Data position;
+    public Vector3Data rotation;
+    public Vector3Data velocity;
+    public bool isGrounded;
+    public long timestamp;
+}
+
+/// <summary>
+/// Animation changed event
+/// </summary>
+[Serializable]
+public class AnimationChangedEvent
+{
+    public string socketId;
+    public string animation;
+    public float speed;
+    public long timestamp;
+}
+
+/// <summary>
+/// Player attacked event
+/// </summary>
+[Serializable]
+public class PlayerAttackedEvent
+{
+    public string socketId;
     public string attackType;
-}
-
-[Serializable]
-public class SkillUsedData
-{
-    public string socketId;
+    public string targetType;
+    public string targetId;
+    public float damage;
+    public Vector3Data position;
+    public Vector3Data direction;
     public int skillId;
-    public string targetSocketId;
-    public float targetX;
-    public float targetY;
-    public float targetZ;
+    public long timestamp;
 }
 
+/// <summary>
+/// Player health changed event
+/// </summary>
 [Serializable]
-public class HealthUpdateEventData
+public class HealthChangedEvent
 {
     public string socketId;
-    public int currentHP;
-    public int maxHP;
-    public int currentMP;
-    public int maxMP;
+    public float damage;
+    public float currentHealth;
+    public float maxHealth;
+    public string attackerId;
+    public long timestamp;
 }
 
+/// <summary>
+/// Player died event
+/// </summary>
 [Serializable]
-public class PlayerDiedData
-{
-    public string deadPlayerSocketId;
-    public string killerSocketId;
-}
-
-[Serializable]
-public class PlayerRespawnedData
+public class PlayerDiedEvent
 {
     public string socketId;
-    public float spawnX;
-    public float spawnY;
-    public float spawnZ;
+    public string killerId;
+    public long timestamp;
 }
 
+/// <summary>
+/// Player respawned event
+/// </summary>
 [Serializable]
-public class RoomStateData
-{
-    public RoomPlayerData[] players;
-}
-
-[Serializable]
-public class RoomPlayerData
+public class PlayerRespawnedEvent
 {
     public string socketId;
-    public string username;
-    public string characterClass;
-    public PositionData position;
-    public HealthData health;
-    public HealthData mana;
+    public Vector3Data position;
+    public float health;
+    public long timestamp;
 }
 
+/// <summary>
+/// Enemy health changed event
+/// </summary>
 [Serializable]
-public class PositionData
+public class EnemyHealthChangedEvent
+{
+    public string enemyId;
+    public float damage;
+    public float currentHealth;
+    public string attackerId;
+    public long timestamp;
+}
+
+/// <summary>
+/// Enemy died event
+/// </summary>
+[Serializable]
+public class EnemyDiedEvent
+{
+    public string enemyId;
+    public string killerId;
+    public string killerUsername;
+    public Vector3Data position;
+    public long timestamp;
+}
+
+/// <summary>
+/// Enemy respawned event
+/// </summary>
+[Serializable]
+public class EnemyRespawnedEvent
+{
+    public string enemyId;
+    public string enemyType;
+    public Vector3Data position;
+    public float health;
+    public long timestamp;
+}
+
+/// <summary>
+/// Vector3 serializable for JSON
+/// </summary>
+[Serializable]
+public class Vector3Data
 {
     public float x;
     public float y;
     public float z;
-}
-
-[Serializable]
-public class HealthData
-{
-    public int current;
-    public int max;
 }

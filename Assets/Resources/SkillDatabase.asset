@@ -1,0 +1,49 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9fa05b4f099b55e489c87ef3c2051466, type: 3}
+  m_Name: SkillDatabase
+  m_EditorClassIdentifier: 
+  warriorSkills:
+  - {fileID: 11400000, guid: fb728b272f6d9f146b638e988a389e8b, type: 2}
+  - {fileID: 11400000, guid: 4359e571ca0fd77409ca3f3c57b506ff, type: 2}
+  - {fileID: 11400000, guid: 6d0093167a676974e9d98aaef49ee81a, type: 2}
+  - {fileID: 11400000, guid: e83f000a771a43f4b849c999f7e9ec7f, type: 2}
+  - {fileID: 11400000, guid: b6108cb3dfc96d84ca873acc5ef55d4b, type: 2}
+  - {fileID: 11400000, guid: 751d1f03a1cdd2a40aa9c0d0000e1169, type: 2}
+  mageSkills:
+  - {fileID: 11400000, guid: 4401c50939fe90c44a7ca100f0be7f31, type: 2}
+  - {fileID: 11400000, guid: 8c7bf5b0c06a31a4da210ecc2717c4fa, type: 2}
+  - {fileID: 11400000, guid: 6a30bfe1503fe4b4eb8cc93d5c90c43a, type: 2}
+  - {fileID: 11400000, guid: dbfb42e476f505e478fe2eddb0fa55d3, type: 2}
+  - {fileID: 11400000, guid: 0a5f54387a354dc4cb89bea9c5ebbe3e, type: 2}
+  - {fileID: 11400000, guid: a59d57c2a4e4d064ab8321b2491f7466, type: 2}
+  archerSkills:
+  - {fileID: 11400000, guid: 7df3890461aefde4d89c948c6a3afd86, type: 2}
+  - {fileID: 11400000, guid: 5bf1090e632ff4344b501ee098c8b8e6, type: 2}
+  - {fileID: 11400000, guid: 74367d7b016c4224989a3e888ea4760e, type: 2}
+  - {fileID: 11400000, guid: 4aaf7e6465c459e4e8d5c44b90bfdddc, type: 2}
+  - {fileID: 11400000, guid: 41aee00f79eeca44bb385c9909d4ed65, type: 2}
+  - {fileID: 11400000, guid: 8fba490440d287944ac90197cad525ae, type: 2}
+  rogueSkills:
+  - {fileID: 11400000, guid: 2dcc1e2aeff11cd418a3fbbcb3499314, type: 2}
+  - {fileID: 11400000, guid: f129a0284852e774db8c2b873d3ec438, type: 2}
+  - {fileID: 11400000, guid: 571bafe4f25103f4ebbc17c7711ce49c, type: 2}
+  - {fileID: 11400000, guid: d10e0befed9b4e843858eba6d772387d, type: 2}
+  - {fileID: 11400000, guid: 00b3e34e29f3aed41ba874bbc1bd1f98, type: 2}
+  - {fileID: 11400000, guid: 849ce2c380e3d6a43bf43d085efa4fea, type: 2}
+  paladinSkills:
+  - {fileID: 11400000, guid: 225389d4bb026444886762d8ddb01d56, type: 2}
+  - {fileID: 11400000, guid: 4c40053310bd2fb4cb0126114a254b50, type: 2}
+  - {fileID: 11400000, guid: 5bed6d2446b33124ba000f06bc7790ab, type: 2}
+  - {fileID: 11400000, guid: 5d8522f92abfa9743a73f4940c4d7916, type: 2}
+  - {fileID: 11400000, guid: c7709f708fa8f6b46b8ffb5e8076552e, type: 2}
+  - {fileID: 11400000, guid: e01d36107a47ac945aa68c1820d40dd6, type: 2}

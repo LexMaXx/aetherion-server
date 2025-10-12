@@ -68,7 +68,7 @@ public class NetworkCombatSync : MonoBehaviour
     /// </summary>
     public void SendAttack(GameObject target, float damage, string attackType)
     {
-        if (!enableSync || !isMultiplayer || WebSocketClient.Instance == null)
+        if (!enableSync || !isMultiplayer || SimpleWebSocketClient.Instance == null)
             return;
 
         // Получаем socketId цели (если это NetworkPlayer)
@@ -80,7 +80,7 @@ public class NetworkCombatSync : MonoBehaviour
         }
 
         // Отправляем на сервер
-        WebSocketClient.Instance.SendAttack(targetSocketId, damage, attackType);
+        SimpleWebSocketClient.Instance.SendAttack(targetSocketId, damage, attackType);
 
         Debug.Log($"[NetworkCombatSync] ⚔️ Атака отправлена на сервер: {damage} урона, тип: {attackType}");
     }
@@ -90,7 +90,7 @@ public class NetworkCombatSync : MonoBehaviour
     /// </summary>
     public void SendSkill(int skillId, GameObject target, Vector3 targetPosition)
     {
-        if (!enableSync || !isMultiplayer || WebSocketClient.Instance == null)
+        if (!enableSync || !isMultiplayer || SimpleWebSocketClient.Instance == null)
             return;
 
         string targetSocketId = "";
@@ -100,7 +100,7 @@ public class NetworkCombatSync : MonoBehaviour
             targetSocketId = networkTarget.socketId;
         }
 
-        WebSocketClient.Instance.SendSkill(skillId, targetSocketId, targetPosition);
+        SimpleWebSocketClient.Instance.SendSkill(skillId, targetSocketId, targetPosition);
 
         Debug.Log($"[NetworkCombatSync] 🔮 Скилл {skillId} отправлен на сервер");
     }
@@ -110,21 +110,21 @@ public class NetworkCombatSync : MonoBehaviour
     /// </summary>
     private void SyncHealth()
     {
-        if (WebSocketClient.Instance == null || !WebSocketClient.Instance.IsConnected)
+        if (SimpleWebSocketClient.Instance == null || !SimpleWebSocketClient.Instance.IsConnected)
             return;
 
-        int currentHP = healthSystem != null ? healthSystem.CurrentHealth : 0;
-        int maxHP = healthSystem != null ? healthSystem.MaxHealth : 100;
-        int currentMP = manaSystem != null ? manaSystem.CurrentMana : 0;
-        int maxMP = manaSystem != null ? manaSystem.MaxMana : 100;
+        int currentHP = healthSystem != null ? (int)healthSystem.CurrentHealth : 0;
+        int maxHP = healthSystem != null ? (int)healthSystem.MaxHealth : 100;
+        int currentMP = manaSystem != null ? (int)manaSystem.CurrentMana : 0;
+        int maxMP = manaSystem != null ? (int)manaSystem.MaxMana : 100;
 
-        WebSocketClient.Instance.UpdateHealth(currentHP, maxHP, currentMP, maxMP);
+        SimpleWebSocketClient.Instance.UpdateHealth(currentHP, maxHP, currentMP, maxMP);
     }
 
     /// <summary>
     /// Обработчик изменения здоровья
     /// </summary>
-    private void OnHealthChanged(int current, int max)
+    private void OnHealthChanged(float current, float max)
     {
         // Синхронизируем немедленно при получении урона
         SyncHealth();
@@ -133,7 +133,7 @@ public class NetworkCombatSync : MonoBehaviour
     /// <summary>
     /// Обработчик изменения маны
     /// </summary>
-    private void OnManaChanged(int current, int max)
+    private void OnManaChanged(float current, float max)
     {
         // Синхронизируем немедленно при использовании маны
         SyncHealth();

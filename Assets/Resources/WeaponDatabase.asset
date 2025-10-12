@@ -1,0 +1,56 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 32dd642beb1e6d4439672d13b983ed48, type: 3}
+  m_Name: WeaponDatabase
+  m_EditorClassIdentifier: 
+  warriorSword:
+    weaponName: Warrior Sword
+    weaponPrefab: {fileID: 321253519508970128, guid: cf103794b52c71540b68789dc940e1b1, type: 3}
+    defaultPosition: {x: 0.04, y: 0.39, z: 0}
+    defaultRotation: {x: -0, y: 0, z: 180}
+    defaultScale: {x: 80, y: 50, z: 80}
+  warriorShield:
+    weaponName: Warrior Shield
+    weaponPrefab: {fileID: 180432627533569807, guid: c1f3548dcb56ee04e893b0609f71e316, type: 3}
+    defaultPosition: {x: 0, y: 0.08, z: 0}
+    defaultRotation: {x: 346.9, y: 21.1, z: 142.3}
+    defaultScale: {x: 40, y: 40, z: 40}
+  mageStaff:
+    weaponName: Mage Staff
+    weaponPrefab: {fileID: 8944625101222119398, guid: 31cee0b49e10df24cab909dfd6301b71, type: 3}
+    defaultPosition: {x: 0.06, y: 0.1, z: 0}
+    defaultRotation: {x: 280.99997, y: 9.440002, z: 183.4}
+    defaultScale: {x: 100, y: 100, z: 100}
+  archerBow:
+    weaponName: Archer Bow
+    weaponPrefab: {fileID: 6346919630486496568, guid: fcfacdc3f5c70e941ae72a2a167d318a, type: 3}
+    defaultPosition: {x: -0.2, y: -0.04, z: -0.08}
+    defaultRotation: {x: 307.2, y: 325.6, z: 25.1}
+    defaultScale: {x: 60, y: 60, z: 60}
+  archerQuiver:
+    weaponName: Archer Quiver
+    weaponPrefab: {fileID: 4655863506532008451, guid: cba613bf6f6bf7b42af7064161b8c499, type: 3}
+    defaultPosition: {x: 0.12, y: 0.04, z: -0.2}
+    defaultRotation: {x: 0, y: 0, z: 337.47}
+    defaultScale: {x: 30, y: 30, z: 30}
+  rogueDagger:
+    weaponName: Rogue Dagger
+    weaponPrefab: {fileID: 5950656817913648168, guid: 2dc973d9d2320d64b9e9cec6a9fcf138, type: 3}
+    defaultPosition: {x: -0.31, y: 0.1, z: 0.12}
+    defaultRotation: {x: 52.200005, y: 17.430002, z: 132.4}
+    defaultScale: {x: 100, y: 100, z: 100}
+  paladinSword:
+    weaponName: Paladin Sword
+    weaponPrefab: {fileID: 9034547919633976785, guid: 0afac9350be44b747a57528df5eeaf21, type: 3}
+    defaultPosition: {x: -0.67, y: 0.23, z: 0.28}
+    defaultRotation: {x: 353.24, y: 22.899998, z: 84.6}
+    defaultScale: {x: 100, y: 100, z: 100}

@@ -1,0 +1,565 @@
+using UnityEngine;
+using System.Collections.Generic;
+
+/// <summary>
+/// Менеджер скиллов персонажа (загружается в Arena)
+/// Управляет активными скиллами, кулдаунами и эффектами
+/// </summary>
+public class SkillManager : MonoBehaviour
+{
+    [Header("Активные скиллы (загружаются из Character Selection)")]
+    public List<SkillData> equippedSkills = new List<SkillData>(3); // Максимум 3 скилла
+
+    [Header("Все доступные скиллы класса")]
+    public List<SkillData> allAvailableSkills = new List<SkillData>(6); // До 6 скиллов на класс
+
+    [Header("Компоненты")]
+    private CharacterStats characterStats;
+    private ManaSystem manaSystem;
+    private HealthSystem healthSystem;
+    private Animator animator;
+
+    // Кулдауны скиллов (skillId -> оставшееся время)
+    private Dictionary<int, float> skillCooldowns = new Dictionary<int, float>();
+
+    // Активные эффекты на персонаже
+    private List<ActiveEffect> activeEffects = new List<ActiveEffect>();
+
+    // События
+    public delegate void SkillUsedHandler(SkillData skill);
+    public event SkillUsedHandler OnSkillUsed;
+
+    public delegate void EffectAppliedHandler(SkillEffect effect);
+    public event EffectAppliedHandler OnEffectApplied;
+
+    // Призванные существа (для Rogue)
+    private List<GameObject> summonedCreatures = new List<GameObject>();
+
+    // Трансформация (для Paladin)
+    private GameObject transformationInstance;
+    private GameObject originalModel;
+    private bool isTransformed = false;
+    private float transformationHPBonus = 0f; // Сохраняем бонус HP для удаления
+
+    void Start()
+    {
+        characterStats = GetComponent<CharacterStats>();
+        manaSystem = GetComponent<ManaSystem>();
+        healthSystem = GetComponent<HealthSystem>();
+        animator = GetComponent<Animator>();
+
+        Debug.Log($"[SkillManager] Инициализирован. Экипировано скиллов: {equippedSkills.Count}");
+    }
+
+    void Update()
+    {
+        // Обновляем кулдауны
+        UpdateCooldowns();
+
+        // Обновляем активные эффекты
+        UpdateActiveEffects();
+    }
+
+    /// <summary>
+    /// Загрузить скиллы из Character Selection (вызывается при загрузке персонажа)
+    /// </summary>
+    public void LoadEquippedSkills(List<int> skillIds)
+    {
+        equippedSkills.Clear();
+
+        foreach (int skillId in skillIds)
+        {
+            SkillData skill = GetSkillById(skillId);
+            if (skill != null)
+            {
+                equippedSkills.Add(skill);
+                Debug.Log($"[SkillManager] Загружен скилл: {skill.skillName}");
+            }
+        }
+
+        Debug.Log($"[SkillManager] ✅ Загружено {equippedSkills.Count} скиллов");
+    }
+
+    /// <summary>
+    /// Использовать скилл по индексу (0-2)
+    /// </summary>
+    public bool UseSkill(int skillIndex, Transform target = null)
+    {
+        if (skillIndex < 0 || skillIndex >= equippedSkills.Count)
+        {
+            Debug.LogWarning($"[SkillManager] Некорректный индекс скилла: {skillIndex}");
+            return false;
+        }
+
+        SkillData skill = equippedSkills[skillIndex];
+        return UseSkill(skill, target);
+    }
+
+    /// <summary>
+    /// Использовать скилл
+    /// </summary>
+    public bool UseSkill(SkillData skill, Transform target = null)
+    {
+        if (skill == null) return false;
+
+        // Проверка контроля (стан, молчание и т.д.)
+        if (IsUnderCrowdControl())
+        {
+            Debug.Log("[SkillManager] ❌ Не могу использовать скилл - персонаж под контролем!");
+            return false;
+        }
+
+        // Проверка возможности использования
+        float currentCooldown = GetCooldown(skill.skillId);
+        if (!skill.CanUse(characterStats, manaSystem, currentCooldown))
+        {
+            Debug.Log($"[SkillManager] ❌ Скилл {skill.skillName} недоступен (кулдаун: {currentCooldown:F1}с)");
+            return false;
+        }
+
+        // Проверка цели
+        if (skill.requiresTarget && target == null)
+        {
+            Debug.Log($"[SkillManager] ❌ Скилл {skill.skillName} требует цель!");
+            return false;
+        }
+
+        // Проверка дальности
+        if (target != null && Vector3.Distance(transform.position, target.position) > skill.castRange)
+        {
+            Debug.Log($"[SkillManager] ❌ Цель слишком далеко! ({Vector3.Distance(transform.position, target.position):F1}м > {skill.castRange}м)");
+            return false;
+        }
+
+        // Тратим ману
+        if (manaSystem != null)
+        {
+            manaSystem.SpendMana(skill.manaCost);
+        }
+
+        // Запускаем кулдаун
+        skillCooldowns[skill.skillId] = skill.cooldown;
+
+        // Проигрываем анимацию
+        if (animator != null && !string.IsNullOrEmpty(skill.animationTrigger))
+        {
+            animator.SetTrigger(skill.animationTrigger);
+        }
+
+        // Проигрываем звук каста
+        if (skill.castSound != null)
+        {
+            AudioSource.PlayClipAtPoint(skill.castSound, transform.position);
+        }
+
+        // Выполняем скилл в зависимости от типа
+        ExecuteSkill(skill, target);
+
+        // Событие
+        OnSkillUsed?.Invoke(skill);
+
+        Debug.Log($"[SkillManager] ⚡ Использован скилл: {skill.skillName}");
+        return true;
+    }
+
+    /// <summary>
+    /// Выполнить скилл
+    /// </summary>
+    private void ExecuteSkill(SkillData skill, Transform target)
+    {
+        switch (skill.skillType)
+        {
+            case SkillType.Damage:
+                ExecuteDamageSkill(skill, target);
+                break;
+
+            case SkillType.Heal:
+                ExecuteHealSkill(skill, target);
+                break;
+
+            case SkillType.Buff:
+            case SkillType.Debuff:
+            case SkillType.CrowdControl:
+                ExecuteEffectSkill(skill, target);
+                break;
+
+            case SkillType.Summon:
+                ExecuteSummonSkill(skill);
+                break;
+
+            case SkillType.Transformation:
+                ExecuteTransformationSkill(skill);
+                break;
+
+            case SkillType.Ressurect:
+                ExecuteRessurectSkill(skill, target);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Скилл урона
+    /// </summary>
+    private void ExecuteDamageSkill(SkillData skill, Transform target)
+    {
+        float damage = skill.CalculateDamage(characterStats);
+
+        // AOE урон
+        if (skill.aoeRadius > 0f)
+        {
+            Vector3 center = target != null ? target.position : transform.position;
+            Collider[] hits = Physics.OverlapSphere(center, skill.aoeRadius);
+
+            int hitCount = 0;
+            foreach (Collider hit in hits)
+            {
+                if (hitCount >= skill.maxTargets) break;
+
+                Enemy enemy = hit.GetComponent<Enemy>();
+                if (enemy != null)
+                {
+                    enemy.TakeDamage(damage);
+                    hitCount++;
+
+                    // Визуальный эффект
+                    if (skill.visualEffectPrefab != null)
+                    {
+                        Instantiate(skill.visualEffectPrefab, hit.transform.position, Quaternion.identity);
+                    }
+                }
+            }
+
+            Debug.Log($"[SkillManager] 💥 AOE урон: {damage} по {hitCount} целям");
+        }
+        // Одиночный урон
+        else if (target != null)
+        {
+            Enemy enemy = target.GetComponent<Enemy>();
+            if (enemy != null)
+            {
+                enemy.TakeDamage(damage);
+
+                // Визуальный эффект
+                if (skill.visualEffectPrefab != null)
+                {
+                    Instantiate(skill.visualEffectPrefab, target.position, Quaternion.identity);
+                }
+
+                Debug.Log($"[SkillManager] 💥 Урон: {damage}");
+            }
+        }
+
+        // Снаряд
+        if (skill.projectilePrefab != null && target != null)
+        {
+            GameObject projectile = Instantiate(skill.projectilePrefab, transform.position + Vector3.up, Quaternion.identity);
+            Projectile proj = projectile.GetComponent<Projectile>();
+            if (proj != null)
+            {
+                Vector3 direction = (target.position - transform.position).normalized;
+                proj.Initialize(target, damage, direction);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Скилл лечения
+    /// </summary>
+    private void ExecuteHealSkill(SkillData skill, Transform target)
+    {
+        float healAmount = skill.CalculateDamage(characterStats);
+
+        // Лечим цель
+        Transform healTarget = target != null ? target : transform;
+        HealthSystem targetHealth = healTarget.GetComponent<HealthSystem>();
+
+        if (targetHealth != null)
+        {
+            targetHealth.Heal(healAmount);
+
+            // Визуальный эффект
+            if (skill.visualEffectPrefab != null)
+            {
+                Instantiate(skill.visualEffectPrefab, healTarget.position, Quaternion.identity);
+            }
+
+            Debug.Log($"[SkillManager] 💚 Лечение: {healAmount} HP");
+        }
+    }
+
+    /// <summary>
+    /// Скилл с эффектами (баф/дебаф/контроль)
+    /// </summary>
+    private void ExecuteEffectSkill(SkillData skill, Transform target)
+    {
+        Transform effectTarget = target != null ? target : transform;
+
+        // Применяем все эффекты скилла
+        foreach (SkillEffect effect in skill.effects)
+        {
+            ApplyEffect(effect, effectTarget);
+        }
+
+        Debug.Log($"[SkillManager] ✨ Применено эффектов: {skill.effects.Count}");
+    }
+
+    /// <summary>
+    /// Скилл призыва (Rogue - скелеты)
+    /// </summary>
+    private void ExecuteSummonSkill(SkillData skill)
+    {
+        if (skill.summonPrefab == null)
+        {
+            Debug.LogWarning("[SkillManager] Нет префаба для призыва!");
+            return;
+        }
+
+        // Очищаем старых призванных
+        ClearSummons();
+
+        // Призываем существ
+        for (int i = 0; i < skill.summonCount; i++)
+        {
+            Vector3 spawnPos = transform.position + transform.forward * 2f + transform.right * (i - skill.summonCount / 2) * 1.5f;
+            GameObject summon = Instantiate(skill.summonPrefab, spawnPos, Quaternion.identity);
+
+            // Настраиваем призванное существо
+            SummonedCreature creature = summon.GetComponent<SummonedCreature>();
+            if (creature == null)
+            {
+                creature = summon.AddComponent<SummonedCreature>();
+            }
+            creature.Initialize(transform, skill.summonDuration);
+
+            summonedCreatures.Add(summon);
+        }
+
+        Debug.Log($"[SkillManager] 👻 Призвано существ: {skill.summonCount}");
+    }
+
+    /// <summary>
+    /// Скилл трансформации (Paladin - медведь)
+    /// </summary>
+    private void ExecuteTransformationSkill(SkillData skill)
+    {
+        if (skill.transformationModel == null)
+        {
+            Debug.LogWarning("[SkillManager] Нет модели для трансформации!");
+            return;
+        }
+
+        if (isTransformed)
+        {
+            Debug.Log("[SkillManager] Уже трансформирован!");
+            return;
+        }
+
+        // Скрываем оригинальную модель
+        originalModel = GetComponentInChildren<SkinnedMeshRenderer>()?.gameObject;
+        if (originalModel != null)
+        {
+            originalModel.SetActive(false);
+        }
+
+        // Создаём модель трансформации
+        transformationInstance = Instantiate(skill.transformationModel, transform.position, transform.rotation, transform);
+        isTransformed = true;
+
+        // Применяем бонусы
+        if (healthSystem != null && skill.hpBonusPercent > 0f)
+        {
+            transformationHPBonus = healthSystem.MaxHealth * (skill.hpBonusPercent / 100f);
+            healthSystem.AddTemporaryMaxHealth(transformationHPBonus);
+        }
+
+        // TODO: Бонус к атаке (сохраняем в переменную для PlayerAttack)
+
+        // Автоматически отключаем через время
+        Invoke(nameof(EndTransformation), skill.transformationDuration);
+
+        Debug.Log($"[SkillManager] 🐻 Трансформация активирована на {skill.transformationDuration}с!");
+    }
+
+    /// <summary>
+    /// Завершить трансформацию
+    /// </summary>
+    private void EndTransformation()
+    {
+        if (!isTransformed) return;
+
+        if (transformationInstance != null)
+        {
+            Destroy(transformationInstance);
+        }
+
+        if (originalModel != null)
+        {
+            originalModel.SetActive(true);
+        }
+
+        // Убираем бонус HP
+        if (healthSystem != null && transformationHPBonus > 0f)
+        {
+            healthSystem.RemoveTemporaryMaxHealth(transformationHPBonus);
+            transformationHPBonus = 0f;
+        }
+
+        isTransformed = false;
+        Debug.Log("[SkillManager] 🐻 Трансформация завершена");
+    }
+
+    /// <summary>
+    /// Скилл воскрешения
+    /// </summary>
+    private void ExecuteRessurectSkill(SkillData skill, Transform target)
+    {
+        // TODO: Реализовать воскрешение
+        Debug.Log($"[SkillManager] ⚰️ Воскрешение (не реализовано)");
+    }
+
+    /// <summary>
+    /// Применить эффект к цели
+    /// </summary>
+    private void ApplyEffect(SkillEffect effect, Transform target)
+    {
+        if (target == null) return;
+
+        // Для противника
+        Enemy enemy = target.GetComponent<Enemy>();
+        if (enemy != null)
+        {
+            SkillManager enemySkillManager = enemy.GetComponent<SkillManager>();
+            if (enemySkillManager == null)
+            {
+                enemySkillManager = enemy.gameObject.AddComponent<SkillManager>();
+            }
+            enemySkillManager.AddEffect(effect, target);
+        }
+        // Для себя/союзника
+        else
+        {
+            AddEffect(effect, target);
+        }
+
+        OnEffectApplied?.Invoke(effect);
+    }
+
+    /// <summary>
+    /// Добавить эффект
+    /// </summary>
+    public void AddEffect(SkillEffect effect, Transform target)
+    {
+        ActiveEffect activeEffect = new ActiveEffect(effect, target);
+        activeEffects.Add(activeEffect);
+
+        Debug.Log($"[SkillManager] ✨ Добавлен эффект: {effect.effectType} на {effect.duration}с");
+    }
+
+    /// <summary>
+    /// Обновить кулдауны
+    /// </summary>
+    private void UpdateCooldowns()
+    {
+        List<int> keys = new List<int>(skillCooldowns.Keys);
+        foreach (int skillId in keys)
+        {
+            skillCooldowns[skillId] -= Time.deltaTime;
+            if (skillCooldowns[skillId] <= 0f)
+            {
+                skillCooldowns[skillId] = 0f;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Обновить активные эффекты
+    /// </summary>
+    private void UpdateActiveEffects()
+    {
+        for (int i = activeEffects.Count - 1; i >= 0; i--)
+        {
+            bool shouldRemove = activeEffects[i].Update(Time.deltaTime);
+            if (shouldRemove)
+            {
+                activeEffects.RemoveAt(i);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Получить кулдаун скилла
+    /// </summary>
+    public float GetCooldown(int skillId)
+    {
+        return skillCooldowns.ContainsKey(skillId) ? skillCooldowns[skillId] : 0f;
+    }
+
+    /// <summary>
+    /// Проверка контроля
+    /// </summary>
+    public bool IsUnderCrowdControl()
+    {
+        foreach (ActiveEffect effect in activeEffects)
+        {
+            if (effect.isStunned || effect.isSilenced)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Проверка обездвиживания
+    /// </summary>
+    public bool IsRooted()
+    {
+        foreach (ActiveEffect effect in activeEffects)
+        {
+            if (effect.isRooted || effect.isStunned)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Найти скилл по ID
+    /// </summary>
+    private SkillData GetSkillById(int skillId)
+    {
+        foreach (SkillData skill in allAvailableSkills)
+        {
+            if (skill.skillId == skillId)
+            {
+                return skill;
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Очистить призванных существ
+    /// </summary>
+    private void ClearSummons()
+    {
+        foreach (GameObject summon in summonedCreatures)
+        {
+            if (summon != null)
+            {
+                Destroy(summon);
+            }
+        }
+        summonedCreatures.Clear();
+    }
+
+    void OnDestroy()
+    {
+        ClearSummons();
+        if (transformationInstance != null)
+        {
+            Destroy(transformationInstance);
+        }
+    }
+}

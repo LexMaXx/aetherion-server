@@ -1,0 +1,64 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dd893c7153e8c47478a96d52b8dc70f9, type: 3}
+  m_Name: CharacterAttackSettings
+  m_EditorClassIdentifier: 
+  warrior:
+    attackAnimationSpeed: 1
+    attackHitTiming: 0.7
+    attackDamage: 30
+    attackRange: 3
+    attackCooldown: 1
+    isRangedAttack: 0
+    projectileSpeed: 20
+    projectilePrefabName: 
+    attackRotationOffset: 45
+  mage:
+    attackAnimationSpeed: 1
+    attackHitTiming: 0.4
+    attackDamage: 40
+    attackRange: 20
+    attackCooldown: 0.8
+    isRangedAttack: 1
+    projectileSpeed: 20
+    projectilePrefabName: FireballProjectile
+    attackRotationOffset: 0
+  archer:
+    attackAnimationSpeed: 1
+    attackHitTiming: 0.5
+    attackDamage: 35
+    attackRange: 50
+    attackCooldown: 1.2
+    isRangedAttack: 1
+    projectileSpeed: 30
+    projectilePrefabName: ArrowProjectile
+    attackRotationOffset: 0
+  rogue:
+    attackAnimationSpeed: 1
+    attackHitTiming: 0.6
+    attackDamage: 50
+    attackRange: 20
+    attackCooldown: 1
+    isRangedAttack: 1
+    projectileSpeed: 15
+    projectilePrefabName: SoulShardProjectile
+    attackRotationOffset: -30
+  paladin:
+    attackAnimationSpeed: 1
+    attackHitTiming: 0.7
+    attackDamage: 35
+    attackRange: 4
+    attackCooldown: 1.1
+    isRangedAttack: 0
+    projectileSpeed: 20
+    projectilePrefabName: 
+    attackRotationOffset: 0

@@ -376,18 +376,15 @@ public class RoomManager : MonoBehaviour
     {
         string token = PlayerPrefs.GetString("UserToken", "");
 
-        // Connect to SimpleWebSocketClient
-        SimpleWebSocketClient.Instance.Connect(token, (success) =>
+        // Connect to SocketIOClient
+        SocketIOClient.Instance.Connect(token, (success) =>
         {
             if (success)
             {
-                Debug.Log("[RoomManager] 🚀 OptimizedWebSocket подключен, входим в комнату...");
+                Debug.Log("[RoomManager] 🚀 Socket.IO подключен, входим в комнату...");
 
-                // Start listening for messages
-                SimpleWebSocketClient.Instance.StartListening();
-
-                // Join room via WebSocket
-                SimpleWebSocketClient.Instance.JoinRoom(roomId, characterClass, (joined) =>
+                // Join room via Socket.IO
+                SocketIOClient.Instance.JoinRoom(roomId, characterClass, (joined) =>
                 {
                     if (joined)
                     {
@@ -401,14 +398,14 @@ public class RoomManager : MonoBehaviour
                     }
                     else
                     {
-                        Debug.LogError("[RoomManager] ❌ Не удалось войти в комнату через WebSocket");
+                        Debug.LogError("[RoomManager] ❌ Не удалось войти в комнату через Socket.IO");
                         onComplete?.Invoke(false);
                     }
                 });
             }
             else
             {
-                Debug.LogError("[RoomManager] ❌ Не удалось подключиться к WebSocket");
+                Debug.LogError("[RoomManager] ❌ Не удалось подключиться к Socket.IO");
                 onComplete?.Invoke(false);
             }
         });

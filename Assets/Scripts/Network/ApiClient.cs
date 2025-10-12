@@ -19,6 +19,7 @@ public class ApiClient : MonoBehaviour
     private const string LOGIN_ENDPOINT = "/api/auth/login";
     private const string VERIFY_TOKEN_ENDPOINT = "/api/auth/verify";
     private const string GET_CHARACTERS_ENDPOINT = "/api/character";
+    private const string CREATE_CHARACTER_ENDPOINT = "/api/character";
     private const string SELECT_CHARACTER_ENDPOINT = "/api/character/select";
 
     private static ApiClient instance;
@@ -193,20 +194,85 @@ public class ApiClient : MonoBehaviour
     }
 
     /// <summary>
-    /// Выбрать/создать персонажа по классу
+    /// Создать нового персонажа
     /// </summary>
-    public void SelectOrCreateCharacter(string token, CharacterClass characterClass, Action<CharacterResponse> onSuccess, Action<string> onError)
+    public void CreateCharacter(string token, CharacterClass characterClass, Action<CharacterResponse> onSuccess, Action<string> onError)
     {
-        // Отправляем только класс персонажа
-        // Сервер использует userId + characterClass для уникальности
+        // Формируем JSON вручную, так как "class" - зарезервированное слово в C#
+        string className = characterClass.ToString();
+        string json = $"{{\"name\":\"{className}\",\"class\":\"{className}\"}}";
+
+        Debug.Log($"Создание персонажа класса: {characterClass}");
+        Debug.Log($"JSON: {json}");
+        StartCoroutine(PostRequestWithToken(CREATE_CHARACTER_ENDPOINT, token, json, onSuccess, onError));
+    }
+
+    /// <summary>
+    /// Выбрать существующего персонажа по ID
+    /// </summary>
+    public void SelectCharacter(string token, string characterId, Action<CharacterResponse> onSuccess, Action<string> onError)
+    {
         SelectCharacterRequest request = new SelectCharacterRequest
         {
-            characterClass = characterClass.ToString()
+            characterId = characterId
         };
 
         string json = JsonUtility.ToJson(request);
-        Debug.Log($"Отправляем запрос для класса: {characterClass}");
+        Debug.Log($"Выбор персонажа ID: {characterId}");
         StartCoroutine(PostRequestWithToken(SELECT_CHARACTER_ENDPOINT, token, json, onSuccess, onError));
+    }
+
+    /// <summary>
+    /// Выбрать/создать персонажа по классу (умная логика)
+    /// Сначала проверяет список персонажей, если есть - выбирает, если нет - создает
+    /// </summary>
+    public void SelectOrCreateCharacter(string token, CharacterClass characterClass, Action<CharacterResponse> onSuccess, Action<string> onError)
+    {
+        Debug.Log($"SelectOrCreateCharacter для класса: {characterClass}");
+
+        // Сначала получаем список всех персонажей
+        GetCharacters(token,
+            (response) =>
+            {
+                if (response.success && response.characters != null)
+                {
+                    // Ищем персонажа нужного класса
+                    CharacterInfo existingChar = null;
+                    foreach (var character in response.characters)
+                    {
+                        if (character.characterClass == characterClass.ToString())
+                        {
+                            existingChar = character;
+                            break;
+                        }
+                    }
+
+                    if (existingChar != null)
+                    {
+                        // Персонаж существует - выбираем его
+                        Debug.Log($"Персонаж {characterClass} найден (ID: {existingChar.id}), выбираем его");
+                        SelectCharacter(token, existingChar.id, onSuccess, onError);
+                    }
+                    else
+                    {
+                        // Персонажа нет - создаем нового
+                        Debug.Log($"Персонаж {characterClass} не найден, создаем нового");
+                        CreateCharacter(token, characterClass, onSuccess, onError);
+                    }
+                }
+                else
+                {
+                    // Нет персонажей - создаем первого
+                    Debug.Log($"Нет персонажей, создаем первого: {characterClass}");
+                    CreateCharacter(token, characterClass, onSuccess, onError);
+                }
+            },
+            (error) =>
+            {
+                Debug.LogError($"Ошибка получения списка персонажей: {error}");
+                onError?.Invoke(error);
+            }
+        );
     }
 
     /// <summary>

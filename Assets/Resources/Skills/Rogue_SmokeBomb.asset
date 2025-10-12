@@ -1,0 +1,48 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6e79cfd8b12443c408c3d4a9fbdce0c8, type: 3}
+  m_Name: Rogue_SmokeBomb
+  m_EditorClassIdentifier: 
+  skillId: 405
+  skillName: Smoke Bomb
+  description: "\u0414\u044B\u043C\u043E\u0432\u0430\u044F \u0437\u0430\u0432\u0435\u0441\u0430,
+    \u043D\u0435\u0432\u0438\u0434\u0438\u043C\u043E\u0441\u0442\u044C"
+  icon: {fileID: 21300000, guid: ccb1e1a360b9c9d439ac462226901233, type: 3}
+  characterClass: 3
+  cooldown: 20
+  manaCost: 40
+  castRange: 0
+  castTime: 0
+  canUseWhileMoving: 1
+  skillType: 2
+  targetType: 0
+  requiresTarget: 0
+  canTargetAllies: 0
+  canTargetEnemies: 1
+  baseDamageOrHeal: 0
+  intelligenceScaling: 0
+  strengthScaling: 0
+  effects: []
+  aoeRadius: 0
+  maxTargets: 1
+  animationTrigger: 
+  visualEffectPrefab: {fileID: 0}
+  projectilePrefab: {fileID: 0}
+  castSound: {fileID: 0}
+  impactSound: {fileID: 0}
+  summonPrefab: {fileID: 0}
+  summonCount: 1
+  summonDuration: 30
+  transformationModel: {fileID: 0}
+  transformationDuration: 30
+  hpBonusPercent: 0
+  physicalDamageBonusPercent: 0

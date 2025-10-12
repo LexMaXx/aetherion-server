@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c8f3013b03811b54e9ddeb745b1dacbe, type: 3}
+  m_Name: StatsFormulas
+  m_EditorClassIdentifier: 
+  strengthDamageBonus: 5
+  baseVisionRadius: 10
+  perceptionRadiusBonus: 3
+  maxVisionRadius: 40
+  baseHealth: 100
+  enduranceHealthBonus: 20
+  baseMana: 50
+  wisdomManaBonus: 15
+  baseManaRegen: 1
+  wisdomManaRegenBonus: 0.5
+  intelligenceDamageBonus: 5
+  baseActionPoints: 3
+  agilityAPBonus: 0.9
+  maxActionPoints: 12
+  baseAPRegen: 1
+  agilityAPRegenBonus: 0.1
+  agilitySpeedBonus: 0.05
+  baseCritChance: 5
+  luckCritBonus: 3
+  maxCritChance: 35
+  critDamageMultiplier: 2

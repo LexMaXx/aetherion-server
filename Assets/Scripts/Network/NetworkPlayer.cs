@@ -15,6 +15,7 @@ public class NetworkPlayer : MonoBehaviour
     [Header("Components")]
     private Animator animator;
     private CharacterController characterController;
+    private NetworkTransform networkTransform;
 
     [Header("UI")]
     [SerializeField] private GameObject nameplatePrefab;
@@ -45,9 +46,16 @@ public class NetworkPlayer : MonoBehaviour
         animator = GetComponent<Animator>();
         characterController = GetComponent<CharacterController>();
 
+        // Добавляем или получаем NetworkTransform для плавной синхронизации
+        networkTransform = GetComponent<NetworkTransform>();
+        if (networkTransform == null)
+        {
+            networkTransform = gameObject.AddComponent<NetworkTransform>();
+        }
+
         // Disable local player components for network players
-        var playerMovement = GetComponent<PlayerMovement>();
-        if (playerMovement != null) playerMovement.enabled = false;
+        var playerController = GetComponent<PlayerController>();
+        if (playerController != null) playerController.enabled = false;
 
         var playerAttack = GetComponent<PlayerAttack>();
         if (playerAttack != null) playerAttack.enabled = false;
@@ -119,20 +127,36 @@ public class NetworkPlayer : MonoBehaviour
     }
 
     /// <summary>
-    /// Обновить позицию от сервера
+    /// Обновить позицию от сервера (с поддержкой velocity для Dead Reckoning)
     /// </summary>
-    public void UpdatePosition(Vector3 position, Quaternion rotation)
+    public void UpdatePosition(Vector3 position, Quaternion rotation, Vector3 velocity = default, float timestamp = 0f)
     {
-        targetPosition = position;
-        targetRotation = rotation;
-
-        if (!hasReceivedFirstUpdate)
+        if (timestamp == 0f)
         {
-            // First update - teleport
-            transform.position = position;
-            transform.rotation = rotation;
-            hasReceivedFirstUpdate = true;
+            timestamp = Time.time;
         }
+
+        // Используем NetworkTransform для плавной синхронизации
+        if (networkTransform != null)
+        {
+            networkTransform.ReceivePositionUpdate(position, rotation, velocity, timestamp);
+        }
+        else
+        {
+            // Fallback к старому методу если NetworkTransform отсутствует
+            targetPosition = position;
+            targetRotation = rotation;
+
+            if (!hasReceivedFirstUpdate)
+            {
+                // First update - teleport
+                transform.position = position;
+                transform.rotation = rotation;
+                hasReceivedFirstUpdate = true;
+            }
+        }
+
+        hasReceivedFirstUpdate = true;
     }
 
     /// <summary>

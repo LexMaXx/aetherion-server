@@ -1,0 +1,48 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6e79cfd8b12443c408c3d4a9fbdce0c8, type: 3}
+  m_Name: Rogue_ShadowStep
+  m_EditorClassIdentifier: 
+  skillId: 403
+  skillName: Shadow Step
+  description: "\u0422\u0435\u043B\u0435\u043F\u043E\u0440\u0442 \u0437\u0430 \u0441\u043F\u0438\u043D\u0443
+    \u0432\u0440\u0430\u0433\u0430"
+  icon: {fileID: 21300000, guid: 6c2aa742bcadb9f4a9eb50813d4449ed, type: 3}
+  characterClass: 3
+  cooldown: 10
+  manaCost: 25
+  castRange: 10
+  castTime: 0
+  canUseWhileMoving: 1
+  skillType: 7
+  targetType: 1
+  requiresTarget: 1
+  canTargetAllies: 0
+  canTargetEnemies: 1
+  baseDamageOrHeal: 0
+  intelligenceScaling: 0
+  strengthScaling: 0
+  effects: []
+  aoeRadius: 0
+  maxTargets: 1
+  animationTrigger: 
+  visualEffectPrefab: {fileID: 0}
+  projectilePrefab: {fileID: 0}
+  castSound: {fileID: 0}
+  impactSound: {fileID: 0}
+  summonPrefab: {fileID: 0}
+  summonCount: 1
+  summonDuration: 30
+  transformationModel: {fileID: 0}
+  transformationDuration: 30
+  hpBonusPercent: 0
+  physicalDamageBonusPercent: 0
