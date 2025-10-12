@@ -156,14 +156,29 @@ public class SocketIOManager : MonoBehaviour
             try
             {
                 // ВАЖНО: SocketIOResponse содержит массив параметров
-                // Берем первый параметр (индекс 0) и сериализуем его
+                // Используем GetValue() без параметров, затем преобразуем ToString()
                 string jsonData;
 
                 if (response.Count > 0)
                 {
-                    // GetValue(0) получает первый аргумент события
-                    var firstArg = response.GetValue(0);
-                    jsonData = JsonConvert.SerializeObject(firstArg);
+                    // ПРАВИЛЬНЫЙ СПОСОБ: GetValue() возвращает JsonElement, ToString() даёт JSON
+                    var firstArg = response.GetValue();
+
+                    // Логируем тип для отладки
+                    DebugLog($"🔍 Event '{eventName}' firstArg type: {firstArg?.GetType().FullName ?? "null"}");
+
+                    // Если это JsonElement, используем его RawText
+                    if (firstArg != null && firstArg.GetType().Name == "JsonElement")
+                    {
+                        // Получаем сырой JSON текст из JsonElement
+                        var jsonElement = (System.Text.Json.JsonElement)firstArg;
+                        jsonData = jsonElement.GetRawText();
+                    }
+                    else
+                    {
+                        // Fallback: сериализуем через Newtonsoft
+                        jsonData = JsonConvert.SerializeObject(firstArg);
+                    }
                 }
                 else
                 {
