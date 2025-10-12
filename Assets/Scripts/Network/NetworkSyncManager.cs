@@ -155,32 +155,35 @@ public class NetworkSyncManager : MonoBehaviour
         if (localPlayer == null || SocketIOManager.Instance == null || !SocketIOManager.Instance.IsConnected)
             return;
 
-        // Get velocity (для Dead Reckoning в будущем)
+        // Get velocity и позицию (localPlayer это Model, а CharacterController на нем)
         Vector3 velocity = Vector3.zero;
         bool isGrounded = true;
+        Vector3 position = localPlayer.transform.position;
+        Quaternion rotation = localPlayer.transform.rotation;
 
-        var rigidbody = localPlayer.GetComponent<Rigidbody>();
-        if (rigidbody != null)
+        var controller = localPlayer.GetComponent<CharacterController>();
+        if (controller != null)
         {
-            velocity = rigidbody.linearVelocity;
+            velocity = controller.velocity;
+            isGrounded = controller.isGrounded;
         }
         else
         {
-            var controller = localPlayer.GetComponent<CharacterController>();
-            if (controller != null)
+            var rigidbody = localPlayer.GetComponent<Rigidbody>();
+            if (rigidbody != null)
             {
-                velocity = controller.velocity;
-                isGrounded = controller.isGrounded;
+                velocity = rigidbody.linearVelocity;
             }
         }
 
+        // ОТЛАДКА: Логируем отправку позиции (раз в секунду)
+        if (Time.frameCount % 60 == 0)
+        {
+            Debug.Log($"[NetworkSync] 📤 Отправка позиции: pos=({position.x:F2}, {position.y:F2}, {position.z:F2}), vel=({velocity.x:F2}, {velocity.y:F2}, {velocity.z:F2})");
+        }
+
         // Send to server
-        SocketIOManager.Instance.UpdatePosition(
-            localPlayer.transform.position,
-            localPlayer.transform.rotation,
-            velocity,
-            isGrounded
-        );
+        SocketIOManager.Instance.UpdatePosition(position, rotation, velocity, isGrounded);
     }
 
     /// <summary>
