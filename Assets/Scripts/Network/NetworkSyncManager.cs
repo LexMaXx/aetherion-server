@@ -62,25 +62,10 @@ public class NetworkSyncManager : MonoBehaviour
         // Subscribe to WebSocket events
         SubscribeToNetworkEvents();
 
-        // ВАЖНО: Запрашиваем список игроков, так как событие room_players
-        // могло прийти ДО загрузки этой сцены
-        StartCoroutine(RequestPlayersAfterDelay());
+        // Событие room_players придёт автоматически при входе в комнату
+        // Не нужно запрашивать повторно!
     }
 
-    /// <summary>
-    /// Запросить список игроков после небольшой задержки
-    /// (чтобы все компоненты успели инициализироваться)
-    /// </summary>
-    private IEnumerator RequestPlayersAfterDelay()
-    {
-        yield return new WaitForSeconds(0.5f);
-
-        if (SocketIOManager.Instance != null && SocketIOManager.Instance.IsConnected)
-        {
-            Debug.Log("[NetworkSync] 🔄 Запрашиваем список игроков в комнате...");
-            SocketIOManager.Instance.RequestRoomPlayers();
-        }
-    }
 
     void Update()
     {
