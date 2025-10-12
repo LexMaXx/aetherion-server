@@ -75,7 +75,7 @@ public class SocketIOManager : MonoBehaviour
         socket = new SocketIOUnity(uri, new SocketIOOptions
         {
             Transport = SocketIOClient.Transport.TransportProtocol.WebSocket,
-            EIO = 4,
+            EIO = SocketIOClient.EngineIO.V4, // Engine.IO version 4
             Query = new Dictionary<string, string>
             {
                 { "token", token }
@@ -87,7 +87,13 @@ public class SocketIOManager : MonoBehaviour
         {
             isConnected = true;
             DebugLog($"✅ Подключено! Socket ID: {socket.Id}");
-            onComplete?.Invoke(true);
+
+            // ВАЖНО: Вызываем callback в главном потоке Unity!
+            UnityMainThreadDispatcher.Instance().Enqueue(() =>
+            {
+                DebugLog($"✅ Callback вызван в главном потоке, isConnected = {isConnected}");
+                onComplete?.Invoke(true);
+            });
         };
 
         // Событие отключения
@@ -164,8 +170,24 @@ public class SocketIOManager : MonoBehaviour
             return;
         }
 
-        socket.Emit(eventName, jsonData);
-        DebugLog($"📤 Отправлено: {eventName}");
+        // ВАЖНО: SocketIOUnity требует объект, а не строку!
+        // Парсим JSON обратно в объект
+        try
+        {
+            DebugLog($"📤 Попытка отправить: {eventName}");
+            DebugLog($"   JSON: {jsonData}");
+
+            var dataObject = JsonConvert.DeserializeObject(jsonData);
+            DebugLog($"   Десериализовано: {dataObject?.GetType().Name ?? "null"}");
+
+            socket.Emit(eventName, dataObject);
+            DebugLog($"✅ Успешно отправлено: {eventName}");
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[SocketIO] ❌ Ошибка при отправке '{eventName}': {ex.Message}");
+            Debug.LogError($"   Stack: {ex.StackTrace}");
+        }
     }
 
     /// <summary>
@@ -208,9 +230,15 @@ public class SocketIOManager : MonoBehaviour
         };
 
         string json = JsonUtility.ToJson(joinData);
+        DebugLog($"🚪 Вход в комнату: {roomId} как {characterClass}");
+        DebugLog($"   isConnected: {isConnected}");
+        DebugLog($"   socket is null: {socket == null}");
+        DebugLog($"   JSON для отправки: {json}");
+        DebugLog($"📞 Вызываем Emit('join_room')...");
+
         Emit("join_room", json);
 
-        DebugLog($"🚪 Вход в комнату: {roomId} как {characterClass}");
+        DebugLog($"✅ Emit('join_room') вызван (метод завершился)");
 
         // Таймаут на случай, если сервер не ответит
         StartCoroutine(JoinRoomTimeout(3f, () =>

@@ -23,6 +23,10 @@ module.exports = (io) => {
 
     socket.on('join_room', async (data) => {
       try {
+        console.log(`[Join Room] RAW DATA RECEIVED:`, data);
+        console.log(`[Join Room] Data type: ${typeof data}`);
+        console.log(`[Join Room] Data keys:`, Object.keys(data || {}));
+
         const { roomId, username, characterClass, userId } = data;
 
         console.log(`[Join Room] ${username} (${socket.id}) joining room ${roomId} as ${characterClass}`);
