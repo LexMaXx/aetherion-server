@@ -239,6 +239,35 @@ public class SocketIOManager : MonoBehaviour
             {
                 responseReceived = true;
                 DebugLog("✅ Получен список игроков в комнате");
+                DebugLog($"🔍 RAW room_players JSON (first 500 chars): {data.Substring(0, Math.Min(500, data.Length))}");
+
+                // Попробуем распарсить и показать структуру
+                try
+                {
+                    var parsed = JsonConvert.DeserializeObject<Dictionary<string, object>>(data);
+                    if (parsed != null)
+                    {
+                        DebugLog($"🔍 room_players keys: {string.Join(", ", parsed.Keys)}");
+                        foreach (var key in parsed.Keys)
+                        {
+                            var value = parsed[key];
+                            if (value != null)
+                            {
+                                DebugLog($"   {key}: {value.GetType().Name}");
+                                if (key == "players" && value is Newtonsoft.Json.Linq.JArray)
+                                {
+                                    var players = value as Newtonsoft.Json.Linq.JArray;
+                                    DebugLog($"   players count: {players?.Count ?? 0}");
+                                }
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"[SocketIO] ❌ Ошибка парсинга room_players: {ex.Message}");
+                }
+
                 onComplete?.Invoke(true);
             }
         });
