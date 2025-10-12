@@ -155,9 +155,9 @@ public class SocketIOManager : MonoBehaviour
         {
             try
             {
-                // Получаем данные как объект и сериализуем в JSON
-                var data = response.GetValue();
-                string jsonData = JsonConvert.SerializeObject(data);
+                // ВАЖНО: response.GetValue() возвращает JsonElement, нужно правильно десериализовать
+                // Используем response.GetValue<object>() для получения реальных данных
+                string jsonData = response.ToString();
 
                 DebugLog($"📨 Событие '{eventName}': {jsonData.Substring(0, Math.Min(100, jsonData.Length))}...");
 
@@ -173,6 +173,7 @@ public class SocketIOManager : MonoBehaviour
             catch (Exception ex)
             {
                 Debug.LogError($"[SocketIO] ❌ Ошибка обработки события '{eventName}': {ex.Message}");
+                Debug.LogError($"   Stack: {ex.StackTrace}");
             }
         });
 
