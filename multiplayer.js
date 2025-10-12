@@ -85,6 +85,51 @@ module.exports = (io) => {
     });
 
     // ═══════════════════════════════════════════
+    // ЗАПРОС СПИСКА ИГРОКОВ (для повторной синхронизации)
+    // ═══════════════════════════════════════════
+
+    socket.on('get_room_players', (data) => {
+      try {
+        const { roomId } = data;
+        const player = activePlayers.get(socket.id);
+
+        if (!player) {
+          console.warn(`[Get Room Players] Player ${socket.id} not found in activePlayers`);
+          return;
+        }
+
+        console.log(`[Get Room Players] ${player.username} requesting players for room ${roomId}`);
+
+        // Получаем всех игроков в комнате
+        const playersInRoom = [];
+        for (const [sid, p] of activePlayers.entries()) {
+          if (p.roomId === roomId) {
+            playersInRoom.push({
+              socketId: sid,
+              username: p.username,
+              characterClass: p.characterClass,
+              position: p.position,
+              rotation: p.rotation,
+              animation: p.animation,
+              health: p.health,
+              maxHealth: p.maxHealth
+            });
+          }
+        }
+
+        // Отправляем список игроков
+        socket.emit('room_players', {
+          players: playersInRoom,
+          yourSocketId: socket.id
+        });
+
+        console.log(`✅ Sent ${playersInRoom.length} players to ${player.username}`);
+      } catch (error) {
+        console.error('[Get Room Players] Error:', error);
+      }
+    });
+
+    // ═══════════════════════════════════════════
     // ОБНОВЛЕНИЕ ПОЗИЦИИ И ДВИЖЕНИЯ
     // ═══════════════════════════════════════════
 
