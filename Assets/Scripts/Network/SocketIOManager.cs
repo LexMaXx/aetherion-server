@@ -318,8 +318,10 @@ public class SocketIOManager : MonoBehaviour
         }
 
         var data = new { roomId = currentRoomId };
-        Emit("get_room_players", JsonUtility.ToJson(data));
+        string json = JsonConvert.SerializeObject(data);
         DebugLog($"🔄 Запрос списка игроков для комнаты {currentRoomId}");
+        DebugLog($"   JSON: {json}");
+        Emit("get_room_players", json);
     }
 
     /// <summary>
