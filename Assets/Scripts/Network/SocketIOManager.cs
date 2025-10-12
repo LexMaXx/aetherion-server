@@ -272,47 +272,6 @@ public class SocketIOManager : MonoBehaviour
         myUsername = PlayerPrefs.GetString("Username", "Player");
         myUserId = PlayerPrefs.GetString("UserId", "");
 
-        // Подписываемся на room_players перед входом
-        bool responseReceived = false;
-        On("room_players", (data) =>
-        {
-            if (!responseReceived)
-            {
-                responseReceived = true;
-                DebugLog("✅ Получен список игроков в комнате");
-                DebugLog($"🔍 RAW room_players JSON (first 500 chars): {data.Substring(0, Math.Min(500, data.Length))}");
-
-                // Попробуем распарсить и показать структуру
-                try
-                {
-                    var parsed = JsonConvert.DeserializeObject<Dictionary<string, object>>(data);
-                    if (parsed != null)
-                    {
-                        DebugLog($"🔍 room_players keys: {string.Join(", ", parsed.Keys)}");
-                        foreach (var key in parsed.Keys)
-                        {
-                            var value = parsed[key];
-                            if (value != null)
-                            {
-                                DebugLog($"   {key}: {value.GetType().Name}");
-                                if (key == "players" && value is Newtonsoft.Json.Linq.JArray)
-                                {
-                                    var players = value as Newtonsoft.Json.Linq.JArray;
-                                    DebugLog($"   players count: {players?.Count ?? 0}");
-                                }
-                            }
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogError($"[SocketIO] ❌ Ошибка парсинга room_players: {ex.Message}");
-                }
-
-                onComplete?.Invoke(true);
-            }
-        });
-
         // Отправляем join_room
         var joinData = new JoinRoomRequest
         {
@@ -335,16 +294,10 @@ public class SocketIOManager : MonoBehaviour
 
         DebugLog($"✅ Emit('join_room') вызван (метод завершился)");
 
-        // Таймаут на случай, если сервер не ответит
-        StartCoroutine(JoinRoomTimeout(3f, () =>
-        {
-            if (!responseReceived)
-            {
-                responseReceived = true;
-                Debug.LogWarning("[SocketIO] ⏰ Таймаут ожидания room_players");
-                onComplete?.Invoke(true);
-            }
-        }));
+        // ПРИМЕЧАНИЕ: room_players событие обрабатывается через NetworkSyncManager
+        // который подписывается в ArenaScene.Start()
+        // Вызываем onComplete сразу, не ждём room_players
+        onComplete?.Invoke(true);
     }
 
     private System.Collections.IEnumerator JoinRoomTimeout(float delay, Action callback)

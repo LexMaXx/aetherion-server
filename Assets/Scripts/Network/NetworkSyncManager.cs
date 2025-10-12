@@ -60,11 +60,16 @@ public class NetworkSyncManager : MonoBehaviour
             return;
         }
 
-        // Subscribe to WebSocket events
+        // Subscribe to WebSocket events FIRST
         SubscribeToNetworkEvents();
 
-        // Событие room_players придёт автоматически при входе в комнату
-        // Не нужно запрашивать повторно!
+        // ВАЖНО: Запрашиваем список игроков в комнате ПОСЛЕ подписки
+        // Потому что мы могли пропустить событие room_players если оно пришло до загрузки ArenaScene
+        Debug.Log("[NetworkSync] 🔄 Запрашиваем список игроков в комнате...");
+        if (SocketIOManager.Instance != null)
+        {
+            SocketIOManager.Instance.RequestRoomPlayers();
+        }
     }
 
 
