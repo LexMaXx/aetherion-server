@@ -23,7 +23,19 @@ module.exports = (io) => {
 
     socket.on('join_room', async (data) => {
       try {
-        const { roomId, username, characterClass, userId } = data;
+        // ВАЖНО: Unity может отправить как строку, так и как объект
+        let parsedData = data;
+        if (typeof data === 'string') {
+          try {
+            parsedData = JSON.parse(data);
+            console.log('[Join Room] ✅ Parsed JSON string to object');
+          } catch (e) {
+            console.error('[Join Room] ❌ Failed to parse JSON:', e.message);
+            return;
+          }
+        }
+
+        const { roomId, username, characterClass, userId } = parsedData;
 
         console.log(`[Join Room] ${username} (${socket.id}) joining room ${roomId} as ${characterClass}`);
 
@@ -90,7 +102,18 @@ module.exports = (io) => {
 
     socket.on('get_room_players', (data) => {
       try {
-        const { roomId } = data;
+        // ВАЖНО: Unity может отправить как строку, так и как объект
+        let parsedData = data;
+        if (typeof data === 'string') {
+          try {
+            parsedData = JSON.parse(data);
+          } catch (e) {
+            console.error('[Get Room Players] ❌ Failed to parse JSON:', e.message);
+            return;
+          }
+        }
+
+        const { roomId } = parsedData;
         const player = activePlayers.get(socket.id);
 
         if (!player) {
@@ -137,11 +160,22 @@ module.exports = (io) => {
       const player = activePlayers.get(socket.id);
       if (!player) return;
 
+      // ВАЖНО: Unity может отправить как строку, так и как объект
+      let parsedData = data;
+      if (typeof data === 'string') {
+        try {
+          parsedData = JSON.parse(data);
+        } catch (e) {
+          console.error('[Player Update] ❌ Failed to parse JSON:', e.message);
+          return;
+        }
+      }
+
       // Обновляем данные игрока
-      if (data.position) player.position = data.position;
-      if (data.rotation) player.rotation = data.rotation;
-      if (data.velocity) player.velocity = data.velocity;
-      if (data.isGrounded !== undefined) player.isGrounded = data.isGrounded;
+      if (parsedData.position) player.position = parsedData.position;
+      if (parsedData.rotation) player.rotation = parsedData.rotation;
+      if (parsedData.velocity) player.velocity = parsedData.velocity;
+      if (parsedData.isGrounded !== undefined) player.isGrounded = parsedData.isGrounded;
 
       // Отправляем обновление другим игрокам в комнате
       socket.to(player.roomId).emit('player_moved', {

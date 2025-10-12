@@ -238,18 +238,15 @@ public class SocketIOManager : MonoBehaviour
             return;
         }
 
-        // ВАЖНО: SocketIOUnity требует объект, а не строку!
-        // Используем Newtonsoft.Json.Linq.JObject для сохранения структуры вложенных объектов
+        // ВАЖНО: SocketIOUnity v1.1.5 лучше работает с обычными строками!
+        // Сервер Node.js сам распарсит JSON
         try
         {
             DebugLog($"📤 Попытка отправить: {eventName}");
             DebugLog($"   JSON: {jsonData}");
 
-            // ПРАВИЛЬНО: Используем JObject для сохранения вложенной структуры
-            var dataObject = Newtonsoft.Json.Linq.JObject.Parse(jsonData);
-            DebugLog($"   Парсим через JObject для сохранения структуры");
-
-            socket.Emit(eventName, dataObject);
+            // ПРАВИЛЬНО: Отправляем JSON как строку - сервер распарсит
+            socket.Emit(eventName, jsonData);
             DebugLog($"✅ Успешно отправлено: {eventName}");
         }
         catch (Exception ex)
