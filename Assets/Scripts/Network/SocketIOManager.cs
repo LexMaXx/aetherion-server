@@ -155,9 +155,10 @@ public class SocketIOManager : MonoBehaviour
         {
             try
             {
-                // ВАЖНО: response.GetValue() возвращает JsonElement, нужно правильно десериализовать
-                // Используем response.GetValue<object>() для получения реальных данных
-                string jsonData = response.ToString();
+                // ВАЖНО: response.ToString() возвращает неправильный JSON
+                // Используем GetValue() и сериализуем обратно через Newtonsoft.Json
+                var rawData = response.GetValue();
+                string jsonData = JsonConvert.SerializeObject(rawData);
 
                 DebugLog($"📨 Событие '{eventName}': {jsonData.Substring(0, Math.Min(100, jsonData.Length))}...");
 
