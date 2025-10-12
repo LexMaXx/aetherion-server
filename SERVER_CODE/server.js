@@ -15,7 +15,24 @@ const io = socketIO(server, {
     methods: ["GET", "POST"],
     credentials: true
   },
-  transports: ['websocket', 'polling']
+  transports: ['websocket', 'polling'],
+  // ОТЛАДКА: Включаем debug режим
+  allowEIO3: true,
+  pingTimeout: 60000,
+  pingInterval: 25000
+});
+
+// ОТЛАДКА: Логируем Engine.IO события
+io.engine.on("initial_headers", (headers, req) => {
+  console.log(`🔧 Engine.IO initial_headers: ${req.method} ${req.url}`);
+});
+
+io.engine.on("headers", (headers, req) => {
+  console.log(`🔧 Engine.IO headers: ${req.method} ${req.url}`);
+});
+
+io.engine.on("connection_error", (err) => {
+  console.error(`❌ Engine.IO connection_error:`, err);
 });
 
 // Подключение к MongoDB
