@@ -3,6 +3,7 @@
 
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose'); // Для конвертации userId в ObjectId
 const Room = require('../models/Room');
 const auth = require('../middleware/auth'); // Предполагаем что у вас есть JWT middleware
 const { v4: uuidv4 } = require('uuid');
@@ -54,7 +55,8 @@ router.get('/list', auth, async (req, res) => {
 router.post('/create', auth, async (req, res) => {
     try {
         const { roomName, maxPlayers, isPrivate, password } = req.body;
-        const userId = req.user.id; // Из JWT токена
+        const userIdStr = req.user.id; // Из JWT токена (string)
+        const userId = mongoose.Types.ObjectId(userIdStr); // Конвертируем в ObjectId
 
         // Проверяем что игрок не в другой комнате
         const existingRoom = await Room.findOne({
@@ -130,7 +132,8 @@ router.post('/create', auth, async (req, res) => {
 router.post('/join', auth, async (req, res) => {
     try {
         const { roomId, password } = req.body;
-        const userId = req.user.id;
+        const userIdStr = req.user.id; // Из JWT токена (string)
+        const userId = mongoose.Types.ObjectId(userIdStr); // Конвертируем в ObjectId
 
         // Находим комнату
         const room = await Room.findOne({ roomId });
@@ -224,7 +227,8 @@ router.post('/join', auth, async (req, res) => {
 router.post('/leave', auth, async (req, res) => {
     try {
         const { roomId } = req.body;
-        const userId = req.user.id;
+        const userIdStr = req.user.id;
+        const userId = mongoose.Types.ObjectId(userIdStr);
 
         const room = await Room.findOne({ roomId });
 
@@ -311,7 +315,8 @@ router.get('/:roomId', auth, async (req, res) => {
 router.post('/start', auth, async (req, res) => {
     try {
         const { roomId } = req.body;
-        const userId = req.user.id;
+        const userIdStr = req.user.id;
+        const userId = mongoose.Types.ObjectId(userIdStr);
 
         const room = await Room.findOne({ roomId });
 
