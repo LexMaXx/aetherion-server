@@ -49,6 +49,15 @@ public class NetworkSyncManager : MonoBehaviour
 
     void Start()
     {
+        // Проверяем, находимся ли мы в мультиплеер режиме
+        string roomId = PlayerPrefs.GetString("CurrentRoomId", "");
+        if (string.IsNullOrEmpty(roomId))
+        {
+            Debug.Log("[NetworkSync] Не в мультиплеере, отключаем синхронизацию");
+            enabled = false;
+            return;
+        }
+
         // Subscribe to WebSocket events
         SubscribeToNetworkEvents();
     }
@@ -56,6 +65,12 @@ public class NetworkSyncManager : MonoBehaviour
     void Update()
     {
         if (!syncEnabled) return;
+
+        // Проверяем подключение перед отправкой
+        if (SimpleWebSocketClient.Instance == null || !SimpleWebSocketClient.Instance.IsConnected)
+        {
+            return;
+        }
 
         // Send local player position to server
         if (Time.time - lastPositionSync > positionSyncInterval)
@@ -70,38 +85,38 @@ public class NetworkSyncManager : MonoBehaviour
     /// </summary>
     private void SubscribeToNetworkEvents()
     {
-        if (WebSocketClient.Instance == null)
+        if (SimpleWebSocketClient.Instance == null)
         {
             Debug.LogError("[NetworkSync] WebSocketClient не найден!");
             return;
         }
 
         // Player joined room
-        WebSocketClient.Instance.On("player_joined", OnPlayerJoined);
+        SimpleWebSocketClient.Instance.On("player_joined", OnPlayerJoined);
 
         // Player left room
-        WebSocketClient.Instance.On("player_left", OnPlayerLeft);
+        SimpleWebSocketClient.Instance.On("player_left", OnPlayerLeft);
 
         // Position update
-        WebSocketClient.Instance.On("position_update", OnPositionUpdate);
+        SimpleWebSocketClient.Instance.On("position_update", OnPositionUpdate);
 
         // Player attacked
-        WebSocketClient.Instance.On("player_attacked", OnPlayerAttacked);
+        SimpleWebSocketClient.Instance.On("player_attacked", OnPlayerAttacked);
 
         // Player used skill
-        WebSocketClient.Instance.On("skill_used", OnSkillUsed);
+        SimpleWebSocketClient.Instance.On("skill_used", OnSkillUsed);
 
         // Health update
-        WebSocketClient.Instance.On("health_update", OnHealthUpdate);
+        SimpleWebSocketClient.Instance.On("health_update", OnHealthUpdate);
 
         // Player died
-        WebSocketClient.Instance.On("player_died", OnPlayerDied);
+        SimpleWebSocketClient.Instance.On("player_died", OnPlayerDied);
 
         // Player respawned
-        WebSocketClient.Instance.On("player_respawned", OnPlayerRespawned);
+        SimpleWebSocketClient.Instance.On("player_respawned", OnPlayerRespawned);
 
         // Room state (full player list)
-        WebSocketClient.Instance.On("room_state", OnRoomState);
+        SimpleWebSocketClient.Instance.On("room_state", OnRoomState);
 
         Debug.Log("[NetworkSync] ✅ Подписан на сетевые события");
     }
@@ -121,17 +136,34 @@ public class NetworkSyncManager : MonoBehaviour
     /// </summary>
     private void SyncLocalPlayerPosition()
     {
-        if (localPlayer == null || WebSocketClient.Instance == null || !WebSocketClient.Instance.IsConnected)
+        if (localPlayer == null || SimpleWebSocketClient.Instance == null || !SimpleWebSocketClient.Instance.IsConnected)
             return;
 
         // Get animation state
         string animState = GetLocalPlayerAnimationState();
 
+        // Get velocity (для Dead Reckoning в будущем)
+        Vector3 velocity = Vector3.zero;
+        var rigidbody = localPlayer.GetComponent<Rigidbody>();
+        if (rigidbody != null)
+        {
+            velocity = rigidbody.linearVelocity;
+        }
+        else
+        {
+            var controller = localPlayer.GetComponent<CharacterController>();
+            if (controller != null)
+            {
+                velocity = controller.velocity;
+            }
+        }
+
         // Send to server
-        WebSocketClient.Instance.UpdatePosition(
+        SimpleWebSocketClient.Instance.UpdatePosition(
             localPlayer.transform.position,
             localPlayer.transform.rotation,
-            animState
+            animState,
+            velocity
         );
     }
 
@@ -143,12 +175,25 @@ public class NetworkSyncManager : MonoBehaviour
         var animator = localPlayer.GetComponent<Animator>();
         if (animator == null) return "Idle";
 
-        if (animator.GetBool("isDead")) return "Dead";
-        if (animator.GetBool("isAttacking")) return "Attacking";
-        if (animator.GetBool("isRunning")) return "Running";
-        if (animator.GetBool("isWalking")) return "Walking";
+        // Check if parameters exist before trying to get them
+        if (HasParameter(animator, "isDead") && animator.GetBool("isDead")) return "Dead";
+        if (HasParameter(animator, "isAttacking") && animator.GetBool("isAttacking")) return "Attacking";
+        if (HasParameter(animator, "isRunning") && animator.GetBool("isRunning")) return "Running";
+        if (HasParameter(animator, "isWalking") && animator.GetBool("isWalking")) return "Walking";
 
         return "Idle";
+    }
+
+    /// <summary>
+    /// Проверить есть ли параметр в Animator
+    /// </summary>
+    private bool HasParameter(Animator animator, string paramName)
+    {
+        foreach (AnimatorControllerParameter param in animator.parameters)
+        {
+            if (param.name == paramName) return true;
+        }
+        return false;
     }
 
     // ===== NETWORK EVENT HANDLERS =====
@@ -162,7 +207,7 @@ public class NetworkSyncManager : MonoBehaviour
         Debug.Log($"[NetworkSync] Игрок подключился: {data.username} ({data.characterClass})");
 
         // Don't create network player for ourselves
-        if (data.socketId == WebSocketClient.Instance.SessionId)
+        if (data.socketId == SimpleWebSocketClient.Instance.SessionId)
         {
             Debug.Log("[NetworkSync] Это мы сами, пропускаем");
             return;
@@ -191,7 +236,7 @@ public class NetworkSyncManager : MonoBehaviour
         var data = JsonUtility.FromJson<PositionUpdateEventData>(jsonData);
 
         // Skip our own updates
-        if (data.socketId == WebSocketClient.Instance.SessionId) return;
+        if (data.socketId == SimpleWebSocketClient.Instance.SessionId) return;
 
         if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer player))
         {
@@ -218,7 +263,7 @@ public class NetworkSyncManager : MonoBehaviour
         }
 
         // Show damage on target
-        if (data.targetSocketId == WebSocketClient.Instance.SessionId)
+        if (data.targetSocketId == SimpleWebSocketClient.Instance.SessionId)
         {
             // We got hit!
             ApplyDamageToLocalPlayer(data.damage);
@@ -266,7 +311,7 @@ public class NetworkSyncManager : MonoBehaviour
         var data = JsonUtility.FromJson<PlayerDiedData>(jsonData);
         Debug.Log($"[NetworkSync] Игрок погиб: {data.deadPlayerSocketId}, Убийца: {data.killerSocketId}");
 
-        if (data.deadPlayerSocketId == WebSocketClient.Instance.SessionId)
+        if (data.deadPlayerSocketId == SimpleWebSocketClient.Instance.SessionId)
         {
             // We died!
             OnLocalPlayerDied();
@@ -297,20 +342,53 @@ public class NetworkSyncManager : MonoBehaviour
     /// </summary>
     private void OnRoomState(string jsonData)
     {
-        var data = JsonUtility.FromJson<RoomStateData>(jsonData);
-        Debug.Log($"[NetworkSync] Получено состояние комнаты: {data.players.Length} игроков");
+        Debug.Log($"[NetworkSync] 📦 OnRoomState called. JSON: {jsonData}");
 
-        // Spawn all existing players
-        foreach (var playerData in data.players)
+        try
         {
-            // Skip ourselves
-            if (playerData.socketId == WebSocketClient.Instance.SessionId) continue;
+            var data = JsonUtility.FromJson<RoomStateData>(jsonData);
 
-            // Spawn if not already exists
-            if (!networkPlayers.ContainsKey(playerData.socketId))
+            if (data == null || data.players == null)
             {
-                SpawnNetworkPlayer(playerData.socketId, playerData.username, playerData.characterClass, playerData.position);
+                Debug.LogError("[NetworkSync] ❌ Failed to parse RoomStateData or players is null");
+                return;
             }
+
+            Debug.Log($"[NetworkSync] Получено состояние комнаты: {data.players.Length} игроков");
+
+            // Log our session ID
+            string mySessionId = SimpleWebSocketClient.Instance != null ? SimpleWebSocketClient.Instance.SessionId : "NULL";
+            Debug.Log($"[NetworkSync] My sessionId: {mySessionId}");
+
+            // Spawn all existing players
+            foreach (var playerData in data.players)
+            {
+                Debug.Log($"[NetworkSync] Player in room: {playerData.username} (socketId: {playerData.socketId}, class: {playerData.characterClass})");
+
+                // Skip ourselves
+                if (playerData.socketId == mySessionId)
+                {
+                    Debug.Log($"[NetworkSync] ⏭️ Skipping ourselves: {playerData.username}");
+                    continue;
+                }
+
+                // Spawn if not already exists
+                if (!networkPlayers.ContainsKey(playerData.socketId))
+                {
+                    Debug.Log($"[NetworkSync] 🎭 Spawning network player: {playerData.username}");
+                    SpawnNetworkPlayer(playerData.socketId, playerData.username, playerData.characterClass, playerData.position);
+                }
+                else
+                {
+                    Debug.Log($"[NetworkSync] ✓ Player already spawned: {playerData.username}");
+                }
+            }
+
+            Debug.Log($"[NetworkSync] 📊 Total network players: {networkPlayers.Count}");
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[NetworkSync] ❌ Error in OnRoomState: {ex.Message}\n{ex.StackTrace}");
         }
     }
 
@@ -414,7 +492,7 @@ public class NetworkSyncManager : MonoBehaviour
     /// </summary>
     private void RequestRespawn()
     {
-        WebSocketClient.Instance.RequestRespawn();
+        SimpleWebSocketClient.Instance.RequestRespawn();
     }
 
     /// <summary>
@@ -436,17 +514,17 @@ public class NetworkSyncManager : MonoBehaviour
     void OnDestroy()
     {
         // Unsubscribe from events
-        if (WebSocketClient.Instance != null)
+        if (SimpleWebSocketClient.Instance != null)
         {
-            WebSocketClient.Instance.Off("player_joined");
-            WebSocketClient.Instance.Off("player_left");
-            WebSocketClient.Instance.Off("position_update");
-            WebSocketClient.Instance.Off("player_attacked");
-            WebSocketClient.Instance.Off("skill_used");
-            WebSocketClient.Instance.Off("health_update");
-            WebSocketClient.Instance.Off("player_died");
-            WebSocketClient.Instance.Off("player_respawned");
-            WebSocketClient.Instance.Off("room_state");
+            SimpleWebSocketClient.Instance.Off("player_joined");
+            SimpleWebSocketClient.Instance.Off("player_left");
+            SimpleWebSocketClient.Instance.Off("position_update");
+            SimpleWebSocketClient.Instance.Off("player_attacked");
+            SimpleWebSocketClient.Instance.Off("skill_used");
+            SimpleWebSocketClient.Instance.Off("health_update");
+            SimpleWebSocketClient.Instance.Off("player_died");
+            SimpleWebSocketClient.Instance.Off("player_respawned");
+            SimpleWebSocketClient.Instance.Off("room_state");
         }
     }
 }
