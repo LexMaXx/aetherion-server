@@ -75,12 +75,16 @@ router.post('/create', auth, async (req, res) => {
             status: { $in: ['waiting', 'in_progress'] }
         });
 
+        // Если игрок в другой комнате - автоматически выходим из неё
         if (existingRoom) {
-            return res.status(400).json({
-                success: false,
-                message: 'You are already in a room',
-                roomId: existingRoom.roomId
-            });
+            console.log(`[Room] User ${userId} is in room ${existingRoom.roomId}, auto-leaving...`);
+            try {
+                await existingRoom.removePlayer(userId);
+                console.log(`[Room] User ${userId} auto-left previous room`);
+            } catch (err) {
+                console.error('[Room] Error auto-leaving previous room:', err);
+                // Продолжаем создание новой комнаты даже если не удалось выйти
+            }
         }
 
         // Получаем данные персонажа из запроса
@@ -195,11 +199,32 @@ router.post('/join', auth, async (req, res) => {
             status: { $in: ['waiting', 'in_progress'] }
         });
 
-        if (existingRoom && existingRoom.roomId !== roomId) {
-            return res.status(400).json({
-                success: false,
-                message: 'You are already in another room'
+        // Если игрок уже в ЭТОЙ комнате - просто вернём success
+        if (existingRoom && existingRoom.roomId === roomId) {
+            console.log(`[Room] User ${userId} already in room ${roomId}, returning success`);
+            return res.json({
+                success: true,
+                message: 'Already in room',
+                room: {
+                    roomId: room.roomId,
+                    roomName: room.roomName,
+                    currentPlayers: room.players.length,
+                    maxPlayers: room.maxPlayers,
+                    isHost: room.hostUserId.toString() === userId.toString()
+                }
             });
+        }
+
+        // Если игрок в ДРУГОЙ комнате - автоматически выходим
+        if (existingRoom && existingRoom.roomId !== roomId) {
+            console.log(`[Room] User ${userId} in room ${existingRoom.roomId}, auto-leaving...`);
+            try {
+                await existingRoom.removePlayer(userId);
+                console.log(`[Room] User ${userId} auto-left previous room`);
+            } catch (err) {
+                console.error('[Room] Error auto-leaving previous room:', err);
+                // Продолжаем присоединение к новой комнате
+            }
         }
 
         // Получаем данные персонажа

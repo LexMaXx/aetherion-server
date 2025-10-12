@@ -87,14 +87,19 @@ roomSchema.index({ lastActivity: 1 });
 
 // Метод для добавления игрока
 roomSchema.methods.addPlayer = function(playerData) {
-    if (this.players.length >= this.maxPlayers) {
-        throw new Error('Room is full');
-    }
-
     // Проверяем что игрок уже не в комнате
     const existingPlayer = this.players.find(p => p.userId.toString() === playerData.userId.toString());
     if (existingPlayer) {
-        throw new Error('Player already in room');
+        // Игрок уже в комнате - обновляем его данные вместо ошибки
+        console.log(`[Room] Player ${playerData.username} already in room, updating data`);
+        Object.assign(existingPlayer, playerData);
+        this.lastActivity = Date.now();
+        return this.save();
+    }
+
+    // Проверяем лимит игроков
+    if (this.players.length >= this.maxPlayers) {
+        throw new Error('Room is full');
     }
 
     this.players.push(playerData);
