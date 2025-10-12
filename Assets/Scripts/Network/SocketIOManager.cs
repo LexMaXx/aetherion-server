@@ -218,19 +218,15 @@ public class SocketIOManager : MonoBehaviour
         }
 
         // ВАЖНО: SocketIOUnity требует объект, а не строку!
-        // Парсим JSON в Dictionary<string, object> для совместимости с Socket.IO
+        // Используем Newtonsoft.Json.Linq.JObject для сохранения структуры вложенных объектов
         try
         {
             DebugLog($"📤 Попытка отправить: {eventName}");
             DebugLog($"   JSON: {jsonData}");
 
-            // Используем Dictionary<string, object> вместо JObject
-            var dataObject = JsonConvert.DeserializeObject<Dictionary<string, object>>(jsonData);
-            DebugLog($"   Десериализовано: {dataObject?.GetType().Name ?? "null"}");
-            if (dataObject != null)
-            {
-                DebugLog($"   Ключи: {string.Join(", ", dataObject.Keys)}");
-            }
+            // ПРАВИЛЬНО: Используем JObject для сохранения вложенной структуры
+            var dataObject = Newtonsoft.Json.Linq.JObject.Parse(jsonData);
+            DebugLog($"   Парсим через JObject для сохранения структуры");
 
             socket.Emit(eventName, dataObject);
             DebugLog($"✅ Успешно отправлено: {eventName}");
