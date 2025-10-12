@@ -2,6 +2,7 @@ using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 using System;
+using Newtonsoft.Json;
 
 /// <summary>
 /// Менеджер синхронизации мультиплеера
@@ -217,7 +218,7 @@ public class NetworkSyncManager : MonoBehaviour
 
         try
         {
-            var data = JsonUtility.FromJson<RoomPlayersResponse>(jsonData);
+            var data = JsonConvert.DeserializeObject<RoomPlayersResponse>(jsonData);
 
             if (data == null || data.players == null)
             {
@@ -262,7 +263,7 @@ public class NetworkSyncManager : MonoBehaviour
     /// </summary>
     private void OnPlayerJoined(string jsonData)
     {
-        var data = JsonUtility.FromJson<PlayerJoinedEvent>(jsonData);
+        var data = JsonConvert.DeserializeObject<PlayerJoinedEvent>(jsonData);
         Debug.Log($"[NetworkSync] Игрок подключился: {data.username} ({data.characterClass})");
 
         // Don't create network player for ourselves
@@ -279,7 +280,7 @@ public class NetworkSyncManager : MonoBehaviour
     /// </summary>
     private void OnPlayerLeft(string jsonData)
     {
-        var data = JsonUtility.FromJson<PlayerLeftEvent>(jsonData);
+        var data = JsonConvert.DeserializeObject<PlayerLeftEvent>(jsonData);
         Debug.Log($"[NetworkSync] Игрок отключился: {data.username} ({data.socketId})");
 
         RemoveNetworkPlayer(data.socketId);
@@ -295,7 +296,7 @@ public class NetworkSyncManager : MonoBehaviour
             // ОТЛАДКА: Логируем сырой JSON
             Debug.Log($"[NetworkSync] 🔍 RAW JSON for player_moved: {jsonData}");
 
-            var data = JsonUtility.FromJson<PlayerMovedEvent>(jsonData);
+            var data = JsonConvert.DeserializeObject<PlayerMovedEvent>(jsonData);
 
             // ОТЛАДКА: Логируем результат десериализации
             if (data == null)
