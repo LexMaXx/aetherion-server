@@ -143,17 +143,27 @@ public class SocketIOManager : MonoBehaviour
         // Подписываемся на событие Socket.IO
         socket.On(eventName, (response) =>
         {
-            string jsonData = response.GetValue<string>();
-            DebugLog($"📨 Событие '{eventName}': {jsonData.Substring(0, Math.Min(100, jsonData.Length))}...");
-
-            // Вызываем callback в главном потоке Unity
-            UnityMainThreadDispatcher.Instance().Enqueue(() =>
+            try
             {
-                if (eventCallbacks.ContainsKey(eventName))
+                // Получаем данные как объект и сериализуем в JSON
+                var data = response.GetValue();
+                string jsonData = JsonConvert.SerializeObject(data);
+
+                DebugLog($"📨 Событие '{eventName}': {jsonData.Substring(0, Math.Min(100, jsonData.Length))}...");
+
+                // Вызываем callback в главном потоке Unity
+                UnityMainThreadDispatcher.Instance().Enqueue(() =>
                 {
-                    eventCallbacks[eventName]?.Invoke(jsonData);
-                }
-            });
+                    if (eventCallbacks.ContainsKey(eventName))
+                    {
+                        eventCallbacks[eventName]?.Invoke(jsonData);
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[SocketIO] ❌ Ошибка обработки события '{eventName}': {ex.Message}");
+            }
         });
 
         DebugLog($"📡 Подписка на событие: {eventName}");
@@ -180,7 +190,10 @@ public class SocketIOManager : MonoBehaviour
             // Используем Dictionary<string, object> вместо JObject
             var dataObject = JsonConvert.DeserializeObject<Dictionary<string, object>>(jsonData);
             DebugLog($"   Десериализовано: {dataObject?.GetType().Name ?? "null"}");
-            DebugLog($"   Ключи: {string.Join(", ", dataObject?.Keys ?? new string[0])}");
+            if (dataObject != null)
+            {
+                DebugLog($"   Ключи: {string.Join(", ", dataObject.Keys)}");
+            }
 
             socket.Emit(eventName, dataObject);
             DebugLog($"✅ Успешно отправлено: {eventName}");
