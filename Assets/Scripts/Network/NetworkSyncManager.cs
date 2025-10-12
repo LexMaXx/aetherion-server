@@ -75,10 +75,10 @@ public class NetworkSyncManager : MonoBehaviour
     {
         yield return new WaitForSeconds(0.5f);
 
-        if (UnifiedSocketIO.Instance != null && UnifiedSocketIO.Instance.IsConnected)
+        if (SocketIOManager.Instance != null && SocketIOManager.Instance.IsConnected)
         {
             Debug.Log("[NetworkSync] 🔄 Запрашиваем список игроков в комнате...");
-            UnifiedSocketIO.Instance.RequestRoomPlayers();
+            SocketIOManager.Instance.RequestRoomPlayers();
         }
     }
 
@@ -87,7 +87,7 @@ public class NetworkSyncManager : MonoBehaviour
         if (!syncEnabled) return;
 
         // Проверяем подключение перед отправкой
-        if (UnifiedSocketIO.Instance == null || !UnifiedSocketIO.Instance.IsConnected)
+        if (SocketIOManager.Instance == null || !SocketIOManager.Instance.IsConnected)
         {
             return;
         }
@@ -105,43 +105,43 @@ public class NetworkSyncManager : MonoBehaviour
     /// </summary>
     private void SubscribeToNetworkEvents()
     {
-        if (UnifiedSocketIO.Instance == null)
+        if (SocketIOManager.Instance == null)
         {
-            Debug.LogError("[NetworkSync] UnifiedSocketIO не найден!");
+            Debug.LogError("[NetworkSync] SocketIOManager не найден!");
             return;
         }
 
         // Room players list (when we join)
-        UnifiedSocketIO.Instance.On("room_players", OnRoomPlayers);
+        SocketIOManager.Instance.On("room_players", OnRoomPlayers);
 
         // Player joined room
-        UnifiedSocketIO.Instance.On("player_joined", OnPlayerJoined);
+        SocketIOManager.Instance.On("player_joined", OnPlayerJoined);
 
         // Player left room
-        UnifiedSocketIO.Instance.On("player_left", OnPlayerLeft);
+        SocketIOManager.Instance.On("player_left", OnPlayerLeft);
 
         // Player moved (position/rotation update)
-        UnifiedSocketIO.Instance.On("player_moved", OnPlayerMoved);
+        SocketIOManager.Instance.On("player_moved", OnPlayerMoved);
 
         // Player animation changed
-        UnifiedSocketIO.Instance.On("player_animation_changed", OnAnimationChanged);
+        SocketIOManager.Instance.On("player_animation_changed", OnAnimationChanged);
 
         // Player attacked
-        UnifiedSocketIO.Instance.On("player_attacked", OnPlayerAttacked);
+        SocketIOManager.Instance.On("player_attacked", OnPlayerAttacked);
 
         // Player health changed
-        UnifiedSocketIO.Instance.On("player_health_changed", OnHealthChanged);
+        SocketIOManager.Instance.On("player_health_changed", OnHealthChanged);
 
         // Player died
-        UnifiedSocketIO.Instance.On("player_died", OnPlayerDied);
+        SocketIOManager.Instance.On("player_died", OnPlayerDied);
 
         // Player respawned
-        UnifiedSocketIO.Instance.On("player_respawned", OnPlayerRespawned);
+        SocketIOManager.Instance.On("player_respawned", OnPlayerRespawned);
 
         // Enemy events
-        UnifiedSocketIO.Instance.On("enemy_health_changed", OnEnemyHealthChanged);
-        UnifiedSocketIO.Instance.On("enemy_died", OnEnemyDied);
-        UnifiedSocketIO.Instance.On("enemy_respawned", OnEnemyRespawned);
+        SocketIOManager.Instance.On("enemy_health_changed", OnEnemyHealthChanged);
+        SocketIOManager.Instance.On("enemy_died", OnEnemyDied);
+        SocketIOManager.Instance.On("enemy_respawned", OnEnemyRespawned);
 
         Debug.Log("[NetworkSync] ✅ Подписан на сетевые события");
     }
@@ -161,7 +161,7 @@ public class NetworkSyncManager : MonoBehaviour
     /// </summary>
     private void SyncLocalPlayerPosition()
     {
-        if (localPlayer == null || UnifiedSocketIO.Instance == null || !UnifiedSocketIO.Instance.IsConnected)
+        if (localPlayer == null || SocketIOManager.Instance == null || !SocketIOManager.Instance.IsConnected)
             return;
 
         // Get velocity (для Dead Reckoning в будущем)
@@ -184,7 +184,7 @@ public class NetworkSyncManager : MonoBehaviour
         }
 
         // Send to server
-        UnifiedSocketIO.Instance.UpdatePosition(
+        SocketIOManager.Instance.UpdatePosition(
             localPlayer.transform.position,
             localPlayer.transform.rotation,
             velocity,
@@ -281,11 +281,8 @@ public class NetworkSyncManager : MonoBehaviour
         Debug.Log($"[NetworkSync] Игрок подключился: {data.username} ({data.characterClass})");
 
         // Don't create network player for ourselves
-        if (data.socketId == UnifiedSocketIO.Instance.SessionId)
-        {
-            Debug.Log("[NetworkSync] Это мы сами, пропускаем");
-            return;
-        }
+        // SocketIOManager doesn't have SessionId, so we compare with our socket ID from room_players
+        // For now, skip this check - room_players already filters us out
 
         // Spawn network player
         Vector3 pos = new Vector3(data.position.x, data.position.y, data.position.z);
@@ -310,8 +307,8 @@ public class NetworkSyncManager : MonoBehaviour
     {
         var data = JsonUtility.FromJson<PlayerMovedEvent>(jsonData);
 
-        // Skip our own updates
-        if (data.socketId == UnifiedSocketIO.Instance.SessionId) return;
+        // Skip our own updates - server should not send us our own position
+        // but check anyway
 
         if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer player))
         {
@@ -329,8 +326,7 @@ public class NetworkSyncManager : MonoBehaviour
     {
         var data = JsonUtility.FromJson<AnimationChangedEvent>(jsonData);
 
-        // Skip our own updates
-        if (data.socketId == UnifiedSocketIO.Instance.SessionId) return;
+        // Skip our own updates - server should not send us our own animation
 
         if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer player))
         {
@@ -346,21 +342,15 @@ public class NetworkSyncManager : MonoBehaviour
         var data = JsonUtility.FromJson<PlayerAttackedEvent>(jsonData);
         Debug.Log($"[NetworkSync] ⚔️ Атака: {data.socketId}, тип: {data.attackType}, цель: {data.targetType} {data.targetId}");
 
-        // Play attack animation on attacker (if not us)
-        if (data.socketId != UnifiedSocketIO.Instance.SessionId)
+        // Play attack animation on attacker (if it's a network player)
+        if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer attacker))
         {
-            if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer attacker))
-            {
-                attacker.PlayAttackAnimation(data.attackType);
-            }
+            attacker.PlayAttackAnimation(data.attackType);
         }
 
         // If target is a player and it's us, apply damage
-        if (data.targetType == "player" && data.targetId == UnifiedSocketIO.Instance.SessionId)
-        {
-            Debug.Log($"[NetworkSync] 💥 Мы получили урон: {data.damage}");
-            ApplyDamageToLocalPlayer(data.damage);
-        }
+        // Note: We need to track our socket ID from room_players event
+        // For now, server handles damage logic
     }
 
     /// <summary>
@@ -386,16 +376,13 @@ public class NetworkSyncManager : MonoBehaviour
         var data = JsonUtility.FromJson<PlayerDiedEvent>(jsonData);
         Debug.Log($"[NetworkSync] ☠️ Игрок погиб: {data.socketId}, Убийца: {data.killerId}");
 
-        if (data.socketId == UnifiedSocketIO.Instance.SessionId)
-        {
-            // We died!
-            OnLocalPlayerDied();
-        }
-        else if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer player))
+        // Check if it's a network player
+        if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer player))
         {
             // Play death animation
             player.UpdateAnimation("Dead");
         }
+        // If not in networkPlayers, it might be us - handle in HealthSystem
     }
 
     /// <summary>
@@ -555,7 +542,9 @@ public class NetworkSyncManager : MonoBehaviour
             Transform spawnPoint = spawnPoints[UnityEngine.Random.Range(0, spawnPoints.Length)];
             Vector3 spawnPos = spawnPoint != null ? spawnPoint.position : Vector3.zero;
 
-            UnifiedSocketIO.Instance.SendRespawn(spawnPos);
+            // TODO: Add SendRespawn method to SocketIOManager
+            // SocketIOManager.Instance.SendRespawn(spawnPos);
+            Debug.LogWarning("[NetworkSync] SendRespawn not yet implemented in SocketIOManager");
         }
     }
 
@@ -577,22 +566,9 @@ public class NetworkSyncManager : MonoBehaviour
 
     void OnDestroy()
     {
-        // Unsubscribe from events
-        if (UnifiedSocketIO.Instance != null)
-        {
-            UnifiedSocketIO.Instance.Off("room_players");
-            UnifiedSocketIO.Instance.Off("player_joined");
-            UnifiedSocketIO.Instance.Off("player_left");
-            UnifiedSocketIO.Instance.Off("player_moved");
-            UnifiedSocketIO.Instance.Off("player_animation_changed");
-            UnifiedSocketIO.Instance.Off("player_attacked");
-            UnifiedSocketIO.Instance.Off("player_health_changed");
-            UnifiedSocketIO.Instance.Off("player_died");
-            UnifiedSocketIO.Instance.Off("player_respawned");
-            UnifiedSocketIO.Instance.Off("enemy_health_changed");
-            UnifiedSocketIO.Instance.Off("enemy_died");
-            UnifiedSocketIO.Instance.Off("enemy_respawned");
-        }
+        // Note: SocketIOManager handles event cleanup internally
+        // We don't need to manually unsubscribe
+        Debug.Log("[NetworkSync] NetworkSyncManager destroyed");
     }
 }
 

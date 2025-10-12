@@ -68,7 +68,7 @@ public class NetworkCombatSync : MonoBehaviour
     /// </summary>
     public void SendAttack(GameObject target, float damage, string attackType)
     {
-        if (!enableSync || !isMultiplayer || SimpleWebSocketClient.Instance == null)
+        if (!enableSync || !isMultiplayer || SocketIOManager.Instance == null)
             return;
 
         // Получаем socketId цели (если это NetworkPlayer)
@@ -79,10 +79,10 @@ public class NetworkCombatSync : MonoBehaviour
             targetSocketId = networkTarget.socketId;
         }
 
-        // Отправляем на сервер
-        SimpleWebSocketClient.Instance.SendAttack(targetSocketId, damage, attackType);
+        // TODO: Add SendAttack method to SocketIOManager
+        // SocketIOManager.Instance.SendAttack("player", targetSocketId, damage, attackType);
 
-        Debug.Log($"[NetworkCombatSync] ⚔️ Атака отправлена на сервер: {damage} урона, тип: {attackType}");
+        Debug.LogWarning($"[NetworkCombatSync] SendAttack not yet implemented in SocketIOManager");
     }
 
     /// <summary>
@@ -90,7 +90,7 @@ public class NetworkCombatSync : MonoBehaviour
     /// </summary>
     public void SendSkill(int skillId, GameObject target, Vector3 targetPosition)
     {
-        if (!enableSync || !isMultiplayer || SimpleWebSocketClient.Instance == null)
+        if (!enableSync || !isMultiplayer || SocketIOManager.Instance == null)
             return;
 
         string targetSocketId = "";
@@ -100,9 +100,10 @@ public class NetworkCombatSync : MonoBehaviour
             targetSocketId = networkTarget.socketId;
         }
 
-        SimpleWebSocketClient.Instance.SendSkill(skillId, targetSocketId, targetPosition);
+        // TODO: Add SendSkill method to SocketIOManager
+        // SocketIOManager.Instance.SendSkill(skillId, targetSocketId, targetPosition);
 
-        Debug.Log($"[NetworkCombatSync] 🔮 Скилл {skillId} отправлен на сервер");
+        Debug.LogWarning($"[NetworkCombatSync] SendSkill not yet implemented in SocketIOManager");
     }
 
     /// <summary>
@@ -110,7 +111,7 @@ public class NetworkCombatSync : MonoBehaviour
     /// </summary>
     private void SyncHealth()
     {
-        if (SimpleWebSocketClient.Instance == null || !SimpleWebSocketClient.Instance.IsConnected)
+        if (SocketIOManager.Instance == null || !SocketIOManager.Instance.IsConnected)
             return;
 
         int currentHP = healthSystem != null ? (int)healthSystem.CurrentHealth : 0;
@@ -118,7 +119,8 @@ public class NetworkCombatSync : MonoBehaviour
         int currentMP = manaSystem != null ? (int)manaSystem.CurrentMana : 0;
         int maxMP = manaSystem != null ? (int)manaSystem.MaxMana : 100;
 
-        SimpleWebSocketClient.Instance.UpdateHealth(currentHP, maxHP, currentMP, maxMP);
+        // TODO: Add UpdateHealth method to SocketIOManager
+        // SocketIOManager.Instance.UpdateHealth(currentHP, maxHP, currentMP, maxMP);
     }
 
     /// <summary>

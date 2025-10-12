@@ -104,19 +104,19 @@ public class ArenaManager : MonoBehaviour
         }
 
         // Verify WebSocket connection
-        if (SimpleWebSocketClient.Instance == null)
+        if (SocketIOManager.Instance == null)
         {
-            Debug.LogError("[ArenaManager] ❌ SimpleWebSocketClient не найден! Multiplayer не будет работать");
+            Debug.LogError("[ArenaManager] ❌ SocketIOManager не найден! Multiplayer не будет работать");
         }
-        else if (!SimpleWebSocketClient.Instance.IsConnected)
+        else if (!SocketIOManager.Instance.IsConnected)
         {
             Debug.LogWarning("[ArenaManager] ⚠️ WebSocket не подключен. Connecting...");
             string token = PlayerPrefs.GetString("UserToken", "");
-            SimpleWebSocketClient.Instance.Connect(token, (success) =>
+            SocketIOManager.Instance.Connect(token, (success) =>
             {
                 if (success)
                 {
-                    Debug.Log("[ArenaManager] ✅ WebSocket подключен");
+                    Debug.Log("[ArenaManager] ✅ WebSocket (SocketIOManager) подключен");
                 }
                 else
                 {
@@ -126,7 +126,7 @@ public class ArenaManager : MonoBehaviour
         }
         else
         {
-            Debug.Log("[ArenaManager] ✅ WebSocket подключен");
+            Debug.Log("[ArenaManager] ✅ WebSocket (SocketIOManager) подключен");
         }
     }
 

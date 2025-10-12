@@ -374,17 +374,26 @@ public class RoomManager : MonoBehaviour
     /// </summary>
     private void ConnectToWebSocket(string roomId, string characterClass, Action<bool> onComplete)
     {
+        // Проверяем, существует ли SocketIOManager
+        if (SocketIOManager.Instance == null)
+        {
+            Debug.LogWarning("[RoomManager] SocketIOManager не найден, создаём...");
+            GameObject socketGO = new GameObject("SocketIOManager");
+            socketGO.AddComponent<SocketIOManager>();
+            DontDestroyOnLoad(socketGO);
+        }
+
         string token = PlayerPrefs.GetString("UserToken", "");
 
-        // Connect to SocketIOClient
-        SocketIOClient.Instance.Connect(token, (success) =>
+        // Connect to SocketIOManager (WebSocket transport)
+        SocketIOManager.Instance.Connect(token, (success) =>
         {
             if (success)
             {
-                Debug.Log("[RoomManager] 🚀 Socket.IO подключен, входим в комнату...");
+                Debug.Log("[RoomManager] 🚀 Socket.IO (WebSocket) подключен, входим в комнату...");
 
                 // Join room via Socket.IO
-                SocketIOClient.Instance.JoinRoom(roomId, characterClass, (joined) =>
+                SocketIOManager.Instance.JoinRoom(roomId, characterClass, (joined) =>
                 {
                     if (joined)
                     {
@@ -438,44 +447,7 @@ public class RoomManager : MonoBehaviour
 }
 
 // ===== DATA CLASSES =====
-
-[Serializable]
-public class CreateRoomRequest
-{
-    public string roomName;
-    public int maxPlayers;
-    public bool isPrivate;
-    public string password;
-    public string characterClass;  // Класс персонажа
-    public string username;         // Имя пользователя
-    public int level;               // Уровень персонажа
-}
-
-[Serializable]
-public class CreateRoomResponse
-{
-    public bool success;
-    public string message;
-    public RoomInfo room;
-}
-
-[Serializable]
-public class JoinRoomRequest
-{
-    public string roomId;
-    public string password;
-    public string characterClass;  // Класс персонажа
-    public string username;         // Имя пользователя
-    public int level;               // Уровень персонажа
-}
-
-[Serializable]
-public class JoinRoomResponse
-{
-    public bool success;
-    public string message;
-    public RoomInfo room;
-}
+// Все классы данных теперь находятся в UnifiedSocketIO.cs
 
 [Serializable]
 public class LeaveRoomRequest
@@ -489,25 +461,4 @@ public class RoomInfoResponse
     public bool success;
     public RoomInfo room;
     public string message;
-}
-
-[Serializable]
-public class RoomListResponse
-{
-    public bool success;
-    public RoomInfo[] rooms;
-}
-
-[Serializable]
-public class RoomInfo
-{
-    public string roomId;
-    public string roomName;
-    public string hostUserId;
-    public int maxPlayers;
-    public int currentPlayers;
-    public bool isPrivate;
-    public bool isActive;
-    public string status;
-    public string createdAt;
 }

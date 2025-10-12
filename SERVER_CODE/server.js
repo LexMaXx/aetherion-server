@@ -15,11 +15,15 @@ const io = socketIO(server, {
     methods: ["GET", "POST"],
     credentials: true
   },
+  // ВАЖНО: WebSocket в приоритете! Unity клиент использует только WebSocket
   transports: ['websocket', 'polling'],
-  // ОТЛАДКА: Включаем debug режим
   allowEIO3: true,
   pingTimeout: 60000,
-  pingInterval: 25000
+  pingInterval: 25000,
+  // Дополнительные настройки для стабильности
+  connectTimeout: 45000,
+  upgradeTimeout: 30000,
+  maxHttpBufferSize: 1e8 // 100 MB
 });
 
 // ОТЛАДКА: Логируем Engine.IO события
@@ -33,6 +37,17 @@ io.engine.on("headers", (headers, req) => {
 
 io.engine.on("connection_error", (err) => {
   console.error(`❌ Engine.IO connection_error:`, err);
+});
+
+// НОВОЕ: Логируем успешные подключения Engine.IO
+io.engine.on("connection", (rawSocket) => {
+  console.log(`✅ Engine.IO connection established`);
+  console.log(`   Transport: ${rawSocket.transport.name}`);
+  console.log(`   ID: ${rawSocket.id}`);
+
+  rawSocket.on("upgrade", (transport) => {
+    console.log(`🔄 Transport upgraded to: ${transport.name}`);
+  });
 });
 
 // Подключение к MongoDB

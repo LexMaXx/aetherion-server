@@ -13,13 +13,13 @@ public class NetworkInitializer : MonoBehaviour
     {
         if (!autoCreateNetworkManagers) return;
 
-        // Создаём SimpleWebSocketClient если его нет (работает БЕЗ внешних зависимостей)
-        if (SimpleWebSocketClient.Instance == null)
+        // Создаём SocketIOManager если его нет (WebSocket transport)
+        if (SocketIOManager.Instance == null)
         {
-            GameObject wsClient = new GameObject("SimpleWebSocketClient");
-            wsClient.AddComponent<SimpleWebSocketClient>();
+            GameObject wsClient = new GameObject("SocketIOManager");
+            wsClient.AddComponent<SocketIOManager>();
             DontDestroyOnLoad(wsClient);
-            Debug.Log("[NetworkInitializer] ✅ Создан SimpleWebSocketClient");
+            Debug.Log("[NetworkInitializer] ✅ Создан SocketIOManager (WebSocket)");
         }
 
         // Создаём RoomManager если его нет

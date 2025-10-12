@@ -49,3 +49,8 @@ SERVER_CODE/package-lock.json
 
 # Unity Asset Store
 AssetStoreTools/
+
+# Unity Builds (exclude from repo)
+/Aetherion/
+
+nul

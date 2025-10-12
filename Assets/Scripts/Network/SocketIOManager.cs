@@ -2,47 +2,58 @@ using UnityEngine;
 using System;
 using System.Collections.Generic;
 using SocketIOClient;
-using System.Text.Json;
+using Newtonsoft.Json;
 
 /// <summary>
-/// Socket.IO менеджер для реального мультиплеера
-/// Использует правильную Socket.IO библиотеку
+/// Socket.IO Manager using SocketIOUnity library
+/// Заменяет UnifiedSocketIO для работы с WebSocket transport
 /// </summary>
 public class SocketIOManager : MonoBehaviour
 {
     public static SocketIOManager Instance { get; private set; }
 
-    [Header("Server Settings")]
+    [Header("Connection")]
     [SerializeField] private string serverUrl = "https://aetherion-server-gv5u.onrender.com";
+    [SerializeField] private bool debugMode = true;
 
-    // Socket.IO клиент
-    private SocketIO socket;
-
-    // Connection state
+    // Socket.IO client
+    private SocketIOUnity socket;
     private bool isConnected = false;
-    private string sessionId = "";
-    private string authToken = "";
     private string currentRoomId = "";
+    private string myUsername = "";
+    private string myUserId = "";
 
     // Event callbacks
     private Dictionary<string, Action<string>> eventCallbacks = new Dictionary<string, Action<string>>();
 
     void Awake()
     {
-        if (Instance == null)
-        {
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
-        }
-        else
+        if (Instance != null && Instance != this)
         {
             Destroy(gameObject);
+            return;
         }
+
+        Instance = this;
+        DontDestroyOnLoad(gameObject);
+
+        // Ensure UnityMainThreadDispatcher exists
+        if (!UnityMainThreadDispatcher.Exists())
+        {
+            UnityMainThreadDispatcher.Instance();
+            DebugLog("✅ UnityMainThreadDispatcher created");
+        }
+
+        DebugLog("✅ SocketIOManager initialized");
     }
 
     void OnDestroy()
     {
-        Disconnect();
+        if (socket != null)
+        {
+            socket.Disconnect();
+            socket.Dispose();
+        }
     }
 
     /// <summary>
@@ -50,69 +61,50 @@ public class SocketIOManager : MonoBehaviour
     /// </summary>
     public void Connect(string token, Action<bool> onComplete = null)
     {
-        if (isConnected || socket != null)
+        if (isConnected)
         {
-            Debug.LogWarning("[SocketIO] Уже подключен или подключается");
-            onComplete?.Invoke(false);
+            DebugLog("⚠️ Уже подключен!");
+            onComplete?.Invoke(true);
             return;
         }
 
-        authToken = token;
+        DebugLog($"🔌 Подключение к {serverUrl}...");
 
-        try
+        // Создаём Socket.IO клиент
+        var uri = new Uri(serverUrl);
+        socket = new SocketIOUnity(uri, new SocketIOOptions
         {
-            // Создаём Socket.IO клиент
-            var uri = new Uri(serverUrl);
-            socket = new SocketIO(uri, new SocketIOOptions
+            Transport = SocketIOClient.Transport.TransportProtocol.WebSocket,
+            EIO = 4,
+            Query = new Dictionary<string, string>
             {
-                Transport = SocketIOClient.Transport.TransportProtocol.WebSocket,
-                ExtraHeaders = new Dictionary<string, string>
-                {
-                    { "Authorization", $"Bearer {token}" }
-                }
-            });
+                { "token", token }
+            }
+        });
 
-            // Подписываемся на события подключения
-            socket.OnConnected += (sender, e) =>
-            {
-                isConnected = true;
-                sessionId = socket.Id;
-                Debug.Log($"[SocketIO] ✅ Подключено! Socket ID: {sessionId}");
-                onComplete?.Invoke(true);
-            };
-
-            socket.OnDisconnected += (sender, e) =>
-            {
-                isConnected = false;
-                Debug.Log("[SocketIO] ❌ Отключено от сервера");
-            };
-
-            socket.OnError += (sender, e) =>
-            {
-                Debug.LogError($"[SocketIO] ❌ Ошибка: {e}");
-            };
-
-            socket.OnReconnectAttempt += (sender, e) =>
-            {
-                Debug.Log($"[SocketIO] 🔄 Попытка переподключения #{e}");
-            };
-
-            // Подключаемся
-            Debug.Log($"[SocketIO] Подключение к {serverUrl}...");
-            socket.ConnectAsync().ContinueWith(task =>
-            {
-                if (task.IsFaulted)
-                {
-                    Debug.LogError($"[SocketIO] ❌ Ошибка подключения: {task.Exception?.Message}");
-                    onComplete?.Invoke(false);
-                }
-            });
-        }
-        catch (Exception ex)
+        // Событие подключения
+        socket.OnConnected += (sender, e) =>
         {
-            Debug.LogError($"[SocketIO] ❌ Исключение при подключении: {ex.Message}");
-            onComplete?.Invoke(false);
-        }
+            isConnected = true;
+            DebugLog($"✅ Подключено! Socket ID: {socket.Id}");
+            onComplete?.Invoke(true);
+        };
+
+        // Событие отключения
+        socket.OnDisconnected += (sender, e) =>
+        {
+            isConnected = false;
+            DebugLog("❌ Отключено от сервера");
+        };
+
+        // Событие ошибки
+        socket.OnError += (sender, e) =>
+        {
+            Debug.LogError($"[SocketIO] ❌ Ошибка: {e}");
+        };
+
+        // Подключаемся
+        socket.Connect();
     }
 
     /// <summary>
@@ -120,45 +112,18 @@ public class SocketIOManager : MonoBehaviour
     /// </summary>
     public void Disconnect()
     {
-        if (socket != null)
+        if (socket != null && isConnected)
         {
-            socket.DisconnectAsync();
-            socket.Dispose();
-            socket = null;
-        }
-
-        isConnected = false;
-        sessionId = "";
-        currentRoomId = "";
-        Debug.Log("[SocketIO] Отключение завершено");
-    }
-
-    /// <summary>
-    /// Отправить событие на сервер
-    /// </summary>
-    public void EmitEvent(string eventName, object data)
-    {
-        if (!isConnected || socket == null)
-        {
-            Debug.LogWarning($"[SocketIO] Не подключен! Событие '{eventName}' не отправлено");
-            return;
-        }
-
-        try
-        {
-            socket.EmitAsync(eventName, data);
-            Debug.Log($"[SocketIO] ✉️ Отправлено: {eventName}");
-        }
-        catch (Exception ex)
-        {
-            Debug.LogError($"[SocketIO] ❌ Ошибка отправки '{eventName}': {ex.Message}");
+            socket.Disconnect();
+            isConnected = false;
+            DebugLog("🔌 Отключились от сервера");
         }
     }
 
     /// <summary>
-    /// Подписаться на событие от сервера
+    /// Подписаться на событие
     /// </summary>
-    public void On(string eventName, Action<JsonElement> callback)
+    public void On(string eventName, Action<string> callback)
     {
         if (socket == null)
         {
@@ -166,36 +131,42 @@ public class SocketIOManager : MonoBehaviour
             return;
         }
 
-        socket.On(eventName, response =>
+        // Сохраняем callback
+        eventCallbacks[eventName] = callback;
+
+        // Подписываемся на событие Socket.IO
+        socket.On(eventName, (response) =>
         {
-            try
+            string jsonData = response.GetValue<string>();
+            DebugLog($"📨 Событие '{eventName}': {jsonData.Substring(0, Math.Min(100, jsonData.Length))}...");
+
+            // Вызываем callback в главном потоке Unity
+            UnityMainThreadDispatcher.Instance().Enqueue(() =>
             {
-                var data = response.GetValue<JsonElement>();
-                Debug.Log($"[SocketIO] 📨 Получено: {eventName}");
-                callback?.Invoke(data);
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[SocketIO] ❌ Ошибка обработки '{eventName}': {ex.Message}");
-            }
+                if (eventCallbacks.ContainsKey(eventName))
+                {
+                    eventCallbacks[eventName]?.Invoke(jsonData);
+                }
+            });
         });
 
-        Debug.Log($"[SocketIO] 📡 Подписка на событие: {eventName}");
+        DebugLog($"📡 Подписка на событие: {eventName}");
     }
 
     /// <summary>
-    /// Отписаться от события
+    /// Отправить событие
     /// </summary>
-    public void Off(string eventName)
+    public void Emit(string eventName, string jsonData)
     {
-        if (socket != null)
+        if (socket == null || !isConnected)
         {
-            socket.Off(eventName);
-            Debug.Log($"[SocketIO] ❌ Отписка от события: {eventName}");
+            Debug.LogWarning($"[SocketIO] ⚠️ Не подключен! Событие '{eventName}' не отправлено");
+            return;
         }
-    }
 
-    // ===== GAME-SPECIFIC EVENTS =====
+        socket.Emit(eventName, jsonData);
+        DebugLog($"📤 Отправлено: {eventName}");
+    }
 
     /// <summary>
     /// Войти в комнату
@@ -204,137 +175,117 @@ public class SocketIOManager : MonoBehaviour
     {
         if (!isConnected)
         {
-            Debug.LogError("[SocketIO] Не подключен к серверу!");
+            Debug.LogError("[SocketIO] ❌ Не подключен к серверу!");
             onComplete?.Invoke(false);
             return;
         }
 
         currentRoomId = roomId;
+        myUsername = PlayerPrefs.GetString("Username", "Player");
+        myUserId = PlayerPrefs.GetString("UserId", "");
 
-        var data = new
+        // Подписываемся на room_players перед входом
+        bool responseReceived = false;
+        On("room_players", (data) =>
+        {
+            if (!responseReceived)
+            {
+                responseReceived = true;
+                DebugLog("✅ Получен список игроков в комнате");
+                onComplete?.Invoke(true);
+            }
+        });
+
+        // Отправляем join_room
+        var joinData = new JoinRoomRequest
         {
             roomId = roomId,
-            characterClass = characterClass
+            username = myUsername,
+            characterClass = characterClass,
+            userId = myUserId,
+            password = "",
+            level = PlayerPrefs.GetInt("Level", 1)
         };
 
-        Debug.Log($"[SocketIO] 🚪 Вход в комнату: {roomId} (класс: {characterClass})");
+        string json = JsonUtility.ToJson(joinData);
+        Emit("join_room", json);
 
-        // Подписываемся на ответ сервера
-        On("room_state", (response) =>
+        DebugLog($"🚪 Вход в комнату: {roomId} как {characterClass}");
+
+        // Таймаут на случай, если сервер не ответит
+        StartCoroutine(JoinRoomTimeout(3f, () =>
         {
-            Debug.Log($"[SocketIO] ✅ Получено состояние комнаты!");
-            onComplete?.Invoke(true);
-        });
+            if (!responseReceived)
+            {
+                responseReceived = true;
+                Debug.LogWarning("[SocketIO] ⏰ Таймаут ожидания room_players");
+                onComplete?.Invoke(true);
+            }
+        }));
+    }
 
-        On("error", (response) =>
+    private System.Collections.IEnumerator JoinRoomTimeout(float delay, Action callback)
+    {
+        yield return new WaitForSeconds(delay);
+        callback?.Invoke();
+    }
+
+    /// <summary>
+    /// Запросить список игроков в комнате
+    /// </summary>
+    public void RequestRoomPlayers()
+    {
+        if (!isConnected || string.IsNullOrEmpty(currentRoomId))
         {
-            var error = response.ToString();
-            Debug.LogError($"[SocketIO] ❌ Ошибка входа в комнату: {error}");
-            onComplete?.Invoke(false);
-        });
+            Debug.LogWarning("[SocketIO] ⚠️ Не подключен к комнате!");
+            return;
+        }
 
-        // Отправляем событие
-        EmitEvent("join_room", data);
+        var data = new { roomId = currentRoomId };
+        Emit("get_room_players", JsonUtility.ToJson(data));
+        DebugLog($"🔄 Запрос списка игроков для комнаты {currentRoomId}");
     }
 
     /// <summary>
     /// Обновить позицию игрока
     /// </summary>
-    public void UpdatePosition(Vector3 position, Quaternion rotation, string animationState)
-    {
-        if (!isConnected || string.IsNullOrEmpty(currentRoomId))
-        {
-            return;
-        }
-
-        var data = new
-        {
-            x = position.x,
-            y = position.y,
-            z = position.z,
-            rotationY = rotation.eulerAngles.y,
-            animationState = animationState
-        };
-
-        EmitEvent("update_position", data);
-    }
-
-    /// <summary>
-    /// Отправить атаку
-    /// </summary>
-    public void SendAttack(string targetSocketId, float damage, string attackType)
+    public void UpdatePosition(Vector3 position, Quaternion rotation, Vector3 velocity, bool isGrounded)
     {
         if (!isConnected) return;
 
         var data = new
         {
-            targetSocketId = targetSocketId,
-            damage = damage,
-            attackType = attackType
+            position = new { x = position.x, y = position.y, z = position.z },
+            rotation = new { x = rotation.x, y = rotation.y, z = rotation.z, w = rotation.w },
+            velocity = new { x = velocity.x, y = velocity.y, z = velocity.z },
+            isGrounded = isGrounded
         };
 
-        EmitEvent("player_attack", data);
-        Debug.Log($"[SocketIO] ⚔️ Атака отправлена: {damage} урона");
+        string json = JsonConvert.SerializeObject(data);
+        Emit("player_update", json);
     }
 
-    /// <summary>
-    /// Использовать скилл
-    /// </summary>
-    public void SendSkill(int skillId, string targetSocketId, Vector3 targetPosition)
-    {
-        if (!isConnected) return;
-
-        var data = new
-        {
-            skillId = skillId,
-            targetSocketId = targetSocketId,
-            targetX = targetPosition.x,
-            targetY = targetPosition.y,
-            targetZ = targetPosition.z
-        };
-
-        EmitEvent("player_skill", data);
-        Debug.Log($"[SocketIO] 🔮 Скилл {skillId} использован");
-    }
-
-    /// <summary>
-    /// Обновить здоровье/ману
-    /// </summary>
-    public void UpdateHealth(int currentHP, int maxHP, int currentMP, int maxMP)
-    {
-        if (!isConnected) return;
-
-        var data = new
-        {
-            currentHP = currentHP,
-            maxHP = maxHP,
-            currentMP = currentMP,
-            maxMP = maxMP
-        };
-
-        EmitEvent("update_health", data);
-    }
-
-    /// <summary>
-    /// Запросить респавн
-    /// </summary>
-    public void RequestRespawn()
-    {
-        if (!isConnected) return;
-        EmitEvent("player_respawn", new { });
-        Debug.Log("[SocketIO] 💀 Запрос респавна");
-    }
-
-    /// <summary>
-    /// Начать прослушивание событий
-    /// </summary>
-    public void StartListening()
-    {
-        Debug.Log("[SocketIO] 📡 Listening started");
-    }
-
-    // Properties
     public bool IsConnected => isConnected;
     public string CurrentRoomId => currentRoomId;
-    public string SessionId => sessionId;
+    public string MyUsername => myUsername;
+
+    private void DebugLog(string message)
+    {
+        if (debugMode)
+        {
+            Debug.Log($"[SocketIO] {message}");
+        }
+    }
+
+    // Data classes
+    [Serializable]
+    public class JoinRoomRequest
+    {
+        public string roomId;
+        public string username;
+        public string characterClass;
+        public string userId;
+        public string password;
+        public int level;
+    }
 }
