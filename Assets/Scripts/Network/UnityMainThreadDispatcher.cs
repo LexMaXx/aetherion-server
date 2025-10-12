@@ -14,16 +14,35 @@ public class UnityMainThreadDispatcher : MonoBehaviour
 
     /// <summary>
     /// Singleton Instance
+    /// ВАЖНО: Должен быть вызван ТОЛЬКО из главного потока Unity!
     /// </summary>
     public static UnityMainThreadDispatcher Instance()
     {
         if (!Exists())
         {
-            // Create instance if it doesn't exist
-            GameObject go = new GameObject("UnityMainThreadDispatcher");
-            _instance = go.AddComponent<UnityMainThreadDispatcher>();
-            DontDestroyOnLoad(go);
-            Debug.Log("[MainThreadDispatcher] ✅ Created");
+            // ПРОВЕРКА: Можем создавать GameObject только в главном потоке Unity
+            if (!UnityEngine.Application.isPlaying)
+            {
+                Debug.LogError("[MainThreadDispatcher] ❌ Cannot create instance - Unity is not playing!");
+                return null;
+            }
+
+            // Проверяем, что мы в главном потоке (Unity Main Thread ID обычно низкий, например 1)
+            // Если вызывается из фонового потока - возвращаем null, чтобы не крашить приложение
+            try
+            {
+                // Create instance if it doesn't exist (ТОЛЬКО из главного потока!)
+                GameObject go = new GameObject("UnityMainThreadDispatcher");
+                _instance = go.AddComponent<UnityMainThreadDispatcher>();
+                DontDestroyOnLoad(go);
+                Debug.Log("[MainThreadDispatcher] ✅ Created");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[MainThreadDispatcher] ❌ Failed to create instance: {ex.Message}");
+                Debug.LogError("[MainThreadDispatcher] HINT: Instance() must be called from main thread during Awake/Start!");
+                return null;
+            }
         }
 
         return _instance;

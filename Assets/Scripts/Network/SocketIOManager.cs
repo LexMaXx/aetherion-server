@@ -92,11 +92,20 @@ public class SocketIOManager : MonoBehaviour
             DebugLog($"✅ Подключено! Socket ID: {socket.Id}");
 
             // ВАЖНО: Вызываем callback в главном потоке Unity!
-            UnityMainThreadDispatcher.Instance().Enqueue(() =>
+            var dispatcher = UnityMainThreadDispatcher.Instance();
+            if (dispatcher != null)
             {
-                DebugLog($"✅ Callback вызван в главном потоке, isConnected = {isConnected}");
-                onComplete?.Invoke(true);
-            });
+                dispatcher.Enqueue(() =>
+                {
+                    DebugLog($"✅ Callback вызван в главном потоке, isConnected = {isConnected}");
+                    onComplete?.Invoke(true);
+                });
+            }
+            else
+            {
+                Debug.LogError("[SocketIO] ❌ UnityMainThreadDispatcher is null in OnConnected!");
+                onComplete?.Invoke(false);
+            }
         };
 
         // Событие отключения
@@ -106,11 +115,15 @@ public class SocketIOManager : MonoBehaviour
             Debug.LogError($"[SocketIO] ❌ Отключено от сервера! Причина: {e}");
 
             // Логируем дополнительную информацию
-            UnityMainThreadDispatcher.Instance().Enqueue(() =>
+            var dispatcher = UnityMainThreadDispatcher.Instance();
+            if (dispatcher != null)
             {
-                Debug.LogError($"[SocketIO] Отключение произошло в комнате: {currentRoomId}");
-                Debug.LogError($"[SocketIO] Username: {myUsername}");
-            });
+                dispatcher.Enqueue(() =>
+                {
+                    Debug.LogError($"[SocketIO] Отключение произошло в комнате: {currentRoomId}");
+                    Debug.LogError($"[SocketIO] Username: {myUsername}");
+                });
+            }
         };
 
         // Событие ошибки
@@ -188,13 +201,21 @@ public class SocketIOManager : MonoBehaviour
                 DebugLog($"📨 Событие '{eventName}': {jsonData.Substring(0, Math.Min(100, jsonData.Length))}...");
 
                 // Вызываем callback в главном потоке Unity
-                UnityMainThreadDispatcher.Instance().Enqueue(() =>
+                var dispatcher = UnityMainThreadDispatcher.Instance();
+                if (dispatcher != null)
                 {
-                    if (eventCallbacks.ContainsKey(eventName))
+                    dispatcher.Enqueue(() =>
                     {
-                        eventCallbacks[eventName]?.Invoke(jsonData);
-                    }
-                });
+                        if (eventCallbacks.ContainsKey(eventName))
+                        {
+                            eventCallbacks[eventName]?.Invoke(jsonData);
+                        }
+                    });
+                }
+                else
+                {
+                    Debug.LogError($"[SocketIO] ❌ UnityMainThreadDispatcher is null! Event '{eventName}' cannot be processed.");
+                }
             }
             catch (Exception ex)
             {
