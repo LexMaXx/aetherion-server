@@ -28,6 +28,14 @@ app.use(express.json());
 // Logging middleware
 app.use((req, res, next) => {
   console.log(`📨 ${req.method} ${req.path}`);
+
+  // ОТЛАДКА: Логировать ВСЕ Socket.IO запросы
+  if (req.path.startsWith('/socket.io/')) {
+    console.log(`🔍 Socket.IO REQUEST: ${req.method} ${req.url}`);
+    console.log(`🔍 Headers:`, req.headers);
+    console.log(`🔍 Query:`, req.query);
+  }
+
   next();
 });
 
