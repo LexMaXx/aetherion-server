@@ -475,6 +475,28 @@ public class NetworkSyncManager : MonoBehaviour
 
         GameObject playerObj = Instantiate(prefab, position, Quaternion.identity);
         playerObj.name = $"NetworkPlayer_{username}";
+        playerObj.layer = LayerMask.NameToLayer("Character");
+
+        // ВАЖНО: Найти модель внутри префаба
+        Transform modelTransform = playerObj.transform.Find("Model") ?? playerObj.transform;
+
+        // Отключить ненужные компоненты для сетевого игрока
+        var playerController = modelTransform.GetComponent<PlayerController>();
+        if (playerController != null)
+        {
+            playerController.enabled = false;
+            Debug.Log($"[NetworkSync] Отключен PlayerController для {username}");
+        }
+
+        var cameraController = playerObj.GetComponentInChildren<Camera>();
+        if (cameraController != null)
+        {
+            cameraController.gameObject.SetActive(false);
+            Debug.Log($"[NetworkSync] Отключена камера для {username}");
+        }
+
+        // ВАЖНО: Настроить оружие из WeaponDatabase
+        SetupNetworkPlayerWeapon(modelTransform, characterClass);
 
         // Add NetworkPlayer component
         NetworkPlayer networkPlayer = playerObj.AddComponent<NetworkPlayer>();
@@ -492,7 +514,45 @@ public class NetworkSyncManager : MonoBehaviour
 
         networkPlayers[socketId] = networkPlayer;
 
-        Debug.Log($"[NetworkSync] ✅ Создан сетевой игрок: {username} ({characterClass})");
+        Debug.Log($"[NetworkSync] ✅ Создан сетевой игрок: {username} ({characterClass}) с оружием");
+    }
+
+    /// <summary>
+    /// Настроить оружие для сетевого игрока
+    /// </summary>
+    private void SetupNetworkPlayerWeapon(Transform modelTransform, string characterClass)
+    {
+        // Найти или добавить ClassWeaponManager
+        var weaponManager = modelTransform.GetComponent<ClassWeaponManager>();
+        if (weaponManager == null)
+        {
+            weaponManager = modelTransform.gameObject.AddComponent<ClassWeaponManager>();
+            Debug.Log($"[NetworkSync] Добавлен ClassWeaponManager для {characterClass}");
+        }
+
+        // Загрузить WeaponDatabase
+        var weaponDatabase = Resources.Load<WeaponDatabase>("WeaponDatabase");
+        if (weaponDatabase != null)
+        {
+            // Установить класс и прикрепить оружие
+            var characterClassEnum = (CharacterClass)System.Enum.Parse(typeof(CharacterClass), characterClass);
+
+            // Вызываем метод через рефлексию или делаем публичным
+            var method = typeof(ClassWeaponManager).GetMethod("AttachWeaponForClass", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            if (method != null)
+            {
+                method.Invoke(weaponManager, null);
+                Debug.Log($"[NetworkSync] ✅ Оружие прикреплено для {characterClass}");
+            }
+            else
+            {
+                Debug.LogWarning($"[NetworkSync] ⚠️ Не найден метод AttachWeaponForClass");
+            }
+        }
+        else
+        {
+            Debug.LogWarning($"[NetworkSync] ⚠️ WeaponDatabase не найдена в Resources");
+        }
     }
 
     /// <summary>
