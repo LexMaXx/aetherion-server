@@ -40,9 +40,10 @@ app.use('/api/room', require('./routes/room'));
 app.get('/', (req, res) => {
   res.json({
     message: 'Aetherion Server is running!',
-    version: '2.0.0',
+    version: '2.1.0-json-fix',
     status: 'online',
-    features: ['REST API', 'Socket.IO', 'Multiplayer']
+    timestamp: new Date().toISOString(),
+    features: ['REST API', 'Socket.IO', 'Multiplayer', 'JSON String Parsing']
   });
 });
 
