@@ -15,39 +15,7 @@ const io = socketIO(server, {
     methods: ["GET", "POST"],
     credentials: true
   },
-  // ВАЖНО: WebSocket в приоритете! Unity клиент использует только WebSocket
-  transports: ['websocket', 'polling'],
-  allowEIO3: true,
-  pingTimeout: 60000,
-  pingInterval: 25000,
-  // Дополнительные настройки для стабильности
-  connectTimeout: 45000,
-  upgradeTimeout: 30000,
-  maxHttpBufferSize: 1e8 // 100 MB
-});
-
-// ОТЛАДКА: Логируем Engine.IO события
-io.engine.on("initial_headers", (headers, req) => {
-  console.log(`🔧 Engine.IO initial_headers: ${req.method} ${req.url}`);
-});
-
-io.engine.on("headers", (headers, req) => {
-  console.log(`🔧 Engine.IO headers: ${req.method} ${req.url}`);
-});
-
-io.engine.on("connection_error", (err) => {
-  console.error(`❌ Engine.IO connection_error:`, err);
-});
-
-// НОВОЕ: Логируем успешные подключения Engine.IO
-io.engine.on("connection", (rawSocket) => {
-  console.log(`✅ Engine.IO connection established`);
-  console.log(`   Transport: ${rawSocket.transport.name}`);
-  console.log(`   ID: ${rawSocket.id}`);
-
-  rawSocket.on("upgrade", (transport) => {
-    console.log(`🔄 Transport upgraded to: ${transport.name}`);
-  });
+  transports: ['websocket', 'polling']
 });
 
 // Подключение к MongoDB
@@ -60,14 +28,6 @@ app.use(express.json());
 // Logging middleware
 app.use((req, res, next) => {
   console.log(`📨 ${req.method} ${req.path}`);
-
-  // ОТЛАДКА: Логировать ВСЕ Socket.IO запросы
-  if (req.path.startsWith('/socket.io/')) {
-    console.log(`🔍 Socket.IO REQUEST: ${req.method} ${req.url}`);
-    console.log(`🔍 Headers:`, req.headers);
-    console.log(`🔍 Query:`, req.query);
-  }
-
   next();
 });
 
@@ -80,9 +40,10 @@ app.use('/api/room', require('./routes/room'));
 app.get('/', (req, res) => {
   res.json({
     message: 'Aetherion Server is running!',
-    version: '2.0.0',
+    version: '2.1.0-json-fix',
     status: 'online',
-    features: ['REST API', 'Socket.IO', 'Multiplayer']
+    timestamp: new Date().toISOString(),
+    features: ['REST API', 'Socket.IO', 'Multiplayer', 'JSON String Parsing']
   });
 });
 
