@@ -155,10 +155,20 @@ public class SocketIOManager : MonoBehaviour
         {
             try
             {
-                // ВАЖНО: response.ToString() возвращает неправильный JSON
-                // Используем GetValue() и сериализуем обратно через Newtonsoft.Json
-                var rawData = response.GetValue();
-                string jsonData = JsonConvert.SerializeObject(rawData);
+                // ВАЖНО: SocketIOResponse содержит массив параметров
+                // Берем первый параметр (индекс 0) и сериализуем его
+                string jsonData;
+
+                if (response.Count > 0)
+                {
+                    // GetValue(0) получает первый аргумент события
+                    var firstArg = response.GetValue(0);
+                    jsonData = JsonConvert.SerializeObject(firstArg);
+                }
+                else
+                {
+                    jsonData = "{}";
+                }
 
                 DebugLog($"📨 Событие '{eventName}': {jsonData.Substring(0, Math.Min(100, jsonData.Length))}...");
 

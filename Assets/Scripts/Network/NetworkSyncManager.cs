@@ -263,11 +263,7 @@ public class NetworkSyncManager : MonoBehaviour
     /// </summary>
     private void OnPlayerJoined(string jsonData)
     {
-        // ВАЖНО: response.ToString() возвращает массив, берем первый элемент
-        var dataArray = JsonConvert.DeserializeObject<PlayerJoinedEvent[]>(jsonData);
-        if (dataArray == null || dataArray.Length == 0) return;
-
-        var data = dataArray[0];
+        var data = JsonConvert.DeserializeObject<PlayerJoinedEvent>(jsonData);
         Debug.Log($"[NetworkSync] Игрок подключился: {data.username} ({data.characterClass})");
 
         // Don't create network player for ourselves
@@ -300,15 +296,7 @@ public class NetworkSyncManager : MonoBehaviour
             // ОТЛАДКА: Логируем сырой JSON
             Debug.Log($"[NetworkSync] 🔍 RAW JSON for player_moved: {jsonData}");
 
-            // ВАЖНО: response.ToString() возвращает массив, берем первый элемент
-            var dataArray = JsonConvert.DeserializeObject<PlayerMovedEvent[]>(jsonData);
-            if (dataArray == null || dataArray.Length == 0)
-            {
-                Debug.LogError($"[NetworkSync] ❌ Empty array in player_moved!");
-                return;
-            }
-
-            var data = dataArray[0];
+            var data = JsonConvert.DeserializeObject<PlayerMovedEvent>(jsonData);
 
             // ОТЛАДКА: Логируем результат десериализации
             if (data == null)
