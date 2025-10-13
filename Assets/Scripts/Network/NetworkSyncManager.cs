@@ -555,12 +555,15 @@ public class NetworkSyncManager : MonoBehaviour
 
         if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer player))
         {
+            // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Обновляем HP NetworkPlayer!
+            player.UpdateHealth((int)data.currentHealth, (int)data.maxHealth, player.CurrentMP, player.MaxMP);
             player.ShowDamage(data.damage);
-            // TODO: Update health bar
+
+            Debug.Log($"[NetworkSync] ✅ HP обновлён для {player.username}: {data.currentHealth}/{data.maxHealth}");
         }
 
-        // TODO: Если это мы получили урон, применить к локальному игроку
-        // Сервер должен отправить специальное событие для локального игрока
+        // TODO: Если это МЫ получили урон, применить к локальному игроку через HealthSystem
+        // Для этого сервер должен включать поле "isLocalPlayer" в событие
     }
 
     /// <summary>
