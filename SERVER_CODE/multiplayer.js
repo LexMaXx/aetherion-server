@@ -17,6 +17,13 @@ const roomSpawnPoints = new Map(); // roomId => Set(spawnIndex)
 const MAX_SPAWN_POINTS = 20; // Максимум 20 точек спавна
 
 // ═══════════════════════════════════════════
+// LOBBY SYSTEM (как в Dota 2, CS:GO)
+// ═══════════════════════════════════════════
+const roomStates = new Map(); // roomId => { state: 'LOBBY' | 'COUNTDOWN' | 'GAME', startTime, countdownTimer }
+const LOBBY_WAIT_TIME = 10000; // 10 секунд ожидание в лобби
+const COUNTDOWN_TIME = 3000; // 3 секунды countdown перед стартом
+
+// ═══════════════════════════════════════════
 // SERVER AUTHORITY SETTINGS
 // ═══════════════════════════════════════════
 const MAX_PLAYER_SPEED = 15.0; // Максимальная скорость игрока (m/s)
@@ -59,6 +66,86 @@ module.exports = (io) => {
       roomSpawnPoints.get(roomId).delete(spawnIndex);
       console.log(`[Spawn] 🔓 Released spawn point ${spawnIndex} in room ${roomId}`);
     }
+  }
+
+  // ═══════════════════════════════════════════
+  // HELPER: Инициализация лобби для комнаты
+  // ═══════════════════════════════════════════
+  function initializeRoomLobby(roomId, io) {
+    if (!roomStates.has(roomId)) {
+      console.log(`[Lobby] 🏁 Creating lobby for room ${roomId}`);
+
+      const roomState = {
+        state: 'LOBBY',
+        startTime: Date.now(),
+        countdownTimer: null,
+        playersReady: new Set()
+      };
+
+      roomStates.set(roomId, roomState);
+
+      // Через 10 секунд начинаем countdown
+      roomState.countdownTimer = setTimeout(() => {
+        startCountdown(roomId, io);
+      }, LOBBY_WAIT_TIME);
+
+      // Уведомляем всех что лобби создано
+      io.to(roomId).emit('lobby_created', {
+        waitTime: LOBBY_WAIT_TIME,
+        timestamp: Date.now()
+      });
+    }
+  }
+
+  function startCountdown(roomId, io) {
+    const roomState = roomStates.get(roomId);
+    if (!roomState || roomState.state !== 'LOBBY') return;
+
+    console.log(`[Lobby] ⏱️ Starting countdown for room ${roomId}`);
+    roomState.state = 'COUNTDOWN';
+
+    // Отправляем countdown (3 секунды)
+    let countdown = 3;
+    io.to(roomId).emit('game_countdown', { countdown, timestamp: Date.now() });
+
+    const countdownInterval = setInterval(() => {
+      countdown--;
+      if (countdown > 0) {
+        io.to(roomId).emit('game_countdown', { countdown, timestamp: Date.now() });
+      } else {
+        clearInterval(countdownInterval);
+        startGame(roomId, io);
+      }
+    }, 1000);
+  }
+
+  function startGame(roomId, io) {
+    const roomState = roomStates.get(roomId);
+    if (!roomState) return;
+
+    console.log(`[Lobby] 🎮 Starting game for room ${roomId}`);
+    roomState.state = 'GAME';
+
+    // Собираем всех игроков с их spawn points
+    const players = [];
+    for (const [socketId, player] of activePlayers.entries()) {
+      if (player.roomId === roomId) {
+        players.push({
+          socketId,
+          username: player.username,
+          characterClass: player.characterClass,
+          spawnIndex: player.spawnIndex
+        });
+      }
+    }
+
+    // Отправляем команду "СПАВНИТЕ ВСЕХ ОДНОВРЕМЕННО!"
+    io.to(roomId).emit('game_start', {
+      players,
+      timestamp: Date.now()
+    });
+
+    console.log(`[Lobby] ✅ Game started for ${players.length} players in room ${roomId}`);
   }
 
   // ═══════════════════════════════════════════
@@ -225,6 +312,11 @@ module.exports = (io) => {
         });
 
         console.log(`✅ ${username} joined room ${roomId}. Total players: ${playersInRoom.length}`);
+
+        // КРИТИЧЕСКОЕ: Если это первый игрок - запускаем лобби с 10-секундным таймером
+        if (playersInRoom.length === 1) {
+          initializeRoomLobby(roomId, io);
+        }
       } catch (error) {
         console.error('[Join Room] Error:', error);
         socket.emit('error', { message: 'Failed to join room' });

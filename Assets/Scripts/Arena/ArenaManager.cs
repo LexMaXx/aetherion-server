@@ -36,6 +36,7 @@ public class ArenaManager : MonoBehaviour
     private bool isMultiplayer = false;
     private int assignedSpawnIndex = -1; // Индекс точки спавна от сервера (-1 = не назначен)
     private bool spawnIndexReceived = false; // Флаг получения spawnIndex от сервера
+    private bool gameStarted = false; // LOBBY SYSTEM: Флаг старта игры
 
     void Start()
     {
@@ -866,11 +867,49 @@ public class ArenaManager : MonoBehaviour
         spawnIndexReceived = true;
         Debug.Log($"[ArenaManager] 🎯 Сервер назначил точку спавна: #{spawnIndex}");
 
-        // КРИТИЧЕСКОЕ: Теперь можно заспавнить персонажа с правильной точкой спавна!
-        if (isMultiplayer && spawnedCharacter == null)
+        // LOBBY SYSTEM: НЕ СПАВНИМ ДО game_start!
+        // Просто сохраняем spawnIndex, спавн произойдет при OnGameStarted()
+        Debug.Log("[ArenaManager] ⏳ Ждем game_start для спавна...");
+    }
+
+    // ===== LOBBY SYSTEM CALLBACKS =====
+
+    /// <summary>
+    /// Callback: Лобби создано, начинается 10-секундное ожидание
+    /// </summary>
+    public void OnLobbyStarted(int waitTimeMs)
+    {
+        Debug.Log($"[ArenaManager] 🏁 LOBBY STARTED! Ожидание {waitTimeMs}ms");
+        // TODO: Показать UI с таймером и списком игроков
+        // Можно создать простой Text на экране
+    }
+
+    /// <summary>
+    /// Callback: Countdown (3, 2, 1...)
+    /// </summary>
+    public void OnCountdown(int countdown)
+    {
+        Debug.Log($"[ArenaManager] ⏱️ COUNTDOWN: {countdown}");
+        // TODO: Показать большую цифру на экране
+    }
+
+    /// <summary>
+    /// Callback: Игра началась - СПАВНИМ ВСЕХ ОДНОВРЕМЕННО!
+    /// </summary>
+    public void OnGameStarted()
+    {
+        Debug.Log($"[ArenaManager] 🎮 GAME START! Спавним персонажа...");
+        gameStarted = true;
+
+        // КРИТИЧЕСКОЕ: Теперь можно спавнить!
+        if (isMultiplayer && spawnedCharacter == null && spawnIndexReceived)
         {
-            Debug.Log("[ArenaManager] ✅ Спавним персонажа ПОСЛЕ получения spawnIndex от сервера");
+            Debug.Log("[ArenaManager] ✅ Спавним персонажа при game_start");
             SpawnSelectedCharacter();
+        }
+        else if (!spawnIndexReceived)
+        {
+            Debug.LogError("[ArenaManager] ❌ game_start получен, но spawnIndex не назначен!");
         }
     }
 

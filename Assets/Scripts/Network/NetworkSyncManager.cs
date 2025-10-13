@@ -124,6 +124,11 @@ public class NetworkSyncManager : MonoBehaviour
         SocketIOManager.Instance.On("enemy_died", OnEnemyDied);
         SocketIOManager.Instance.On("enemy_respawned", OnEnemyRespawned);
 
+        // LOBBY SYSTEM EVENTS (10-second wait + countdown)
+        SocketIOManager.Instance.On("lobby_created", OnLobbyCreated);
+        SocketIOManager.Instance.On("game_countdown", OnGameCountdown);
+        SocketIOManager.Instance.On("game_start", OnGameStart);
+
         Debug.Log("[NetworkSync] ✅ Подписан на сетевые события");
     }
 
@@ -651,6 +656,86 @@ public class NetworkSyncManager : MonoBehaviour
         // This will be implemented when we have enemy manager
     }
 
+    // ===== LOBBY SYSTEM EVENT HANDLERS =====
+
+    /// <summary>
+    /// Обработать создание лобби (10 секунд ожидание)
+    /// </summary>
+    private void OnLobbyCreated(string jsonData)
+    {
+        var data = JsonUtility.FromJson<LobbyCreatedEvent>(jsonData);
+        Debug.Log($"[NetworkSync] 🏁 LOBBY CREATED! Ожидание {data.waitTime}ms перед стартом");
+
+        // НЕ СПАВНИМ игрока сейчас! Ждем game_start
+        // Можно показать UI с таймером через ArenaManager
+        if (ArenaManager.Instance != null)
+        {
+            ArenaManager.Instance.OnLobbyStarted(data.waitTime);
+        }
+    }
+
+    /// <summary>
+    /// Обработать countdown (3, 2, 1...)
+    /// </summary>
+    private void OnGameCountdown(string jsonData)
+    {
+        var data = JsonUtility.FromJson<GameCountdownEvent>(jsonData);
+        Debug.Log($"[NetworkSync] ⏱️ COUNTDOWN: {data.countdown}");
+
+        // Показываем countdown UI
+        if (ArenaManager.Instance != null)
+        {
+            ArenaManager.Instance.OnCountdown(data.countdown);
+        }
+    }
+
+    /// <summary>
+    /// Обработать старт игры - СПАВНИМ ВСЕХ ОДНОВРЕМЕННО!
+    /// </summary>
+    private void OnGameStart(string jsonData)
+    {
+        Debug.Log($"[NetworkSync] 🎮 GAME START! JSON: {jsonData}");
+
+        try
+        {
+            var data = JsonUtility.FromJson<GameStartEvent>(jsonData);
+
+            Debug.Log($"[NetworkSync] 🎮 Получено {data.players.Length} игроков для синхронного спавна");
+
+            // КРИТИЧЕСКОЕ: Говорим ArenaManager СПАВНИТЬ локального игрока СЕЙЧАС!
+            if (ArenaManager.Instance != null)
+            {
+                ArenaManager.Instance.OnGameStarted();
+            }
+
+            // Спавним всех сетевых игроков из pending (если есть)
+            foreach (var playerData in data.players)
+            {
+                Debug.Log($"[NetworkSync] Игрок в game_start: {playerData.username} (socketId: {playerData.socketId}, spawnIndex: {playerData.spawnIndex})");
+
+                // Skip ourselves - мы заспавнимся через ArenaManager
+                // (мы не знаем свой socketId здесь, но это не страшно - pending не содержит нас)
+
+                // Если игрок в pending - спавним его
+                if (pendingPlayers.TryGetValue(playerData.socketId, out RoomPlayerInfo playerInfo))
+                {
+                    Debug.Log($"[NetworkSync] 🎬 Спавним pending игрока {playerInfo.username} при game_start");
+
+                    // Позиция будет от первого player_moved, но можно использовать spawn point
+                    Vector3 spawnPos = Vector3.zero; // Временная позиция, обновится от player_moved
+
+                    SpawnNetworkPlayer(playerData.socketId, playerInfo.username, playerInfo.characterClass, spawnPos);
+                    // НЕ удаляем из pending - дождемся первого player_moved для реальной позиции
+                }
+            }
+
+            Debug.Log($"[NetworkSync] ✅ Game started! Всего сетевых игроков: {networkPlayers.Count}");
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[NetworkSync] ❌ Error in OnGameStart: {ex.Message}\n{ex.StackTrace}");
+        }
+    }
 
     // ===== NETWORK PLAYER MANAGEMENT =====
 
@@ -1145,4 +1230,48 @@ public class Vector3Data
     public float x;
     public float y;
     public float z;
+}
+
+// ===== LOBBY SYSTEM EVENT DATA CLASSES =====
+
+/// <summary>
+/// Lobby created event (10 секунд ожидание)
+/// </summary>
+[Serializable]
+public class LobbyCreatedEvent
+{
+    public int waitTime; // Время ожидания в миллисекундах (10000ms = 10s)
+    public long timestamp;
+}
+
+/// <summary>
+/// Game countdown event (3, 2, 1...)
+/// </summary>
+[Serializable]
+public class GameCountdownEvent
+{
+    public int countdown; // 3, 2, 1
+    public long timestamp;
+}
+
+/// <summary>
+/// Game start event - все спавнятся одновременно!
+/// </summary>
+[Serializable]
+public class GameStartEvent
+{
+    public GameStartPlayerInfo[] players; // Все игроки в комнате
+    public long timestamp;
+}
+
+/// <summary>
+/// Player info в game_start event
+/// </summary>
+[Serializable]
+public class GameStartPlayerInfo
+{
+    public string socketId;
+    public string username;
+    public string characterClass;
+    public int spawnIndex;
 }
