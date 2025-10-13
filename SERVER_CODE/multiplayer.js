@@ -7,13 +7,52 @@ const Room = require('./models/Room');
 const Character = require('./models/Character');
 
 // Хранилище активных игроков
-const activePlayers = new Map(); // socketId => { roomId, username, characterClass, position, animation, stats, userId }
+const activePlayers = new Map(); // socketId => { roomId, username, characterClass, position, animation, stats, userId, spawnIndex }
 
 // Хранилище врагов в комнатах
 const roomEnemies = new Map(); // roomId => Map(enemyId => { health, alive, position })
 
+// Хранилище использованных точек спавна в комнатах
+const roomSpawnPoints = new Map(); // roomId => Set(spawnIndex)
+const MAX_SPAWN_POINTS = 20; // Максимум 20 точек спавна
+
 module.exports = (io) => {
   console.log('🎮 Multiplayer module loaded');
+
+  // ═══════════════════════════════════════════
+  // HELPER: Получить свободную точку спавна
+  // ═══════════════════════════════════════════
+  function getNextSpawnPoint(roomId) {
+    if (!roomSpawnPoints.has(roomId)) {
+      roomSpawnPoints.set(roomId, new Set());
+    }
+
+    const usedSpawns = roomSpawnPoints.get(roomId);
+
+    // Находим первую свободную точку спавна (0-19)
+    for (let i = 0; i < MAX_SPAWN_POINTS; i++) {
+      if (!usedSpawns.has(i)) {
+        usedSpawns.add(i);
+        console.log(`[Spawn] 🎯 Assigned spawn point ${i} for room ${roomId}`);
+        return i;
+      }
+    }
+
+    // Если все точки заняты - используем случайную (комната переполнена)
+    const randomSpawn = Math.floor(Math.random() * MAX_SPAWN_POINTS);
+    console.warn(`[Spawn] ⚠️ All spawn points occupied! Using random: ${randomSpawn}`);
+    return randomSpawn;
+  }
+
+  // ═══════════════════════════════════════════
+  // HELPER: Освободить точку спавна
+  // ═══════════════════════════════════════════
+  function releaseSpawnPoint(roomId, spawnIndex) {
+    if (roomSpawnPoints.has(roomId)) {
+      roomSpawnPoints.get(roomId).delete(spawnIndex);
+      console.log(`[Spawn] 🔓 Released spawn point ${spawnIndex} in room ${roomId}`);
+    }
+  }
 
   io.on('connection', (socket) => {
     console.log(`✅ Player connected: ${socket.id}`);
@@ -66,6 +105,9 @@ module.exports = (io) => {
           console.error(`[Join Room] Failed to load stats for ${username}:`, error.message);
         }
 
+        // КРИТИЧЕСКОЕ: Назначаем уникальную точку спавна для этого игрока
+        const spawnIndex = getNextSpawnPoint(roomId);
+
         // Сохраняем информацию об игроке
         activePlayers.set(socket.id, {
           roomId,
@@ -79,7 +121,8 @@ module.exports = (io) => {
           health: 100,
           maxHealth: 100,
           connected: true,
-          joinedAt: Date.now()
+          joinedAt: Date.now(),
+          spawnIndex: spawnIndex  // ВАЖНО: Индекс точки спавна (0-19)
         });
 
         // Получаем всех игроков в комнате
@@ -94,15 +137,17 @@ module.exports = (io) => {
               rotation: player.rotation,
               animation: player.animation,
               health: player.health,
-              maxHealth: player.maxHealth
+              maxHealth: player.maxHealth,
+              spawnIndex: player.spawnIndex  // ВАЖНО: Отправляем индекс точки спавна
             });
           }
         }
 
-        // Отправляем текущему игроку список всех игроков
+        // Отправляем текущему игроку список всех игроков + его spawnIndex
         socket.emit('room_players', {
           players: playersInRoom,
-          yourSocketId: socket.id
+          yourSocketId: socket.id,
+          yourSpawnIndex: spawnIndex  // ВАЖНО: Твой индекс точки спавна
         });
 
         // Уведомляем других игроков о новом игроке
@@ -111,7 +156,8 @@ module.exports = (io) => {
           username,
           characterClass,
           position: { x: 0, y: 0, z: 0 },
-          rotation: { x: 0, y: 0, z: 0 }
+          rotation: { x: 0, y: 0, z: 0 },
+          spawnIndex: spawnIndex  // ВАЖНО: Индекс точки спавна нового игрока
         });
 
         console.log(`✅ ${username} joined room ${roomId}. Total players: ${playersInRoom.length}`);
@@ -160,7 +206,8 @@ module.exports = (io) => {
               rotation: p.rotation,
               animation: p.animation,
               health: p.health,
-              maxHealth: p.maxHealth
+              maxHealth: p.maxHealth,
+              spawnIndex: p.spawnIndex  // ВАЖНО: Индекс точки спавна
             });
           }
         }
@@ -168,7 +215,8 @@ module.exports = (io) => {
         // Отправляем список игроков
         socket.emit('room_players', {
           players: playersInRoom,
-          yourSocketId: socket.id
+          yourSocketId: socket.id,
+          yourSpawnIndex: player.spawnIndex  // ВАЖНО: Твой индекс точки спавна
         });
 
         console.log(`✅ Sent ${playersInRoom.length} players to ${player.username}`);
@@ -594,6 +642,9 @@ module.exports = (io) => {
 
       if (player) {
         console.log(`❌ Player disconnected: ${player.username} (${socket.id})`);
+
+        // Освобождаем точку спавна
+        releaseSpawnPoint(player.roomId, player.spawnIndex);
 
         // Уведомляем других игроков
         socket.to(player.roomId).emit('player_left', {

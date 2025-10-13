@@ -309,6 +309,18 @@ public class NetworkSyncManager : MonoBehaviour
 
             Debug.Log($"[NetworkSync] В комнате {data.players.Length} игроков");
             Debug.Log($"[NetworkSync] Мой socketId: {data.yourSocketId}");
+            Debug.Log($"[NetworkSync] 🎯 Мой spawnIndex от сервера: {data.yourSpawnIndex}");
+
+            // КРИТИЧЕСКОЕ: Устанавливаем индекс точки спавна в ArenaManager
+            if (ArenaManager.Instance != null)
+            {
+                ArenaManager.Instance.SetSpawnIndex(data.yourSpawnIndex);
+                Debug.Log($"[NetworkSync] ✅ Индекс точки спавна установлен в ArenaManager: {data.yourSpawnIndex}");
+            }
+            else
+            {
+                Debug.LogWarning("[NetworkSync] ⚠️ ArenaManager.Instance == null! Не могу установить spawnIndex");
+            }
 
             // Spawn all existing players
             foreach (var playerData in data.players)
@@ -914,6 +926,7 @@ public class RoomPlayersResponse
 {
     public RoomPlayerInfo[] players;
     public string yourSocketId;
+    public int yourSpawnIndex; // ВАЖНО: Индекс точки спавна от сервера
 }
 
 [Serializable]
@@ -927,6 +940,7 @@ public class RoomPlayerInfo
     public string animation;
     public float health;
     public float maxHealth;
+    public int spawnIndex; // ВАЖНО: Индекс точки спавна игрока
 }
 
 /// <summary>
@@ -940,6 +954,7 @@ public class PlayerJoinedEvent
     public string characterClass;
     public Vector3Data position;
     public Vector3Data rotation;
+    public int spawnIndex; // ВАЖНО: Индекс точки спавна нового игрока
 }
 
 /// <summary>

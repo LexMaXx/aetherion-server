@@ -30,10 +30,11 @@ public class ArenaManager : MonoBehaviour
 
     [Header("Multiplayer")]
     [SerializeField] private GameObject networkSyncManagerPrefab;
-    [SerializeField] private Transform[] multiplayerSpawnPoints; // Спаун-поинты для разных игроков
+    [SerializeField] private Transform[] multiplayerSpawnPoints; // Спаун-поинты для разных игроков (0-19)
 
     private GameObject spawnedCharacter;
     private bool isMultiplayer = false;
+    private int assignedSpawnIndex = -1; // Индекс точки спавна от сервера (-1 = не назначен)
 
     void Start()
     {
@@ -155,8 +156,28 @@ public class ArenaManager : MonoBehaviour
         }
 
         // Определяем точку спавна
-        Vector3 spawnPosition = spawnPoint != null ? spawnPoint.position : defaultSpawnPosition;
-        Quaternion spawnRotation = spawnPoint != null ? spawnPoint.rotation : Quaternion.identity;
+        Vector3 spawnPosition;
+        Quaternion spawnRotation;
+
+        // MULTIPLAYER: Используем точку спавна по индексу от сервера
+        if (isMultiplayer && assignedSpawnIndex >= 0 && multiplayerSpawnPoints != null && assignedSpawnIndex < multiplayerSpawnPoints.Length)
+        {
+            Transform spawnTransform = multiplayerSpawnPoints[assignedSpawnIndex];
+            spawnPosition = spawnTransform.position;
+            spawnRotation = spawnTransform.rotation;
+            Debug.Log($"[ArenaManager] 🎯 Использую мультиплеер точку спавна #{assignedSpawnIndex}: {spawnPosition}");
+        }
+        else
+        {
+            // Singleplayer или fallback
+            spawnPosition = spawnPoint != null ? spawnPoint.position : defaultSpawnPosition;
+            spawnRotation = spawnPoint != null ? spawnPoint.rotation : Quaternion.identity;
+
+            if (isMultiplayer)
+            {
+                Debug.LogWarning($"[ArenaManager] ⚠️ Индекс спавна не назначен (assignedSpawnIndex={assignedSpawnIndex}), используем дефолтный spawn point");
+            }
+        }
 
         // Создаем контейнер для персонажа (родительский пустой объект)
         spawnedCharacter = new GameObject($"{selectedClass}Player");
@@ -828,5 +849,42 @@ public class ArenaManager : MonoBehaviour
     public void RestartArena()
     {
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+    }
+
+    /// <summary>
+    /// Установить индекс точки спавна от сервера (для мультиплеера)
+    /// </summary>
+    public void SetSpawnIndex(int spawnIndex)
+    {
+        assignedSpawnIndex = spawnIndex;
+        Debug.Log($"[ArenaManager] 🎯 Сервер назначил точку спавна: #{spawnIndex}");
+    }
+
+    /// <summary>
+    /// Получить singleton instance
+    /// </summary>
+    private static ArenaManager instance;
+    public static ArenaManager Instance
+    {
+        get
+        {
+            if (instance == null)
+            {
+                instance = FindFirstObjectByType<ArenaManager>();
+            }
+            return instance;
+        }
+    }
+
+    void Awake()
+    {
+        if (instance == null)
+        {
+            instance = this;
+        }
+        else if (instance != this)
+        {
+            Destroy(gameObject);
+        }
     }
 }
