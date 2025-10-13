@@ -370,36 +370,232 @@ public class NetworkPlayer : MonoBehaviour
     }
 
     /// <summary>
-    /// Воспроизвести анимацию атаки
+    /// Воспроизвести анимацию атаки С ЭФФЕКТАМИ
     /// </summary>
     public void PlayAttackAnimation(string attackType)
     {
         if (animator == null) return;
 
+        Debug.Log($"[NetworkPlayer] 🎬 PlayAttackAnimation для {username}: тип={attackType}");
+
+        // ЭФФЕКТ 1: СВЕЧЕНИЕ ОРУЖИЯ (через ClassWeaponManager)
+        ClassWeaponManager weaponManager = GetComponentInChildren<ClassWeaponManager>();
+        if (weaponManager != null)
+        {
+            Debug.Log($"[NetworkPlayer] ✨ Активирую свечение оружия для {username}");
+            weaponManager.ActivateWeaponGlow();
+
+            // Автоотключение через 1 секунду
+            StartCoroutine(DeactivateWeaponGlowAfterDelay(weaponManager, 1.0f));
+        }
+        else
+        {
+            Debug.LogWarning($"[NetworkPlayer] ⚠️ ClassWeaponManager не найден для {username} - свечение оружия не работает");
+        }
+
+        // ЭФФЕКТ 2: АНИМАЦИЯ АТАКИ
         switch (attackType)
         {
             case "melee":
+                Debug.Log($"[NetworkPlayer] ⚔️ Ближняя атака: Trigger=Attack");
                 animator.SetTrigger("Attack");
                 break;
+
             case "ranged":
-                animator.SetTrigger("RangedAttack");
+                Debug.Log($"[NetworkPlayer] 🏹 Дальняя атака: Trigger=RangedAttack (+ снаряд)");
+                if (HasAnimatorParameter(animator, "RangedAttack"))
+                {
+                    animator.SetTrigger("RangedAttack");
+                }
+                else
+                {
+                    // Fallback если нет RangedAttack
+                    animator.SetTrigger("Attack");
+                }
+
+                // ЭФФЕКТ 3: СОЗДАНИЕ СНАРЯДА для дальних атак
+                StartCoroutine(SpawnProjectileAfterDelay(attackType, 0.3f));
                 break;
+
             case "skill":
+            case "magic":
+                Debug.Log($"[NetworkPlayer] 🔮 Магия/Скилл: Trigger=Cast");
                 animator.SetTrigger("Cast");
                 break;
         }
     }
 
     /// <summary>
-    /// Показать урон (визуальный эффект)
+    /// Корутина: отключить свечение оружия через задержку
+    /// </summary>
+    private System.Collections.IEnumerator DeactivateWeaponGlowAfterDelay(ClassWeaponManager weaponManager, float delay)
+    {
+        yield return new WaitForSeconds(delay);
+
+        if (weaponManager != null)
+        {
+            weaponManager.DeactivateWeaponGlow();
+            Debug.Log($"[NetworkPlayer] 💤 Свечение оружия отключено для {username}");
+        }
+    }
+
+    /// <summary>
+    /// Корутина: создать снаряд через задержку (для дальних атак)
+    /// </summary>
+    private System.Collections.IEnumerator SpawnProjectileAfterDelay(string attackType, float delay)
+    {
+        yield return new WaitForSeconds(delay);
+
+        Debug.Log($"[NetworkPlayer] 🚀 Создание снаряда для {username}, класс={characterClass}");
+
+        // Определяем префаб снаряда по классу персонажа
+        string projectileName = GetProjectilePrefabName(characterClass);
+
+        if (string.IsNullOrEmpty(projectileName))
+        {
+            Debug.LogWarning($"[NetworkPlayer] ⚠️ Нет снаряда для класса {characterClass}");
+            yield break;
+        }
+
+        // Загружаем префаб снаряда
+        GameObject projectilePrefab = Resources.Load<GameObject>($"Projectiles/{projectileName}");
+
+        if (projectilePrefab == null)
+        {
+            // Пытаемся найти в Assets/Prefabs/Projectiles/
+#if UNITY_EDITOR
+            string[] guids = UnityEditor.AssetDatabase.FindAssets($"{projectileName} t:Prefab");
+            if (guids.Length > 0)
+            {
+                string path = UnityEditor.AssetDatabase.GUIDToAssetPath(guids[0]);
+                projectilePrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                Debug.Log($"[NetworkPlayer] ✅ Префаб загружен из Assets: {path}");
+            }
+#endif
+        }
+
+        if (projectilePrefab == null)
+        {
+            Debug.LogWarning($"[NetworkPlayer] ⚠️ Префаб снаряда '{projectileName}' не найден!");
+            yield break;
+        }
+
+        // Находим точку спавна снаряда (правая рука или WeaponTip)
+        Transform spawnPoint = FindWeaponTip();
+        Vector3 spawnPosition = spawnPoint != null ? spawnPoint.position : transform.position + transform.forward * 0.5f + Vector3.up * 1.5f;
+
+        // Направление полета (вперёд от игрока)
+        Vector3 direction = transform.forward;
+
+        // Создаём снаряд
+        GameObject projectileObj = Instantiate(projectilePrefab, spawnPosition, Quaternion.LookRotation(direction));
+
+        // Настраиваем снаряд (если есть компонент Projectile)
+        Projectile projectile = projectileObj.GetComponent<Projectile>();
+        if (projectile != null)
+        {
+            // Для NetworkPlayer снаряд чисто визуальный (урон обрабатывает сервер)
+            // Цель = null, урон = 0, просто летит вперёд
+            projectile.Initialize(null, 0f, direction);
+            Debug.Log($"[NetworkPlayer] ✅ Снаряд создан: {projectileName} для {username}");
+        }
+    }
+
+    /// <summary>
+    /// Получить имя префаба снаряда по классу персонажа
+    /// </summary>
+    private string GetProjectilePrefabName(string className)
+    {
+        switch (className)
+        {
+            case "Archer":
+                return "ArrowProjectile";
+            case "Mage":
+                return "FireballProjectile";
+            case "Rogue":
+                return "SoulShardsProjectile";
+            default:
+                return null; // Воин и Паладин - ближний бой, снарядов нет
+        }
+    }
+
+    /// <summary>
+    /// Найти точку оружия для спавна снарядов
+    /// </summary>
+    private Transform FindWeaponTip()
+    {
+        // Пытаемся найти WeaponTip
+        Transform weaponTip = transform.Find("WeaponTip");
+        if (weaponTip != null) return weaponTip;
+
+        // Ищем в дочерних объектах
+        string[] weaponTipNames = new string[]
+        {
+            "WeaponTip",
+            "Weapon_Tip",
+            "RightHandIndex3",
+            "mixamorig:RightHandIndex3",
+            "RightHand",
+            "mixamorig:RightHand"
+        };
+
+        Transform[] allTransforms = GetComponentsInChildren<Transform>();
+        foreach (string tipName in weaponTipNames)
+        {
+            foreach (Transform t in allTransforms)
+            {
+                if (t.name.Contains(tipName))
+                {
+                    Debug.Log($"[NetworkPlayer] ✅ Найдена точка оружия: {t.name}");
+                    return t;
+                }
+            }
+        }
+
+        Debug.LogWarning($"[NetworkPlayer] ⚠️ Точка оружия не найдена для {username}");
+        return null;
+    }
+
+    /// <summary>
+    /// Показать урон (визуальный эффект + взрыв)
     /// </summary>
     public void ShowDamage(float damage)
     {
-        // TODO: Create damage number popup
         Debug.Log($"[NetworkPlayer] {username} получил {damage} урона!");
 
-        // Flash red effect
+        // ЭФФЕКТ 1: Мигание красным
         StartCoroutine(FlashRed());
+
+        // ЭФФЕКТ 2: Эффект попадания (взрыв/искры)
+        SpawnHitEffect();
+
+        // TODO: Всплывающие цифры урона (DamagePopup)
+    }
+
+    /// <summary>
+    /// Создать эффект попадания (взрыв)
+    /// </summary>
+    private void SpawnHitEffect()
+    {
+        // Загружаем префаб эффекта попадания
+        GameObject hitEffectPrefab = Resources.Load<GameObject>("Effects/HitEffect");
+
+        if (hitEffectPrefab == null)
+        {
+            Debug.LogWarning("[NetworkPlayer] ⚠️ HitEffect префаб не найден в Resources/Effects/");
+            return;
+        }
+
+        // Позиция эффекта = центр персонажа (торс)
+        Vector3 hitPosition = transform.position + Vector3.up * 1.0f;
+
+        // Создаём эффект
+        GameObject hitEffectObj = Instantiate(hitEffectPrefab, hitPosition, Quaternion.identity);
+
+        Debug.Log($"[NetworkPlayer] 💥 Эффект попадания создан для {username} в позиции {hitPosition}");
+
+        // Автоуничтожение через 2 секунды
+        Destroy(hitEffectObj, 2.0f);
     }
 
     /// <summary>

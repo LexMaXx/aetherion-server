@@ -54,7 +54,10 @@
       "Bash(curl:*)",
       "Bash(node:*)",
       "Bash(git log:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(if [ -f \"Assets/Resources/Effects/HitEffect.prefab\" ])",
+      "Bash(then echo \"HitEffect уже в Resources/Effects\")",
+      "Bash(else echo \"Нужно переместить HitEffect\")"
     ],
     "deny": [],
     "ask": []
