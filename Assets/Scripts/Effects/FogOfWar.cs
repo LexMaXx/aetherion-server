@@ -286,30 +286,48 @@ public class FogOfWar : MonoBehaviour
     }
 
     /// <summary>
-    /// Установить видимость врага
+    /// Установить видимость врага (включая NetworkPlayer для PvP)
     /// </summary>
     private void SetEnemyVisibility(Enemy enemy, bool visible)
     {
         if (enemy == null) return;
 
-        // ВАЖНО: Не скрываем NetworkPlayer (других игроков)
-        // Они должны быть видны всегда (как в MMO)
+        // ВАЖНО: ТЕПЕРЬ СКРЫВАЕМ NetworkPlayer (для PvP Fog of War как в Dota/Warcraft)
         NetworkPlayer networkPlayer = enemy.GetComponent<NetworkPlayer>();
         if (networkPlayer != null)
         {
-            // Это сетевой игрок - ВСЕГДА видим
+            // Это сетевой игрок - применяем Fog of War!
+            Debug.Log($"[FogOfWar] NetworkPlayer {networkPlayer.username}: visible={visible}");
+
+            // Скрываем/показываем визуал игрока
+            Renderer[] renderers = networkPlayer.GetComponentsInChildren<Renderer>();
+            foreach (Renderer rend in renderers)
+            {
+                rend.enabled = visible;
+            }
+
+            // ВАЖНО: Также скрываем/показываем nameplate
+            var nameplate = networkPlayer.GetComponentInChildren<Canvas>();
+            if (nameplate != null)
+            {
+                nameplate.gameObject.SetActive(visible);
+            }
+
+            // ВАЖНО: НЕ отключаем коллайдер NetworkPlayer!
+            // Иначе через них можно будет ходить
+            // Коллайдер остаётся активным, но враг невидим (как в Dota)
+
             return;
         }
 
-        // Получаем все Renderer'ы врага (только для NPC)
-        Renderer[] renderers = enemy.GetComponentsInChildren<Renderer>();
-
-        foreach (Renderer rend in renderers)
+        // Обычный NPC враг
+        Renderer[] npcRenderers = enemy.GetComponentsInChildren<Renderer>();
+        foreach (Renderer rend in npcRenderers)
         {
             rend.enabled = visible;
         }
 
-        // Также можно отключить коллайдер для оптимизации
+        // Для NPC можно отключить коллайдер (оптимизация)
         Collider collider = enemy.GetComponent<Collider>();
         if (collider != null)
         {
