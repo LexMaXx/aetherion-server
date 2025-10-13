@@ -1275,3 +1275,18 @@ public class GameStartPlayerInfo
     public string characterClass;
     public int spawnIndex;
 }
+
+/// <summary>
+/// SPECIAL stats от сервера (S.P.E.C.I.A.L система)
+/// </summary>
+[Serializable]
+public class SpecialStatsData
+{
+    public int strength;
+    public int perception;
+    public int endurance;
+    public int wisdom;
+    public int intelligence;
+    public int agility;
+    public int luck;
+}

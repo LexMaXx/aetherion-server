@@ -287,7 +287,8 @@ module.exports = (io) => {
               animation: player.animation,
               health: player.health,
               maxHealth: player.maxHealth,
-              spawnIndex: player.spawnIndex  // ВАЖНО: Отправляем индекс точки спавна
+              spawnIndex: player.spawnIndex,  // ВАЖНО: Отправляем индекс точки спавна
+              stats: player.stats  // КРИТИЧЕСКОЕ: Отправляем SPECIAL характеристики!
             });
           }
         }
@@ -308,7 +309,8 @@ module.exports = (io) => {
           username,
           characterClass,
           // position/rotation НЕ отправляем - будут в первом player_moved
-          spawnIndex: spawnIndex  // ВАЖНО: Индекс точки спавна нового игрока
+          spawnIndex: spawnIndex,  // ВАЖНО: Индекс точки спавна нового игрока
+          stats: playerStats  // КРИТИЧЕСКОЕ: Отправляем SPECIAL характеристики!
         });
 
         console.log(`✅ ${username} joined room ${roomId}. Total players: ${playersInRoom.length}`);
@@ -363,7 +365,8 @@ module.exports = (io) => {
               animation: p.animation,
               health: p.health,
               maxHealth: p.maxHealth,
-              spawnIndex: p.spawnIndex  // ВАЖНО: Индекс точки спавна
+              spawnIndex: p.spawnIndex,  // ВАЖНО: Индекс точки спавна
+              stats: p.stats  // КРИТИЧЕСКОЕ: Отправляем SPECIAL характеристики!
             });
           }
         }
