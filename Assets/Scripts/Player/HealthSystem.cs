@@ -169,7 +169,30 @@ public class HealthSystem : MonoBehaviour
     {
         Debug.Log("[HealthSystem] ☠️ Персонаж погиб!");
         OnDeath?.Invoke();
-        // TODO: Анимация смерти, отключение управления и т.д.
+
+        // Респавн через 3 секунды
+        StartCoroutine(RespawnAfterDelay(3f));
+    }
+
+    /// <summary>
+    /// Корутина для респавна с задержкой
+    /// </summary>
+    private System.Collections.IEnumerator RespawnAfterDelay(float delay)
+    {
+        Debug.Log($"[HealthSystem] ⏳ Респавн через {delay} секунд...");
+        yield return new WaitForSeconds(delay);
+
+        // Вызываем респавн через ArenaManager
+        if (ArenaManager.Instance != null)
+        {
+            ArenaManager.Instance.RespawnPlayer();
+        }
+        else
+        {
+            Debug.LogError("[HealthSystem] ❌ ArenaManager не найден для респавна!");
+            // Fallback: просто восстанавливаем HP
+            Revive(1f);
+        }
     }
 
     /// <summary>

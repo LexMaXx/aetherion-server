@@ -1047,6 +1047,79 @@ public class ArenaManager : MonoBehaviour
     }
 
     /// <summary>
+    /// Респавн игрока после смерти на исходной точке спавна
+    /// </summary>
+    public void RespawnPlayer()
+    {
+        if (spawnedCharacter == null)
+        {
+            Debug.LogError("[ArenaManager] ❌ Невозможно респавнить - персонаж не существует!");
+            return;
+        }
+
+        // Определяем точку респавна (та же что и при спавне)
+        Vector3 respawnPosition;
+        Quaternion respawnRotation;
+
+        if (isMultiplayer && assignedSpawnIndex >= 0 && multiplayerSpawnPoints != null && assignedSpawnIndex < multiplayerSpawnPoints.Length)
+        {
+            Transform spawnTransform = multiplayerSpawnPoints[assignedSpawnIndex];
+            respawnPosition = spawnTransform.position;
+            respawnRotation = spawnTransform.rotation;
+            Debug.Log($"[ArenaManager] 🔄 Респавн на мультиплеер точке #{assignedSpawnIndex}: {respawnPosition}");
+        }
+        else
+        {
+            respawnPosition = spawnPoint != null ? spawnPoint.position : defaultSpawnPosition;
+            respawnRotation = spawnPoint != null ? spawnPoint.rotation : Quaternion.identity;
+        }
+
+        // Телепортируем игрока на точку респавна
+        spawnedCharacter.transform.position = respawnPosition;
+        spawnedCharacter.transform.rotation = respawnRotation;
+
+        // Находим Model (дочерний объект)
+        Transform modelTransform = spawnedCharacter.transform.GetChild(0);
+        if (modelTransform == null)
+        {
+            Debug.LogError("[ArenaManager] ❌ Model не найден при респавне!");
+            return;
+        }
+
+        // Восстанавливаем HP/MP через HealthSystem и ManaSystem
+        HealthSystem healthSystem = modelTransform.GetComponent<HealthSystem>();
+        if (healthSystem != null)
+        {
+            healthSystem.Revive(1f); // 100% HP
+        }
+
+        ManaSystem manaSystem = modelTransform.GetComponent<ManaSystem>();
+        if (manaSystem != null)
+        {
+            manaSystem.RestoreMana(manaSystem.MaxMana); // Полная мана
+        }
+
+        // Сбрасываем анимацию на Idle
+        Animator animator = modelTransform.GetComponent<Animator>();
+        if (animator != null)
+        {
+            animator.SetBool("InBattle", true);
+            // Сбрасываем все триггеры
+            animator.ResetTrigger("Attack");
+            animator.ResetTrigger("Die");
+        }
+
+        // Отправляем респавн на сервер
+        if (isMultiplayer && SocketIOManager.Instance != null && SocketIOManager.Instance.IsConnected)
+        {
+            SocketIOManager.Instance.UpdatePosition(respawnPosition, respawnRotation, Vector3.zero, true);
+            Debug.Log("[ArenaManager] ✅ Респавн отправлен на сервер");
+        }
+
+        Debug.Log($"[ArenaManager] ✅ Игрок респавнился: {respawnPosition}");
+    }
+
+    /// <summary>
     /// Получить singleton instance
     /// </summary>
     private static ArenaManager instance;
