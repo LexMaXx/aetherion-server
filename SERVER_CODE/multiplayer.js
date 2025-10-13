@@ -20,7 +20,7 @@ const MAX_SPAWN_POINTS = 20; // Максимум 20 точек спавна
 // LOBBY SYSTEM (как в Dota 2, CS:GO)
 // ═══════════════════════════════════════════
 const roomStates = new Map(); // roomId => { state: 'LOBBY' | 'COUNTDOWN' | 'GAME', startTime, countdownTimer }
-const LOBBY_WAIT_TIME = 10000; // 10 секунд ожидание в лобби
+const LOBBY_WAIT_TIME = 20000; // 20 секунд ожидание в лобби (ИЗМЕНЕНО с 10 на 20!)
 const COUNTDOWN_TIME = 3000; // 3 секунды countdown перед стартом
 
 // ═══════════════════════════════════════════
@@ -315,9 +315,14 @@ module.exports = (io) => {
 
         console.log(`✅ ${username} joined room ${roomId}. Total players: ${playersInRoom.length}`);
 
-        // КРИТИЧЕСКОЕ: Если это первый игрок - запускаем лобби с 10-секундным таймером
-        if (playersInRoom.length === 1) {
+        // КРИТИЧЕСКОЕ: Таймер запускается только когда 2+ игрока подключились!
+        if (playersInRoom.length === 2) {
+          console.log(`[Lobby] 👥 2 игрока в комнате - запускаем 20-секундный таймер!`);
           initializeRoomLobby(roomId, io);
+        } else if (playersInRoom.length === 1) {
+          console.log(`[Lobby] ⏳ Игрок 1 ждет... Таймер начнется когда зайдет 2й игрок`);
+        } else {
+          console.log(`[Lobby] 👥 Игрок ${playersInRoom.length} присоединился к лобби`);
         }
       } catch (error) {
         console.error('[Join Room] Error:', error);

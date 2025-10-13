@@ -874,14 +874,22 @@ public class ArenaManager : MonoBehaviour
 
     // ===== LOBBY SYSTEM CALLBACKS =====
 
+    private GameObject lobbyUI;
+    private UnityEngine.UI.Text lobbyText;
+    private UnityEngine.UI.Text countdownText;
+
     /// <summary>
-    /// Callback: Лобби создано, начинается 10-секундное ожидание
+    /// Callback: Лобби создано, начинается 20-секундное ожидание
     /// </summary>
     public void OnLobbyStarted(int waitTimeMs)
     {
         Debug.Log($"[ArenaManager] 🏁 LOBBY STARTED! Ожидание {waitTimeMs}ms");
-        // TODO: Показать UI с таймером и списком игроков
-        // Можно создать простой Text на экране
+
+        // Создаем UI для лобби
+        CreateLobbyUI();
+
+        // Запускаем таймер
+        StartCoroutine(LobbyTimerCoroutine(waitTimeMs / 1000f));
     }
 
     /// <summary>
@@ -890,7 +898,107 @@ public class ArenaManager : MonoBehaviour
     public void OnCountdown(int countdown)
     {
         Debug.Log($"[ArenaManager] ⏱️ COUNTDOWN: {countdown}");
-        // TODO: Показать большую цифру на экране
+
+        // Скрываем таймер лобби, показываем большой countdown
+        if (lobbyText != null)
+            lobbyText.gameObject.SetActive(false);
+
+        if (countdownText != null)
+        {
+            countdownText.gameObject.SetActive(true);
+            countdownText.text = countdown.ToString();
+            countdownText.fontSize = 120;
+        }
+    }
+
+    /// <summary>
+    /// Создать UI для лобби
+    /// </summary>
+    private void CreateLobbyUI()
+    {
+        // Находим или создаем Canvas
+        UnityEngine.Canvas canvas = FindFirstObjectByType<UnityEngine.Canvas>();
+        if (canvas == null)
+        {
+            GameObject canvasObj = new GameObject("Canvas");
+            canvas = canvasObj.AddComponent<UnityEngine.Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvasObj.AddComponent<UnityEngine.UI.CanvasScaler>();
+            canvasObj.AddComponent<UnityEngine.UI.GraphicRaycaster>();
+        }
+
+        // Создаем панель лобби
+        lobbyUI = new GameObject("LobbyUI");
+        lobbyUI.transform.SetParent(canvas.transform, false);
+
+        // Lobby Timer Text (по центру вверху)
+        GameObject lobbyTimerObj = new GameObject("LobbyTimer");
+        lobbyTimerObj.transform.SetParent(lobbyUI.transform, false);
+
+        RectTransform lobbyRect = lobbyTimerObj.AddComponent<RectTransform>();
+        lobbyRect.anchorMin = new Vector2(0.5f, 1f);
+        lobbyRect.anchorMax = new Vector2(0.5f, 1f);
+        lobbyRect.pivot = new Vector2(0.5f, 1f);
+        lobbyRect.anchoredPosition = new Vector2(0, -50);
+        lobbyRect.sizeDelta = new Vector2(600, 80);
+
+        lobbyText = lobbyTimerObj.AddComponent<UnityEngine.UI.Text>();
+        lobbyText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        lobbyText.fontSize = 32;
+        lobbyText.alignment = TextAnchor.MiddleCenter;
+        lobbyText.color = Color.white;
+        lobbyText.text = "Ожидание игроков...";
+
+        // Добавляем тень для читаемости
+        UnityEngine.UI.Shadow shadow = lobbyTimerObj.AddComponent<UnityEngine.UI.Shadow>();
+        shadow.effectColor = Color.black;
+        shadow.effectDistance = new Vector2(2, -2);
+
+        // Countdown Text (по центру экрана)
+        GameObject countdownObj = new GameObject("Countdown");
+        countdownObj.transform.SetParent(lobbyUI.transform, false);
+
+        RectTransform countdownRect = countdownObj.AddComponent<RectTransform>();
+        countdownRect.anchorMin = new Vector2(0.5f, 0.5f);
+        countdownRect.anchorMax = new Vector2(0.5f, 0.5f);
+        countdownRect.pivot = new Vector2(0.5f, 0.5f);
+        countdownRect.anchoredPosition = Vector2.zero;
+        countdownRect.sizeDelta = new Vector2(400, 200);
+
+        countdownText = countdownObj.AddComponent<UnityEngine.UI.Text>();
+        countdownText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        countdownText.fontSize = 120;
+        countdownText.alignment = TextAnchor.MiddleCenter;
+        countdownText.color = Color.yellow;
+        countdownText.text = "3";
+        countdownText.gameObject.SetActive(false);
+
+        // Добавляем тень
+        UnityEngine.UI.Shadow countdownShadow = countdownObj.AddComponent<UnityEngine.UI.Shadow>();
+        countdownShadow.effectColor = Color.black;
+        countdownShadow.effectDistance = new Vector2(4, -4);
+
+        Debug.Log("[ArenaManager] ✅ Lobby UI создан");
+    }
+
+    /// <summary>
+    /// Корутина для обновления таймера лобби
+    /// </summary>
+    private System.Collections.IEnumerator LobbyTimerCoroutine(float totalSeconds)
+    {
+        float timeRemaining = totalSeconds;
+
+        while (timeRemaining > 0)
+        {
+            if (lobbyText != null)
+            {
+                int seconds = Mathf.CeilToInt(timeRemaining);
+                lobbyText.text = $"Ожидание игроков... {seconds} сек";
+            }
+
+            yield return new WaitForSeconds(0.1f);
+            timeRemaining -= 0.1f;
+        }
     }
 
     /// <summary>
@@ -900,6 +1008,12 @@ public class ArenaManager : MonoBehaviour
     {
         Debug.Log($"[ArenaManager] 🎮 GAME START! Спавним персонажа...");
         gameStarted = true;
+
+        // Скрываем Lobby UI
+        if (lobbyUI != null)
+        {
+            Destroy(lobbyUI);
+        }
 
         // КРИТИЧЕСКОЕ: Теперь можно спавнить!
         if (isMultiplayer && spawnedCharacter == null && spawnIndexReceived)
