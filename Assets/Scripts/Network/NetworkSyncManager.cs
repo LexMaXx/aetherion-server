@@ -358,7 +358,7 @@ public class NetworkSyncManager : MonoBehaviour
                 if (!networkPlayers.ContainsKey(playerData.socketId))
                 {
                     Debug.Log($"[NetworkSync] 🎭 Spawning network player: {playerData.username} at {pos}");
-                    SpawnNetworkPlayer(playerData.socketId, playerData.username, playerData.characterClass, pos);
+                    SpawnNetworkPlayer(playerData.socketId, playerData.username, playerData.characterClass, pos, playerData.stats);
                 }
             }
 
@@ -390,11 +390,12 @@ public class NetworkSyncManager : MonoBehaviour
             username = data.username,
             characterClass = data.characterClass,
             spawnIndex = data.spawnIndex,
-            position = new Vector3Data { x = 0, y = 0, z = 0 } // Позиция пока неизвестна
+            position = new Vector3Data { x = 0, y = 0, z = 0 }, // Позиция пока неизвестна
+            stats = data.stats // КРИТИЧЕСКОЕ: Сохраняем SPECIAL характеристики!
         };
 
         pendingPlayers[data.socketId] = playerInfo;
-        Debug.Log($"[NetworkSync] ⏳ Игрок {data.username} добавлен в pending, ждем player_moved...");
+        Debug.Log($"[NetworkSync] ⏳ Игрок {data.username} добавлен в pending (STR={data.stats?.strength ?? 5}), ждем player_moved...");
     }
 
     /// <summary>
@@ -432,7 +433,7 @@ public class NetworkSyncManager : MonoBehaviour
             if (!networkPlayers.ContainsKey(data.socketId) && pendingPlayers.TryGetValue(data.socketId, out RoomPlayerInfo playerInfo))
             {
                 Debug.Log($"[NetworkSync] 🎬 Первый player_moved для {playerInfo.username} - спавним в позиции {pos}");
-                SpawnNetworkPlayer(data.socketId, playerInfo.username, playerInfo.characterClass, pos);
+                SpawnNetworkPlayer(data.socketId, playerInfo.username, playerInfo.characterClass, pos, playerInfo.stats);
                 pendingPlayers.Remove(data.socketId); // Удаляем из pending
                 // После спавна продолжим обновление позиции ниже
             }
@@ -724,7 +725,7 @@ public class NetworkSyncManager : MonoBehaviour
                     // Позиция будет от первого player_moved, но можно использовать spawn point
                     Vector3 spawnPos = Vector3.zero; // Временная позиция, обновится от player_moved
 
-                    SpawnNetworkPlayer(playerData.socketId, playerInfo.username, playerInfo.characterClass, spawnPos);
+                    SpawnNetworkPlayer(playerData.socketId, playerInfo.username, playerInfo.characterClass, spawnPos, playerInfo.stats);
                     // НЕ удаляем из pending - дождемся первого player_moved для реальной позиции
                 }
             }
@@ -742,7 +743,7 @@ public class NetworkSyncManager : MonoBehaviour
     /// <summary>
     /// Создать сетевого игрока
     /// </summary>
-    private void SpawnNetworkPlayer(string socketId, string username, string characterClass, Vector3 position)
+    private void SpawnNetworkPlayer(string socketId, string username, string characterClass, Vector3 position, SpecialStatsData stats = null)
     {
         GameObject prefab = GetCharacterPrefab(characterClass);
         if (prefab == null)
@@ -754,6 +755,34 @@ public class NetworkSyncManager : MonoBehaviour
         GameObject playerObj = Instantiate(prefab, position, Quaternion.identity);
         playerObj.name = $"NetworkPlayer_{username}";
         playerObj.layer = LayerMask.NameToLayer("Character");
+
+        // КРИТИЧЕСКОЕ: Применяем SPECIAL stats от сервера СРАЗУ после спавна!
+        if (stats != null)
+        {
+            CharacterStats characterStats = playerObj.GetComponent<CharacterStats>();
+            if (characterStats != null)
+            {
+                characterStats.strength = stats.strength;
+                characterStats.perception = stats.perception;
+                characterStats.endurance = stats.endurance;
+                characterStats.wisdom = stats.wisdom;
+                characterStats.intelligence = stats.intelligence;
+                characterStats.agility = stats.agility;
+                characterStats.luck = stats.luck;
+
+                characterStats.RecalculateStats(); // Пересчитываем все характеристики
+
+                Debug.Log($"[NetworkSync] 📊 SPECIAL stats применены для {username}: S:{stats.strength} P:{stats.perception} E:{stats.endurance} W:{stats.wisdom} I:{stats.intelligence} A:{stats.agility} L:{stats.luck}");
+            }
+            else
+            {
+                Debug.LogWarning($"[NetworkSync] ⚠️ CharacterStats не найден на {username}!");
+            }
+        }
+        else
+        {
+            Debug.LogWarning($"[NetworkSync] ⚠️ Stats == null для {username}, используются дефолтные характеристики!");
+        }
 
         // ВАЖНО: Найти модель внутри префаба
         Transform modelTransform = playerObj.transform.Find("Model") ?? playerObj.transform;
@@ -1061,6 +1090,7 @@ public class RoomPlayerInfo
     public float health;
     public float maxHealth;
     public int spawnIndex; // ВАЖНО: Индекс точки спавна игрока
+    public SpecialStatsData stats; // КРИТИЧЕСКОЕ: SPECIAL характеристики персонажа
 }
 
 /// <summary>
@@ -1075,6 +1105,7 @@ public class PlayerJoinedEvent
     public Vector3Data position;
     public Vector3Data rotation;
     public int spawnIndex; // ВАЖНО: Индекс точки спавна нового игрока
+    public SpecialStatsData stats; // КРИТИЧЕСКОЕ: SPECIAL характеристики персонажа
 }
 
 /// <summary>
