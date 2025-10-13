@@ -14,14 +14,14 @@ using System.Collections.Generic;
 public class NetworkTransform : MonoBehaviour
 {
     [Header("Interpolation Settings")]
-    [Tooltip("Время интерполяции (мс). Рекомендуется 100-200мс")]
-    [SerializeField] private float interpolationDelay = 100f; // 100ms
+    [Tooltip("Время интерполяции (мс). Уменьшено для PvP (было 100ms)")]
+    [SerializeField] private float interpolationDelay = 30f; // 30ms для реал-тайм PvP
 
-    [Tooltip("Скорость интерполяции позиции")]
-    [SerializeField] private float positionLerpSpeed = 10f;
+    [Tooltip("Скорость интерполяции позиции (увеличено для PvP)")]
+    [SerializeField] private float positionLerpSpeed = 20f; // Было 10, теперь 20
 
-    [Tooltip("Скорость интерполяции ротации")]
-    [SerializeField] private float rotationLerpSpeed = 15f;
+    [Tooltip("Скорость интерполяции ротации (увеличено для PvP)")]
+    [SerializeField] private float rotationLerpSpeed = 25f; // Было 15, теперь 25
 
     [Header("Prediction Settings")]
     [Tooltip("Включить Dead Reckoning (предсказание)")]
@@ -31,8 +31,8 @@ public class NetworkTransform : MonoBehaviour
     [SerializeField] private float maxPredictionTime = 1f;
 
     [Header("Snap Settings")]
-    [Tooltip("Дистанция для телепортации вместо интерполяции")]
-    [SerializeField] private float snapThreshold = 5f;
+    [Tooltip("Дистанция для телепортации вместо интерполяции (уменьшено для PvP)")]
+    [SerializeField] private float snapThreshold = 2f; // Было 5m, теперь 2m для точности
 
     [Header("Debug")]
     [SerializeField] private bool showDebugInfo = false;
@@ -190,14 +190,16 @@ public class NetworkTransform : MonoBehaviour
                 t = Mathf.Clamp01(t);
             }
 
-            // Интерполируем
+            // Интерполируем напрямую (без двойного Lerp для PvP точности)
             targetPosition = Vector3.Lerp(from.position, to.position, t);
             targetRotation = Quaternion.Slerp(from.rotation, to.rotation, t);
             currentVelocity = Vector3.Lerp(from.velocity, to.velocity, t);
 
-            // Применяем плавное движение к трансформу
-            currentPosition = Vector3.Lerp(currentPosition, targetPosition, positionLerpSpeed * Time.deltaTime);
-            currentRotation = Quaternion.Slerp(currentRotation, targetRotation, rotationLerpSpeed * Time.deltaTime);
+            // КРИТИЧЕСКОЕ ИЗМЕНЕНИЕ ДЛЯ PVP:
+            // Убрали двойной Lerp - теперь позиция = целевая позиция напрямую
+            // Это уменьшает задержку и рассинхрон между визуалом и хитбоксом
+            currentPosition = targetPosition;
+            currentRotation = targetRotation;
 
             transform.position = currentPosition;
             transform.rotation = currentRotation;
