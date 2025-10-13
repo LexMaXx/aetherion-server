@@ -42,7 +42,53 @@ module.exports = (io) => {
         // Присоединяемся к Socket.IO room
         socket.join(roomId);
 
-        // Сохраняем информацию об игроке
+        // ВАЖНО: Обновляем или создаём комнату в MongoDB
+        try {
+          let room = await Room.findOne({ roomId });
+
+          if (!room) {
+            // Комната не существует - создаём новую
+            room = new Room({
+              roomId,
+              roomName: `${username}'s Room`,
+              hostUserId: userId,
+              maxPlayers: 20,
+              isPrivate: false,
+              status: 'waiting',
+              players: []
+            });
+          }
+
+          // Проверяем есть ли игрок уже в комнате
+          const existingPlayer = room.players.find(p => p.socketId === socket.id);
+
+          if (!existingPlayer) {
+            // Добавляем игрока в комнату
+            room.players.push({
+              userId,
+              characterClass,
+              username,
+              socketId: socket.id,
+              position: { x: 0, y: 0, z: 0 },
+              health: { current: 100, max: 100 },
+              mana: { current: 100, max: 100 },
+              isAlive: true
+            });
+
+            // Если игроков >= 2, меняем статус на in_progress
+            if (room.players.length >= 2 && room.status === 'waiting') {
+              room.status = 'in_progress';
+            }
+
+            await room.save();
+            console.log(`[Join Room] ✅ Room ${roomId} updated in MongoDB. Players: ${room.players.length}`);
+          }
+        } catch (dbError) {
+          console.error('[Join Room] ❌ MongoDB error:', dbError.message);
+          // Продолжаем даже если MongoDB не работает
+        }
+
+        // Сохраняем информацию об игроке в памяти
         activePlayers.set(socket.id, {
           roomId,
           username,
@@ -379,11 +425,36 @@ module.exports = (io) => {
     // ОТКЛЮЧЕНИЕ
     // ═══════════════════════════════════════════
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect', async () => {
       const player = activePlayers.get(socket.id);
 
       if (player) {
         console.log(`❌ Player disconnected: ${player.username} (${socket.id})`);
+
+        // Удаляем игрока из MongoDB
+        try {
+          const room = await Room.findOne({ roomId: player.roomId });
+
+          if (room) {
+            // Удаляем игрока из массива
+            room.players = room.players.filter(p => p.socketId !== socket.id);
+
+            // Если комната пустая - удаляем её
+            if (room.players.length === 0) {
+              await Room.deleteOne({ roomId: player.roomId });
+              console.log(`[Disconnect] ✅ Room ${player.roomId} deleted (empty)`);
+            } else {
+              // Если игроков < 2, возвращаем статус в waiting
+              if (room.players.length < 2 && room.status === 'in_progress') {
+                room.status = 'waiting';
+              }
+              await room.save();
+              console.log(`[Disconnect] ✅ Player removed from room. Remaining: ${room.players.length}`);
+            }
+          }
+        } catch (dbError) {
+          console.error('[Disconnect] ❌ MongoDB error:', dbError.message);
+        }
 
         // Уведомляем других игроков
         socket.to(player.roomId).emit('player_left', {
@@ -391,7 +462,7 @@ module.exports = (io) => {
           username: player.username
         });
 
-        // Удаляем игрока
+        // Удаляем игрока из памяти
         activePlayers.delete(socket.id);
       } else {
         console.log(`❌ Unknown player disconnected: ${socket.id}`);
