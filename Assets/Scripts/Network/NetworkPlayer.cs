@@ -203,35 +203,63 @@ public class NetworkPlayer : MonoBehaviour
             currentAnimationState = animationState;
         }
 
-        // Reset all animation states
-        animator.SetBool("isWalking", false);
-        animator.SetBool("isRunning", false);
-        animator.SetBool("isAttacking", false);
-        animator.SetBool("isDead", false);
+        // ВАЖНО: PlayerController использует Blend Tree систему
+        // IsMoving (bool), MoveX (float), MoveY (float)
+        // Не используем isWalking/isRunning, потому что они отсутствуют
 
         // Set new state
         switch (animationState)
         {
             case "Idle":
-                // Default state (все параметры false)
+                animator.SetBool("IsMoving", false);
+                animator.SetFloat("MoveX", 0);
+                animator.SetFloat("MoveY", 0);
+                animator.speed = 1.0f;
                 break;
+
             case "Walking":
-                animator.SetBool("isWalking", true);
+                animator.SetBool("IsMoving", true);
+                animator.SetFloat("MoveX", 0);
+                animator.SetFloat("MoveY", 0.5f); // 0.5 = Slow Run (ходьба)
+                animator.speed = 0.5f; // Замедленная анимация для ходьбы
                 break;
+
             case "Running":
-                animator.SetBool("isRunning", true);
+                animator.SetBool("IsMoving", true);
+                animator.SetFloat("MoveX", 0);
+                animator.SetFloat("MoveY", 1.0f); // 1.0 = Sprint (бег)
+                animator.speed = 1.0f; // Нормальная скорость анимации
                 break;
+
             case "Attacking":
                 animator.SetTrigger("Attack");
-                animator.SetBool("isAttacking", true);
+                // Не меняем IsMoving - атака может быть во время движения
                 break;
+
             case "Dead":
-                animator.SetBool("isDead", true);
+                if (HasAnimatorParameter(animator, "isDead"))
+                {
+                    animator.SetBool("isDead", true);
+                }
+                animator.SetBool("IsMoving", false);
                 break;
+
             case "Casting":
                 animator.SetTrigger("Cast");
                 break;
         }
+    }
+
+    /// <summary>
+    /// Проверить есть ли параметр в Animator
+    /// </summary>
+    private bool HasAnimatorParameter(Animator anim, string paramName)
+    {
+        foreach (AnimatorControllerParameter param in anim.parameters)
+        {
+            if (param.name == paramName) return true;
+        }
+        return false;
     }
 
     /// <summary>

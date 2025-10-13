@@ -223,21 +223,41 @@ public class NetworkSyncManager : MonoBehaviour
             return "Idle";
         }
 
-        // ДИАГНОСТИКА: Логируем состояние параметров каждую секунду
-        if (Time.frameCount % 60 == 0)
-        {
-            bool isDead = HasParameter(animator, "isDead") && animator.GetBool("isDead");
-            bool isAttacking = HasParameter(animator, "isAttacking") && animator.GetBool("isAttacking");
-            bool isRunning = HasParameter(animator, "isRunning") && animator.GetBool("isRunning");
-            bool isWalking = HasParameter(animator, "isWalking") && animator.GetBool("isWalking");
-            Debug.Log($"[NetworkSync] 🎭 Animator parameters: isDead={isDead}, isAttacking={isAttacking}, isRunning={isRunning}, isWalking={isWalking}");
-        }
+        // ВАЖНО: PlayerController использует Blend Tree с MoveX/MoveY/IsMoving
+        // А не простые bool параметры isWalking/isRunning
 
-        // Check if parameters exist before trying to get them
-        if (HasParameter(animator, "isDead") && animator.GetBool("isDead")) return "Dead";
-        if (HasParameter(animator, "isAttacking") && animator.GetBool("isAttacking")) return "Attacking";
-        if (HasParameter(animator, "isRunning") && animator.GetBool("isRunning")) return "Running";
-        if (HasParameter(animator, "isWalking") && animator.GetBool("isWalking")) return "Walking";
+        // Проверяем на атаку (триггер)
+        if (HasParameter(animator, "isAttacking") && animator.GetBool("isAttacking"))
+            return "Attacking";
+
+        if (HasParameter(animator, "isDead") && animator.GetBool("isDead"))
+            return "Dead";
+
+        // PlayerController использует IsMoving (bool) и MoveY (float)
+        bool isMoving = HasParameter(animator, "IsMoving") && animator.GetBool("IsMoving");
+
+        if (isMoving)
+        {
+            // MoveY определяет скорость: 0.5 = Walking, 1.0 = Running
+            if (HasParameter(animator, "MoveY"))
+            {
+                float moveY = animator.GetFloat("MoveY");
+
+                // ДИАГНОСТИКА: Логируем параметры каждую секунду
+                if (Time.frameCount % 60 == 0)
+                {
+                    Debug.Log($"[NetworkSync] 🎭 Animator parameters: IsMoving={isMoving}, MoveY={moveY:F2}");
+                }
+
+                // MoveY > 0.7 = Running, иначе Walking
+                return moveY > 0.7f ? "Running" : "Walking";
+            }
+            else
+            {
+                // Fallback: если нет MoveY, считаем что Walking
+                return "Walking";
+            }
+        }
 
         return "Idle";
     }
