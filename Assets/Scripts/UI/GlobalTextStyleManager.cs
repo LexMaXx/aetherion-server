@@ -58,7 +58,7 @@ public class GlobalTextStyleManager : MonoBehaviour
     /// </summary>
     public void ApplyStyleToAllTexts()
     {
-        TextMeshProUGUI[] allTexts = FindObjectsOfType<TextMeshProUGUI>(true);
+        TextMeshProUGUI[] allTexts = FindObjectsByType<TextMeshProUGUI>(FindObjectsInactive.Include, FindObjectsSortMode.None);
 
         foreach (var text in allTexts)
         {

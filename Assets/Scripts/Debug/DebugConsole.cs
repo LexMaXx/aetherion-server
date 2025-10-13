@@ -43,7 +43,7 @@ public class DebugConsole : MonoBehaviour
     void Awake()
     {
         // Singleton pattern - only one debug console
-        if (FindObjectsOfType<DebugConsole>().Length > 1)
+        if (FindObjectsByType<DebugConsole>(FindObjectsSortMode.None).Length > 1)
         {
             Destroy(gameObject);
             return;
@@ -338,7 +338,7 @@ public class DebugConsole : MonoBehaviour
         textRect.offsetMax = new Vector2(-10, -10);
 
         logText = textObj.AddComponent<Text>();
-        logText.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        logText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         logText.fontSize = 12;
         logText.color = Color.white;
         logText.alignment = TextAnchor.UpperLeft;
@@ -358,7 +358,7 @@ public class DebugConsole : MonoBehaviour
         headerRect.anchoredPosition = new Vector2(0, -5);
 
         Text headerText = headerObj.AddComponent<Text>();
-        headerText.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        headerText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         headerText.fontSize = 16;
         headerText.fontStyle = FontStyle.Bold;
         headerText.color = Color.yellow;
@@ -409,7 +409,7 @@ public class DebugConsole : MonoBehaviour
         textRect.sizeDelta = Vector2.zero;
 
         Text text = textObj.AddComponent<Text>();
-        text.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         text.fontSize = 12;
         text.color = Color.white;
         text.alignment = TextAnchor.MiddleCenter;

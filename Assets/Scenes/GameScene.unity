@@ -912,8 +912,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 613911233}
-  - component: {fileID: 613911232}
-  - component: {fileID: 613911231}
+  - component: {fileID: 613911234}
   m_Layer: 0
   m_Name: NetworkManagers
   m_TagString: Untagged
@@ -921,34 +920,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &613911231
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 613911230}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c6a59fe9259a32646bb40bbb9f85db87, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  serverUrl: https://aetherion-server-gv5u.onrender.com
---- !u!114 &613911232
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 613911230}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fac1e438431b5c5479accdc898b53776, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  serverUrl: https://aetherion-server-gv5u.onrender.com
-  reconnectDelay: 5
-  heartbeatInterval: 25
 --- !u!4 &613911233
 Transform:
   m_ObjectHideFlags: 0
@@ -964,6 +935,19 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &613911234
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 613911230}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c6a59fe9259a32646bb40bbb9f85db87, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  serverUrl: https://aetherion-server-gv5u.onrender.com
 --- !u!1 &636453345
 GameObject:
   m_ObjectHideFlags: 0
@@ -1387,6 +1371,60 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1109527172}
   m_CullTransparentMesh: 1
+--- !u!1 &1292008782
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1292008783}
+  - component: {fileID: 1292008784}
+  m_Layer: 0
+  m_Name: GameSocketIO
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1292008783
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1292008782}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 49.48411, y: 13.798634, z: 20.930561}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1292008784
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1292008782}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 36ddf7709eaa1f44f8625cd34692c016, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  serverUrl: https://aetherion-server-gv5u.onrender.com
+  heartbeatInterval: 20
+  pollInterval: 0.05
+  isConnected: 0
+  isConnecting: 0
+  sessionId: 
+  authToken: 
+  currentRoomId: 
+  myUsername: 
+  lastHeartbeat: 0
 --- !u!1 &1303612156
 GameObject:
   m_ObjectHideFlags: 0
@@ -1931,3 +1969,4 @@ SceneRoots:
   - {fileID: 569205603}
   - {fileID: 777394292}
   - {fileID: 613911233}
+  - {fileID: 1292008783}

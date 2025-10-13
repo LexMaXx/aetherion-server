@@ -140,15 +140,7 @@ public class StatsFormulas : ScriptableObject
     /// </summary>
     public float CalculateSpeedMultiplier(int agility)
     {
-        float multiplier = 1.0f + (agility * agilitySpeedBonus);
-
-        // Дебаг логирование раз в 2 секунды
-        if (Time.frameCount % 120 == 0)
-        {
-            Debug.Log($"[StatsFormulas] CalculateSpeedMultiplier: agility={agility}, bonus={agilitySpeedBonus}, result={multiplier}");
-        }
-
-        return multiplier;
+        return 1.0f + (agility * agilitySpeedBonus);
     }
 
     /// <summary>

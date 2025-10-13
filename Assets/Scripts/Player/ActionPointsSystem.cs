@@ -55,7 +55,7 @@ public class ActionPointsSystem : MonoBehaviour
         }
 
         // Находим UI
-        actionPointsUI = FindObjectOfType<ActionPointsUI>();
+        actionPointsUI = FindFirstObjectByType<ActionPointsUI>();
         if (actionPointsUI != null)
         {
             actionPointsUI.Initialize(this);
@@ -98,12 +98,6 @@ public class ActionPointsSystem : MonoBehaviour
     {
         // Проверяем, стоит ли персонаж на месте
         bool isStanding = IsPlayerStanding();
-
-        // DEBUG: Показываем состояние каждые 2 секунды
-        if (Time.frameCount % 120 == 0) // Примерно раз в 2 секунды
-        {
-            Debug.Log($"[ActionPoints] 📊 Status: isStanding={isStanding}, isRegenerating={isRegenerating}, AP={currentActionPoints}/{maxActionPoints}");
-        }
 
         // ВОССТАНОВЛЕНИЕ: только когда стоит на месте
         if (isStanding && currentActionPoints < maxActionPoints)
@@ -162,12 +156,6 @@ public class ActionPointsSystem : MonoBehaviour
         float horizontal = Input.GetAxis("Horizontal");
         float vertical = Input.GetAxis("Vertical");
         bool hasMovementInput = Mathf.Abs(horizontal) > 0.01f || Mathf.Abs(vertical) > 0.01f;
-
-        // DEBUG: Показываем input каждые 2 секунды
-        if (Time.frameCount % 120 == 0)
-        {
-            Debug.Log($"[ActionPoints] 🎮 Input: H={horizontal:F2}, V={vertical:F2}, hasInput={hasMovementInput}");
-        }
 
         // Если есть ввод - персонаж бежит
         if (hasMovementInput)

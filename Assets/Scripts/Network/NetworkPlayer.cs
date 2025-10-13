@@ -43,8 +43,22 @@ public class NetworkPlayer : MonoBehaviour
 
     void Awake()
     {
-        animator = GetComponent<Animator>();
+        // ВАЖНО: Animator находится на дочернем объекте "Model"
+        animator = GetComponentInChildren<Animator>();
+        if (animator == null)
+        {
+            Debug.LogWarning($"[NetworkPlayer] ⚠️ Animator не найден для {gameObject.name}!");
+        }
+
         characterController = GetComponent<CharacterController>();
+
+        // ВАЖНО: Отключаем CharacterController для сетевых игроков
+        // Иначе он будет применять гравитацию и коллизии, которые конфликтуют с сетевой позицией
+        if (characterController != null)
+        {
+            characterController.enabled = false;
+            Debug.Log("[NetworkPlayer] ✅ CharacterController отключён для сетевого игрока");
+        }
 
         // Добавляем или получаем NetworkTransform для плавной синхронизации
         networkTransform = GetComponent<NetworkTransform>();
@@ -76,19 +90,17 @@ public class NetworkPlayer : MonoBehaviour
     {
         if (!hasReceivedFirstUpdate) return;
 
-        // Smooth position interpolation
-        if (characterController != null && characterController.enabled)
+        // ВАЖНО: Если NetworkTransform существует, он управляет позицией
+        // Иначе управляем позицией здесь
+        if (networkTransform == null)
         {
-            Vector3 movement = Vector3.Lerp(transform.position, targetPosition, positionLerpSpeed * Time.deltaTime);
-            characterController.Move(movement - transform.position);
-        }
-        else
-        {
+            // Smooth position interpolation
+            // CharacterController отключён, используем прямую установку transform.position
             transform.position = Vector3.Lerp(transform.position, targetPosition, positionLerpSpeed * Time.deltaTime);
-        }
 
-        // Smooth rotation interpolation
-        transform.rotation = Quaternion.Lerp(transform.rotation, targetRotation, rotationLerpSpeed * Time.deltaTime);
+            // Smooth rotation interpolation
+            transform.rotation = Quaternion.Lerp(transform.rotation, targetRotation, rotationLerpSpeed * Time.deltaTime);
+        }
 
         // Update nameplate position
         if (nameplateInstance != null)
@@ -136,6 +148,12 @@ public class NetworkPlayer : MonoBehaviour
             timestamp = Time.time;
         }
 
+        // ДИАГНОСТИКА: Логируем обновление позиции
+        if (Time.frameCount % 60 == 0)
+        {
+            Debug.Log($"[NetworkPlayer] 🔧 UpdatePosition для {username}: current=({transform.position.x:F2}, {transform.position.y:F2}, {transform.position.z:F2}), target=({position.x:F2}, {position.y:F2}, {position.z:F2}), distance={Vector3.Distance(transform.position, position):F2}m");
+        }
+
         // Используем NetworkTransform для плавной синхронизации
         if (networkTransform != null)
         {
@@ -153,6 +171,7 @@ public class NetworkPlayer : MonoBehaviour
                 transform.position = position;
                 transform.rotation = rotation;
                 hasReceivedFirstUpdate = true;
+                Debug.Log($"[NetworkPlayer] 🎯 Первая позиция для {username}: ({position.x:F2}, {position.y:F2}, {position.z:F2})");
             }
         }
 
@@ -166,9 +185,15 @@ public class NetworkPlayer : MonoBehaviour
     {
         if (currentAnimationState == animationState) return;
 
+        Debug.Log($"[NetworkPlayer] 🎬 Анимация для {username}: {currentAnimationState} → {animationState}");
+
         currentAnimationState = animationState;
 
-        if (animator == null) return;
+        if (animator == null)
+        {
+            Debug.LogWarning($"[NetworkPlayer] ⚠️ Animator is null, cannot update animation to {animationState}");
+            return;
+        }
 
         // Reset all animation states
         animator.SetBool("isWalking", false);
@@ -181,22 +206,28 @@ public class NetworkPlayer : MonoBehaviour
         {
             case "Idle":
                 // Default state
+                Debug.Log($"[NetworkPlayer] ✅ Установлена анимация Idle для {username}");
                 break;
             case "Walking":
                 animator.SetBool("isWalking", true);
+                Debug.Log($"[NetworkPlayer] ✅ Установлена анимация Walking для {username}");
                 break;
             case "Running":
                 animator.SetBool("isRunning", true);
+                Debug.Log($"[NetworkPlayer] ✅ Установлена анимация Running для {username}");
                 break;
             case "Attacking":
                 animator.SetTrigger("Attack");
                 animator.SetBool("isAttacking", true);
+                Debug.Log($"[NetworkPlayer] ✅ Установлена анимация Attacking для {username}");
                 break;
             case "Dead":
                 animator.SetBool("isDead", true);
+                Debug.Log($"[NetworkPlayer] ✅ Установлена анимация Dead для {username}");
                 break;
             case "Casting":
                 animator.SetTrigger("Cast");
+                Debug.Log($"[NetworkPlayer] ✅ Установлена анимация Casting для {username}");
                 break;
         }
     }

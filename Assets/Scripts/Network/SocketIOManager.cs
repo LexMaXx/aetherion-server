@@ -37,6 +37,10 @@ public class SocketIOManager : MonoBehaviour
         Instance = this;
         DontDestroyOnLoad(gameObject);
 
+        // ВАЖНО: Разрешаем работу в фоновом режиме для тестирования мультиплеера
+        Application.runInBackground = true;
+        Debug.Log("[SocketIO] ✅ Фоновый режим ВКЛЮЧЁН - окно не будет зависать при потере фокуса");
+
         // Ensure UnityMainThreadDispatcher exists
         if (!UnityMainThreadDispatcher.Exists())
         {
@@ -168,28 +172,19 @@ public class SocketIOManager : MonoBehaviour
         {
             try
             {
-                // ВАЖНО: SocketIOResponse содержит массив параметров
-                // Используем GetValue() без параметров, затем преобразуем ToString()
                 string jsonData;
 
                 if (response.Count > 0)
                 {
-                    // ПРАВИЛЬНЫЙ СПОСОБ: GetValue() возвращает JsonElement, используем GetRawText()
                     var firstArg = response.GetValue();
 
-                    // Логируем тип для отладки
-                    DebugLog($"🔍 Event '{eventName}' firstArg type: {firstArg.GetType().FullName}");
-
-                    // Проверяем, является ли это JsonElement
                     if (firstArg.GetType().Name == "JsonElement")
                     {
-                        // Получаем сырой JSON текст из JsonElement
                         var jsonElement = (System.Text.Json.JsonElement)firstArg;
                         jsonData = jsonElement.GetRawText();
                     }
                     else
                     {
-                        // Fallback: сериализуем через Newtonsoft
                         jsonData = JsonConvert.SerializeObject(firstArg);
                     }
                 }
@@ -198,9 +193,6 @@ public class SocketIOManager : MonoBehaviour
                     jsonData = "{}";
                 }
 
-                DebugLog($"📨 Событие '{eventName}': {jsonData.Substring(0, Math.Min(100, jsonData.Length))}...");
-
-                // Вызываем callback в главном потоке Unity
                 var dispatcher = UnityMainThreadDispatcher.Instance();
                 if (dispatcher != null)
                 {
@@ -208,7 +200,14 @@ public class SocketIOManager : MonoBehaviour
                     {
                         if (eventCallbacks.ContainsKey(eventName))
                         {
-                            eventCallbacks[eventName]?.Invoke(jsonData);
+                            try
+                            {
+                                eventCallbacks[eventName]?.Invoke(jsonData);
+                            }
+                            catch (Exception callbackEx)
+                            {
+                                Debug.LogError($"[SocketIO] ❌ Исключение в callback '{eventName}': {callbackEx.Message}");
+                            }
                         }
                     });
                 }
@@ -220,7 +219,6 @@ public class SocketIOManager : MonoBehaviour
             catch (Exception ex)
             {
                 Debug.LogError($"[SocketIO] ❌ Ошибка обработки события '{eventName}': {ex.Message}");
-                Debug.LogError($"   Stack: {ex.StackTrace}");
             }
         });
 
@@ -238,21 +236,14 @@ public class SocketIOManager : MonoBehaviour
             return;
         }
 
-        // ВАЖНО: SocketIOUnity v1.1.5 лучше работает с обычными строками!
-        // Сервер Node.js сам распарсит JSON
+        // Отправляем JSON как строку - сервер распарсит
         try
         {
-            DebugLog($"📤 Попытка отправить: {eventName}");
-            DebugLog($"   JSON: {jsonData}");
-
-            // ПРАВИЛЬНО: Отправляем JSON как строку - сервер распарсит
             socket.Emit(eventName, jsonData);
-            DebugLog($"✅ Успешно отправлено: {eventName}");
         }
         catch (Exception ex)
         {
             Debug.LogError($"[SocketIO] ❌ Ошибка при отправке '{eventName}': {ex.Message}");
-            Debug.LogError($"   Stack: {ex.StackTrace}");
         }
     }
 
@@ -272,6 +263,12 @@ public class SocketIOManager : MonoBehaviour
         myUsername = PlayerPrefs.GetString("Username", "Player");
         myUserId = PlayerPrefs.GetString("UserId", "");
 
+        Debug.Log($"[SocketIO] 🔍 ДИАГНОСТИКА JoinRoom:");
+        Debug.Log($"  - roomId: {roomId}");
+        Debug.Log($"  - characterClass (параметр): '{characterClass}'");
+        Debug.Log($"  - username: {myUsername}");
+        Debug.Log($"  - userId: {myUserId}");
+
         // Отправляем join_room
         var joinData = new JoinRoomRequest
         {
@@ -284,6 +281,7 @@ public class SocketIOManager : MonoBehaviour
         };
 
         string json = JsonUtility.ToJson(joinData);
+        Debug.Log($"[SocketIO] 🔍 JSON для join_room: {json}");
         DebugLog($"🚪 Вход в комнату: {roomId} как {characterClass}");
         DebugLog($"   isConnected: {isConnected}");
         DebugLog($"   socket is null: {socket == null}");
@@ -336,14 +334,130 @@ public class SocketIOManager : MonoBehaviour
 
         var data = new
         {
+            socketId = socket.Id, // ВАЖНО: Добавляем socketId чтобы сервер знал кто отправил
             position = new { x = position.x, y = position.y, z = position.z },
             rotation = new { x = eulerRotation.x, y = eulerRotation.y, z = eulerRotation.z },
             velocity = new { x = velocity.x, y = velocity.y, z = velocity.z },
-            isGrounded = isGrounded
+            isGrounded = isGrounded,
+            timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() // Timestamp для Dead Reckoning
         };
 
         string json = JsonConvert.SerializeObject(data);
         Emit("player_update", json);
+    }
+
+    /// <summary>
+    /// Обновить анимацию игрока
+    /// </summary>
+    public void UpdateAnimation(string animationState, float speed = 1f)
+    {
+        if (!isConnected) return;
+
+        var data = new
+        {
+            socketId = socket.Id, // ВАЖНО: Добавляем socketId чтобы сервер знал кто отправил
+            animation = animationState,
+            speed = speed
+        };
+
+        string json = JsonConvert.SerializeObject(data);
+        Emit("player_animation", json);
+    }
+
+    /// <summary>
+    /// Отправить атаку на сервер (для мультиплеера)
+    /// Сервер сам рассчитает урон на основе SPECIAL статов
+    /// </summary>
+    public void SendPlayerAttack(string targetType, string targetId, float damage, string attackType, Vector3 position, Vector3 direction, Vector3 targetPosition)
+    {
+        if (!isConnected)
+        {
+            DebugLog("⚠️ SendPlayerAttack: Не подключен к серверу");
+            return;
+        }
+
+        var data = new
+        {
+            targetType = targetType,  // "player" or "enemy"
+            targetId = targetId,      // socketId (для игрока) или enemyId (для врага)
+            attackType = attackType,  // "melee", "ranged", "magic"
+            position = new { x = position.x, y = position.y, z = position.z },
+            direction = new { x = direction.x, y = direction.y, z = direction.z },
+            targetPosition = new { x = targetPosition.x, y = targetPosition.y, z = targetPosition.z }
+        };
+
+        string json = JsonConvert.SerializeObject(data);
+        DebugLog($"⚔️ Отправка атаки на сервер: {attackType} на {targetType} (ID: {targetId})");
+        DebugLog($"   Сервер рассчитает урон на основе ваших SPECIAL статов");
+        Emit("player_attack", json);
+    }
+
+    /// <summary>
+    /// Отправить использование скилла на сервер (для мультиплеера)
+    /// </summary>
+    public void SendPlayerSkill(int skillId, string targetSocketId, Vector3 targetPosition)
+    {
+        if (!isConnected)
+        {
+            DebugLog("⚠️ SendPlayerSkill: Не подключен к серверу");
+            return;
+        }
+
+        var data = new
+        {
+            skillId = skillId,
+            targetSocketId = targetSocketId,
+            targetPosition = new { x = targetPosition.x, y = targetPosition.y, z = targetPosition.z }
+        };
+
+        string json = JsonConvert.SerializeObject(data);
+        DebugLog($"⚡ Отправка скилла: ID={skillId}, target={targetSocketId}");
+        Emit("player_skill", json);
+    }
+
+    /// <summary>
+    /// Отправить получение урона на сервер (для мультиплеера)
+    /// </summary>
+    public void SendPlayerDamaged(float damage, float currentHealth, float maxHealth, string attackerId)
+    {
+        if (!isConnected)
+        {
+            DebugLog("⚠️ SendPlayerDamaged: Не подключен к серверу");
+            return;
+        }
+
+        var data = new
+        {
+            damage = damage,
+            currentHealth = currentHealth,
+            maxHealth = maxHealth,
+            attackerId = attackerId
+        };
+
+        string json = JsonConvert.SerializeObject(data);
+        DebugLog($"💔 Отправка получения урона: -{damage:F1} HP, осталось {currentHealth:F1}/{maxHealth:F1}");
+        Emit("player_damaged", json);
+    }
+
+    /// <summary>
+    /// Отправить информацию о респавне на сервер
+    /// </summary>
+    public void SendPlayerRespawn(Vector3 position)
+    {
+        if (!isConnected)
+        {
+            DebugLog("⚠️ SendPlayerRespawn: Не подключен к серверу");
+            return;
+        }
+
+        var data = new
+        {
+            position = new { x = position.x, y = position.y, z = position.z }
+        };
+
+        string json = JsonConvert.SerializeObject(data);
+        DebugLog($"♻️ Отправка респавна на позиции ({position.x:F1}, {position.y:F1}, {position.z:F1})");
+        Emit("player_respawn", json);
     }
 
     public bool IsConnected => isConnected;

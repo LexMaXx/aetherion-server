@@ -96,8 +96,19 @@ public class Projectile : MonoBehaviour
             Enemy enemy = target.GetComponent<Enemy>();
             if (enemy != null && enemy.IsAlive())
             {
-                enemy.TakeDamage(damage);
-                Debug.Log($"[Projectile] Попадание! Урон: {damage}");
+                // ВАЖНО: В мультиплеере НЕ наносим урон NetworkPlayer локально!
+                NetworkPlayer networkTarget = target.GetComponent<NetworkPlayer>();
+                if (networkTarget == null)
+                {
+                    // Это обычный NPC враг - наносим урон локально
+                    enemy.TakeDamage(damage);
+                    Debug.Log($"[Projectile] Попадание в NPC! Урон: {damage}");
+                }
+                else
+                {
+                    // Это NetworkPlayer - урон уже отправлен на сервер через PlayerAttack
+                    Debug.Log($"[Projectile] Попадание в NetworkPlayer {networkTarget.username}! Урон применит сервер");
+                }
             }
         }
 
@@ -121,8 +132,19 @@ public class Projectile : MonoBehaviour
             Enemy enemy = other.GetComponent<Enemy>();
             if (enemy != null && enemy.IsAlive())
             {
-                enemy.TakeDamage(damage);
-                Debug.Log($"[Projectile] Collision попадание! Урон: {damage}");
+                // ВАЖНО: В мультиплеере НЕ наносим урон NetworkPlayer локально!
+                NetworkPlayer networkTarget = other.GetComponent<NetworkPlayer>();
+                if (networkTarget == null)
+                {
+                    // Это обычный NPC враг - наносим урон локально
+                    enemy.TakeDamage(damage);
+                    Debug.Log($"[Projectile] Collision попадание в NPC! Урон: {damage}");
+                }
+                else
+                {
+                    // Это NetworkPlayer - урон уже отправлен на сервер через PlayerAttack
+                    Debug.Log($"[Projectile] Collision попадание в NetworkPlayer {networkTarget.username}! Урон применит сервер");
+                }
             }
 
             // Эффект попадания

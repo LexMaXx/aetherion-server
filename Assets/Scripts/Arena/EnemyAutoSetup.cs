@@ -39,7 +39,7 @@ public class EnemyAutoSetup : MonoBehaviour
     public void SetupAllEnemies()
     {
         // Находим всех врагов с компонентом Enemy
-        Enemy[] allEnemies = FindObjectsOfType<Enemy>();
+        Enemy[] allEnemies = FindObjectsByType<Enemy>(FindObjectsSortMode.None);
 
         if (allEnemies.Length == 0)
         {
@@ -132,7 +132,7 @@ public class EnemyAutoSetup : MonoBehaviour
         }
 
         // Регистрируем всех врагов в FogOfWar
-        FogOfWar fogOfWar = FindObjectOfType<FogOfWar>();
+        FogOfWar fogOfWar = FindFirstObjectByType<FogOfWar>();
         if (fogOfWar != null)
         {
             fogOfWar.RefreshEnemies();

@@ -93,6 +93,9 @@ public class RoomManager : MonoBehaviour
         // Level можно получить из характеристик персонажа, пока используем 1
         int level = 1;
 
+        Debug.Log($"[RoomManager] 🔍 ДИАГНОСТИКА: CharacterClass из PlayerPrefs = '{characterClass}'");
+        Debug.Log($"[RoomManager] 🔍 ДИАГНОСТИКА: Username из PlayerPrefs = '{username}'");
+
         CreateRoomRequest requestData = new CreateRoomRequest
         {
             roomName = roomName,
@@ -169,6 +172,9 @@ public class RoomManager : MonoBehaviour
         string characterClass = PlayerPrefs.GetString("SelectedCharacterClass", "Warrior");
         string username = PlayerPrefs.GetString("Username", "Player");
         int level = 1;
+
+        Debug.Log($"[RoomManager] 🔍 ДИАГНОСТИКА: CharacterClass из PlayerPrefs = '{characterClass}'");
+        Debug.Log($"[RoomManager] 🔍 ДИАГНОСТИКА: Username из PlayerPrefs = '{username}'");
 
         JoinRoomRequest requestData = new JoinRoomRequest
         {
@@ -333,6 +339,7 @@ public class RoomManager : MonoBehaviour
     public void CreateAndJoinRoom(string roomName, Action<bool> onComplete)
     {
         string characterClass = PlayerPrefs.GetString("SelectedCharacterClass", "Warrior");
+        Debug.Log($"[RoomManager] 🔍 CreateAndJoinRoom: CharacterClass = '{characterClass}'");
 
         CreateRoom(roomName, 20, false, "",
             onSuccess: (room) =>
@@ -354,6 +361,7 @@ public class RoomManager : MonoBehaviour
     public void JoinAndConnectRoom(string roomId, Action<bool> onComplete)
     {
         string characterClass = PlayerPrefs.GetString("SelectedCharacterClass", "Warrior");
+        Debug.Log($"[RoomManager] 🔍 JoinAndConnectRoom: CharacterClass = '{characterClass}'");
 
         JoinRoom(roomId, "",
             onSuccess: (room) =>

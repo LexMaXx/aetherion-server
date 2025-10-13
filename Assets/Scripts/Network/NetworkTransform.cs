@@ -34,9 +34,6 @@ public class NetworkTransform : MonoBehaviour
     [Tooltip("Дистанция для телепортации вместо интерполяции")]
     [SerializeField] private float snapThreshold = 5f;
 
-    [Tooltip("Угол для мгновенной ротации")]
-    [SerializeField] private float snapRotationThreshold = 90f;
-
     [Header("Debug")]
     [SerializeField] private bool showDebugInfo = false;
 
@@ -138,8 +135,7 @@ public class NetworkTransform : MonoBehaviour
             currentRotation = rotation;
             targetPosition = position;
             targetRotation = rotation;
-
-            Debug.LogWarning($"[NetworkTransform] Snap! Distance: {distance:F2}m");
+            // Snap произошёл - это нормально при первом подключении или большой задержке
         }
     }
 

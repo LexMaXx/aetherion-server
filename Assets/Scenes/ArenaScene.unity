@@ -1992,6 +1992,53 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &972092686
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 972092688}
+  - component: {fileID: 972092687}
+  m_Layer: 0
+  m_Name: GameSocketIO
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &972092687
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 972092686}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 36ddf7709eaa1f44f8625cd34692c016, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  serverUrl: https://aetherion-server-gv5u.onrender.com
+  heartbeatInterval: 20
+  pollInterval: 0.05
+--- !u!4 &972092688
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 972092686}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 49.48411, y: 13.798634, z: 20.930561}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1081339885
 GameObject:
   m_ObjectHideFlags: 0
@@ -3020,7 +3067,7 @@ MonoBehaviour:
   paladinPrefab: {fileID: 3763081708559248323, guid: 833cb4b38c0353641a7aaa725cfa97a6, type: 3}
   arenaCamera: {fileID: 1634334934}
   fogOfWarSettings: {fileID: 11400000, guid: 34c89f2a1bcb4384ebfc0a53a65f1bab, type: 2}
-  networkSyncManagerPrefab: {fileID: 0}
+  networkSyncManagerPrefab: {fileID: 1992633974}
   multiplayerSpawnPoints:
   - {fileID: 1959569780}
   - {fileID: 334695251}
@@ -3451,7 +3498,7 @@ Transform:
   m_GameObject: {fileID: 1959569779}
   serializedVersion: 2
   m_LocalRotation: {x: -0.2588191, y: -0, z: -0, w: 0.9659258}
-  m_LocalPosition: {x: 5.26, y: -0.15, z: 17.65}
+  m_LocalPosition: {x: 14.1, y: 1.13, z: 19.87}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -3561,6 +3608,61 @@ Transform:
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 46.77, y: 2.0765, z: 36.8}
   m_LocalScale: {x: 1, y: 5.153, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1992633974
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1992633976}
+  - component: {fileID: 1992633975}
+  m_Layer: 0
+  m_Name: NetworkSyncManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1992633975
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1992633974}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 863fc1b0953e3fc49ac8e40abd4dc3cf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  positionSyncInterval: 0.1
+  syncEnabled: 1
+  spawnPoints:
+  - {fileID: 1959569780}
+  - {fileID: 334695251}
+  warriorPrefab: {fileID: 3648219444137287431, guid: 5a52691a0fe002b4db988ca8489bc363, type: 3}
+  magePrefab: {fileID: 2455800741112154681, guid: 16b61d17fa005844c82d5ce44e1c2630, type: 3}
+  archerPrefab: {fileID: 5583116252532174475, guid: df219b3432b40f941b64683f7a39f3b6, type: 3}
+  roguePrefab: {fileID: 3820967453952185360, guid: d3dcbebc30c53e74192cb2a46dacd92f, type: 3}
+  paladinPrefab: {fileID: 3763081708559248323, guid: 833cb4b38c0353641a7aaa725cfa97a6, type: 3}
+  nameplatePrefab: {fileID: 1992633974}
+--- !u!4 &1992633976
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1992633974}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 49.48411, y: 13.798634, z: 20.930561}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -3884,7 +3986,7 @@ Transform:
   m_GameObject: {fileID: 2042093244}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: -10.28, y: 0, z: -18.13}
   m_LocalScale: {x: 100, y: 100, z: 10}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -3989,3 +4091,5 @@ SceneRoots:
   - {fileID: 1881355743}
   - {fileID: 1988575331}
   - {fileID: 1594279936}
+  - {fileID: 1992633976}
+  - {fileID: 972092688}

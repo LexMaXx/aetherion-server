@@ -69,20 +69,57 @@ public class NetworkCombatSync : MonoBehaviour
     public void SendAttack(GameObject target, float damage, string attackType)
     {
         if (!enableSync || !isMultiplayer || SocketIOManager.Instance == null)
+        {
             return;
+        }
+
+        if (!SocketIOManager.Instance.IsConnected)
+        {
+            return;
+        }
+
+        if (target == null)
+        {
+            Debug.LogWarning("[NetworkCombatSync] ❌ SendAttack - target is NULL!");
+            return;
+        }
 
         // Получаем socketId цели (если это NetworkPlayer)
-        string targetSocketId = "";
+        string targetId = "";
+        string targetType = "enemy"; // По умолчанию атакуем врага
+
         NetworkPlayer networkTarget = target.GetComponent<NetworkPlayer>();
         if (networkTarget != null)
         {
-            targetSocketId = networkTarget.socketId;
+            // Это другой игрок!
+            targetId = networkTarget.socketId;
+            targetType = "player";
+            Debug.Log($"[NetworkCombatSync] Атака на игрока: {networkTarget.username} (Socket: {targetId})");
+        }
+        else
+        {
+            // Это NPC враг
+            Enemy enemy = target.GetComponent<Enemy>();
+            if (enemy != null)
+            {
+                targetId = enemy.GetEnemyId(); // Получаем ID врага
+                Debug.Log($"[NetworkCombatSync] Атака на врага: {enemy.GetEnemyName()} (ID: {targetId})");
+            }
         }
 
-        // TODO: Add SendAttack method to SocketIOManager
-        // SocketIOManager.Instance.SendAttack("player", targetSocketId, damage, attackType);
+        if (string.IsNullOrEmpty(targetId))
+        {
+            Debug.LogWarning($"[NetworkCombatSync] ❌ SendAttack - не удалось определить ID цели! Target: {target.name}, Has Enemy: {target.GetComponent<Enemy>() != null}, Has NetworkPlayer: {target.GetComponent<NetworkPlayer>() != null}");
+            return;
+        }
 
-        Debug.LogWarning($"[NetworkCombatSync] SendAttack not yet implemented in SocketIOManager");
+        // Отправляем атаку на сервер (сервер сам рассчитает урон на основе SPECIAL статов)
+        Vector3 attackPosition = transform.position;
+        Vector3 targetPosition = target.transform.position;
+        Vector3 attackDirection = (targetPosition - attackPosition).normalized;
+
+        SocketIOManager.Instance.SendPlayerAttack(targetType, targetId, damage, attackType, attackPosition, attackDirection, targetPosition);
+        Debug.Log($"[NetworkCombatSync] ✅ Атака отправлена на сервер: {attackType} → {targetType} (ID: {targetId})");
     }
 
     /// <summary>
@@ -91,19 +128,27 @@ public class NetworkCombatSync : MonoBehaviour
     public void SendSkill(int skillId, GameObject target, Vector3 targetPosition)
     {
         if (!enableSync || !isMultiplayer || SocketIOManager.Instance == null)
+        {
+            Debug.Log("[NetworkCombatSync] SendSkill пропущен (не мультиплеер или нет подключения)");
             return;
+        }
+
+        if (!SocketIOManager.Instance.IsConnected)
+        {
+            Debug.LogWarning("[NetworkCombatSync] SendSkill пропущен - нет подключения к серверу");
+            return;
+        }
 
         string targetSocketId = "";
         NetworkPlayer networkTarget = target?.GetComponent<NetworkPlayer>();
         if (networkTarget != null)
         {
             targetSocketId = networkTarget.socketId;
+            Debug.Log($"[NetworkCombatSync] Использование скилла на игрока: {networkTarget.username}");
         }
 
-        // TODO: Add SendSkill method to SocketIOManager
-        // SocketIOManager.Instance.SendSkill(skillId, targetSocketId, targetPosition);
-
-        Debug.LogWarning($"[NetworkCombatSync] SendSkill not yet implemented in SocketIOManager");
+        SocketIOManager.Instance.SendPlayerSkill(skillId, targetSocketId, targetPosition);
+        Debug.Log($"[NetworkCombatSync] ✅ Скилл отправлен на сервер: ID={skillId}");
     }
 
     /// <summary>
@@ -114,13 +159,20 @@ public class NetworkCombatSync : MonoBehaviour
         if (SocketIOManager.Instance == null || !SocketIOManager.Instance.IsConnected)
             return;
 
-        int currentHP = healthSystem != null ? (int)healthSystem.CurrentHealth : 0;
-        int maxHP = healthSystem != null ? (int)healthSystem.MaxHealth : 100;
-        int currentMP = manaSystem != null ? (int)manaSystem.CurrentMana : 0;
-        int maxMP = manaSystem != null ? (int)manaSystem.MaxMana : 100;
+        float currentHP = healthSystem != null ? healthSystem.CurrentHealth : 0;
+        float maxHP = healthSystem != null ? healthSystem.MaxHealth : 100;
+        float currentMP = manaSystem != null ? manaSystem.CurrentMana : 0;
+        float maxMP = manaSystem != null ? manaSystem.MaxMana : 100;
 
-        // TODO: Add UpdateHealth method to SocketIOManager
-        // SocketIOManager.Instance.UpdateHealth(currentHP, maxHP, currentMP, maxMP);
+        // Определяем кто атаковал (пока не знаем, отправим пустую строку)
+        string lastAttackerId = "";
+
+        // Если HP изменилось - отправляем информацию о получении урона
+        if (currentHP < maxHP)
+        {
+            float damage = maxHP - currentHP;
+            SocketIOManager.Instance.SendPlayerDamaged(damage, currentHP, maxHP, lastAttackerId);
+        }
     }
 
     /// <summary>

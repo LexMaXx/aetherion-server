@@ -1,0 +1,92 @@
+================================================================================
+ПРОМПТ 1 - СКИЛЛЫ 1-15 (Warrior, Mage, Archer начало)
+================================================================================
+
+Create 15 RPG skill icons in a grid layout, white icons on black background, 256x256px each, simple fantasy game UI style, isometric view:
+
+1. SHIELD BASH (Warrior) - A large metal shield with impact lines radiating outward, dynamic slam motion, medieval knight shield with cross emblem
+
+2. WHIRLWIND (Warrior) - Spinning tornado with sword silhouettes visible inside the vortex, circular motion lines, sharp blade edges cutting through wind
+
+3. BATTLE CRY (Warrior) - Fierce warrior helmet with sound wave circles emanating from mouth area, aggressive skull design, sonic shout effect
+
+4. CHARGE (Warrior) - Running armored warrior in side profile with speed lines, lance pointed forward, dynamic forward momentum
+
+5. EXECUTE (Warrior) - Two crossed swords clashing with impact sparks, dramatic X-shape composition, finisher attack effect
+
+6. DEFENSIVE STANCE (Warrior) - Sturdy round shield with protective aura, defensive posture, glowing barrier effect around edges
+
+7. FIREBALL (Mage) - Flaming sphere with fire trails, orange and red flames, swirling fire patterns, magical projectile
+
+8. ICE LANCE (Mage) - Sharp crystalline ice spear with frozen mist, icicle shards, blue-white frost effect, piercing projectile
+
+9. LIGHTNING BOLT (Mage) - Jagged electric bolt striking downward, bright energy lines, electrical discharge, Zeus-like thunderbolt
+
+10. MANA SHIELD (Mage) - Mystical circular barrier with arcane runes, magical force field, glowing protective dome, ethereal energy
+
+11. TELEPORT (Mage) - Swirling portal with magical particles, dimensional rift, teleportation circles, mystical gateway effect
+
+12. METEOR (Mage) - Flaming rock falling from above with fire trail, asteroid impact, cosmic destruction, apocalyptic spell
+
+13. POWER SHOT (Archer) - Single arrow with glowing energy trail, charged arrow, powerful projectile, concentrated force
+
+14. MULTI SHOT (Archer) - Three arrows fanned out in spread formation, multiple projectiles, barrage attack, triple shot
+
+15. POISON ARROW (Archer) - Arrow with dripping green toxin, venom drop effect, skull symbol on arrowhead, deadly poison
+
+Style: Clean minimalist design, high contrast white on pure black, game UI icons, fantasy RPG aesthetic, recognizable silhouettes, no text or labels
+
+
+================================================================================
+ПРОМПТ 2 - СКИЛЛЫ 16-30 (Archer конец, Rogue, Paladin)
+================================================================================
+
+Create 15 RPG skill icons in a grid layout, white icons on black background, 256x256px each, simple fantasy game UI style, isometric view:
+
+16. BEAR TRAP (Archer) - Medieval steel jaw trap with sharp teeth, spring mechanism visible, hunting equipment, danger symbol
+
+17. EAGLE EYE (Archer) - Stylized eagle head with glowing eye, bird of prey emblem, enhanced vision, targeting scope effect
+
+18. RAIN OF ARROWS (Archer) - Multiple arrows falling from sky in downward pattern, arrow cluster, barrage from above, covering fire
+
+19. BACKSTAB (Rogue) - Dagger stabbing into back silhouette, sneak attack, critical strike from behind, assassination symbol
+
+20. SUMMON SKELETONS (Rogue) - Three skeletal skulls with glowing eyes, necromancy symbol, undead summoning, bone magic circle
+
+21. SMOKE BOMB (Rogue) - Explosive smoke cloud with fuse, stealth escape, ninja smoke effect, concealment device
+
+22. POISON DAGGER (Rogue) - Curved dagger dripping with toxic green liquid, venomous blade, assassin weapon, lethal poison
+
+23. SHADOW STEP (Rogue) - Dark silhouette with motion blur trail, stealth movement, ninja dash, shadow teleport effect
+
+24. CRITICAL STRIKE (Rogue) - Eye with crosshair and bleeding effect, weak point targeting, critical hit symbol, precision attack
+
+25. HOLY LIGHT (Paladin) - Radiant sunburst with healing rays, divine blessing, golden holy magic, sacred restoration
+
+26. BEAR FORM (Paladin) - Fierce bear head roaring, transformation symbol, primal rage, shapeshifting druid magic
+
+27. DIVINE SHIELD (Paladin) - Holy shield with cross emblem and light aura, sacred protection, angelic barrier, righteous defense
+
+28. RESURRECTION (Paladin) - Phoenix rising from flames, revival symbol, angelic wings, life restoration, holy miracle
+
+29. HAMMER OF JUSTICE (Paladin) - Heavy warhammer striking down, righteous judgment, divine punishment, crushing holy weapon
+
+30. BLESSING (Paladin) - Praying hands with holy light radiating, divine buff, sacred enhancement, spiritual empowerment
+
+Style: Clean minimalist design, high contrast white on pure black, game UI icons, fantasy RPG aesthetic, recognizable silhouettes, no text or labels
+
+
+================================================================================
+ДЛЯ MIDJOURNEY ДОБАВЬ В КОНЕЦ:
+================================================================================
+--ar 1:1 --style raw --v 6 --s 250
+
+
+================================================================================
+ДЛЯ ПОЛУЧЕНИЯ ЛУЧШЕГО РЕЗУЛЬТАТА:
+================================================================================
+- Генерируй каждую иконку отдельно для максимального качества
+- Используй upscale если результат получился маленьким
+- Убери фон если он не полностью чёрный
+- Resize до ровно 256x256px
+- Сохрани как PNG с прозрачностью

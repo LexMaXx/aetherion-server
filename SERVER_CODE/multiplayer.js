@@ -4,9 +4,10 @@
  */
 
 const Room = require('./models/Room');
+const Character = require('./models/Character');
 
 // Хранилище активных игроков
-const activePlayers = new Map(); // socketId => { roomId, username, characterClass, position, animation }
+const activePlayers = new Map(); // socketId => { roomId, username, characterClass, position, animation, stats, userId }
 
 // Хранилище врагов в комнатах
 const roomEnemies = new Map(); // roomId => Map(enemyId => { health, alive, position })
@@ -42,12 +43,36 @@ module.exports = (io) => {
         // Присоединяемся к Socket.IO room
         socket.join(roomId);
 
+        // Загружаем SPECIAL stats из базы данных
+        let playerStats = {
+          strength: 5,
+          perception: 5,
+          endurance: 5,
+          wisdom: 5,
+          intelligence: 5,
+          agility: 5,
+          luck: 5
+        };
+
+        try {
+          const character = await Character.findOne({ userId, isSelected: true });
+          if (character && character.stats) {
+            playerStats = character.stats;
+            console.log(`[Join Room] Loaded stats for ${username}: STR=${playerStats.strength}, AGI=${playerStats.agility}, LUCK=${playerStats.luck}`);
+          } else {
+            console.log(`[Join Room] Character not found for ${username}, using default stats`);
+          }
+        } catch (error) {
+          console.error(`[Join Room] Failed to load stats for ${username}:`, error.message);
+        }
+
         // Сохраняем информацию об игроке
         activePlayers.set(socket.id, {
           roomId,
           username,
           characterClass,
           userId,
+          stats: playerStats,
           position: { x: 0, y: 0, z: 0 },
           rotation: { x: 0, y: 0, z: 0 },
           animation: 'Idle',
@@ -209,25 +234,171 @@ module.exports = (io) => {
     });
 
     // ═══════════════════════════════════════════
-    // АТАКА
+    // АТАКА (SERVER AUTHORITY)
     // ═══════════════════════════════════════════
 
     socket.on('player_attack', (data) => {
-      const player = activePlayers.get(socket.id);
-      if (!player) return;
+      const attacker = activePlayers.get(socket.id);
+      if (!attacker) {
+        console.warn(`[Attack] Attacker ${socket.id} not found in activePlayers`);
+        return;
+      }
 
-      console.log(`[Attack] ${player.username} attacking ${data.targetType} (ID: ${data.targetId})`);
+      // ВАЖНО: Unity может отправить как строку, так и как объект
+      let parsedData = data;
+      console.log(`[Attack] 🔍 Raw data type: ${typeof data}`);
+      console.log(`[Attack] 🔍 Raw data: ${JSON.stringify(data).substring(0, 200)}`);
 
-      // Отправляем всем игрокам в комнате
-      io.to(player.roomId).emit('player_attacked', {
+      if (typeof data === 'string') {
+        try {
+          parsedData = JSON.parse(data);
+          console.log('[Attack] ✅ Parsed JSON string to object');
+        } catch (e) {
+          console.error('[Attack] ❌ Failed to parse JSON:', e.message);
+          return;
+        }
+      }
+
+      console.log(`[Attack] 🔍 Parsed data: ${JSON.stringify(parsedData).substring(0, 200)}`);
+
+      const { targetType, targetId, attackType, position, direction } = parsedData;
+
+      console.log(`[Attack] 🗡️ ${attacker.username} attacking ${targetType} (ID: ${targetId}) with ${attackType}`);
+
+      // ═══════ ШАГ 1: ВАЛИДАЦИЯ ДИСТАНЦИИ ═══════
+      let targetPosition = null;
+      let targetObject = null;
+
+      if (targetType === 'player') {
+        targetObject = activePlayers.get(targetId);
+        if (!targetObject) {
+          console.warn(`[Attack] ❌ Target player ${targetId} not found`);
+          return;
+        }
+        targetPosition = targetObject.position;
+      } else if (targetType === 'enemy') {
+        // Для врагов используем позицию из запроса (клиент знает позицию врага)
+        // В будущем можно хранить позиции врагов на сервере
+        targetPosition = parsedData.targetPosition || { x: 0, y: 0, z: 0 };
+      }
+
+      // Вычисляем дистанцию между атакующим и целью
+      const distance = Math.sqrt(
+        Math.pow(attacker.position.x - targetPosition.x, 2) +
+        Math.pow(attacker.position.y - targetPosition.y, 2) +
+        Math.pow(attacker.position.z - targetPosition.z, 2)
+      );
+
+      // Проверяем максимальную дистанцию атаки
+      const maxAttackRange = attackType === 'melee' ? 3.0 : 20.0; // 3м для ближнего, 20м для дальнего
+      if (distance > maxAttackRange) {
+        console.warn(`[Attack] ❌ Target too far: ${distance.toFixed(2)}m > ${maxAttackRange}m`);
+        socket.emit('attack_failed', {
+          reason: 'target_too_far',
+          distance: distance,
+          maxRange: maxAttackRange
+        });
+        return;
+      }
+
+      // ═══════ ШАГ 2: РАСЧЁТ УРОНА НА СЕРВЕРЕ ═══════
+      let baseDamage = 5; // Базовый урон (уменьшен для баланса)
+      const stats = attacker.stats;
+
+      // Урон зависит от типа атаки и SPECIAL статов
+      // БАЛАНСИРОВКА: Уменьшаем множители чтобы враги не умирали с 1 удара
+      if (attackType === 'melee') {
+        // Ближняя атака: STR * 0.8 + AGI * 0.2
+        baseDamage = (stats.strength * 0.8) + (stats.agility * 0.2) + 3;
+      } else if (attackType === 'ranged') {
+        // Дальняя атака: PER * 0.6 + AGI * 0.4
+        baseDamage = (stats.perception * 0.6) + (stats.agility * 0.4) + 3;
+      } else if (attackType === 'magic') {
+        // Магия: INT * 0.8 + WIS * 0.2
+        baseDamage = (stats.intelligence * 0.8) + (stats.wisdom * 0.2) + 3;
+      }
+
+      // Применяем класс персонажа (бонусы)
+      const classMultipliers = {
+        'Warrior': attackType === 'melee' ? 1.3 : 1.0,
+        'Archer': attackType === 'ranged' ? 1.3 : 1.0,
+        'Mage': attackType === 'magic' ? 1.3 : 1.0,
+        'Rogue': attackType === 'melee' ? 1.15 : 1.1, // Роги хороши и в ближнем и в дальнем
+        'Paladin': 1.1 // Паладины универсальны
+      };
+      const classMultiplier = classMultipliers[attacker.characterClass] || 1.0;
+      baseDamage *= classMultiplier;
+
+      // Случайный разброс ±10%
+      const randomFactor = 0.9 + Math.random() * 0.2;
+      baseDamage *= randomFactor;
+
+      // ═══════ ШАГ 3: КРИТИЧЕСКИЙ УДАР ═══════
+      const critChance = Math.min(0.5, stats.luck * 0.02); // Макс 50% крит при 25 LUCK
+      const isCritical = Math.random() < critChance;
+      let finalDamage = baseDamage;
+
+      if (isCritical) {
+        finalDamage *= 2.0; // Критический удар x2
+        console.log(`[Attack] 💥 CRITICAL HIT! Damage: ${finalDamage.toFixed(1)}`);
+      }
+
+      finalDamage = Math.round(finalDamage);
+
+      console.log(`[Attack] 🎯 ${attacker.username} deals ${finalDamage} damage (base: ${baseDamage.toFixed(1)}, crit: ${isCritical})`);
+
+      // ═══════ ШАГ 4: ПРИМЕНЯЕМ УРОН К ЦЕЛИ ═══════
+      if (targetType === 'player' && targetObject) {
+        // Урон по игроку
+        targetObject.health = Math.max(0, targetObject.health - finalDamage);
+
+        console.log(`[Attack] ${targetObject.username} HP: ${targetObject.health}/${targetObject.maxHealth}`);
+
+        // Отправляем событие получения урона
+        io.to(attacker.roomId).emit('player_health_changed', {
+          socketId: targetId,
+          damage: finalDamage,
+          currentHealth: targetObject.health,
+          maxHealth: targetObject.maxHealth,
+          attackerId: socket.id,
+          isCritical: isCritical,
+          timestamp: Date.now()
+        });
+
+        // Проверяем смерть
+        if (targetObject.health <= 0) {
+          targetObject.animation = 'Dead';
+          io.to(attacker.roomId).emit('player_died', {
+            socketId: targetId,
+            killerId: socket.id,
+            killerUsername: attacker.username,
+            timestamp: Date.now()
+          });
+          console.log(`[Attack] 💀 ${targetObject.username} was killed by ${attacker.username}`);
+        }
+      } else if (targetType === 'enemy') {
+        // Урон по NPC врагу - отправляем клиенту для применения
+        io.to(attacker.roomId).emit('enemy_damaged_by_server', {
+          enemyId: targetId,
+          damage: finalDamage,
+          attackerId: socket.id,
+          attackerUsername: attacker.username,
+          isCritical: isCritical,
+          timestamp: Date.now()
+        });
+      }
+
+      // ═══════ ШАГ 5: BROADCAST АНИМАЦИИ АТАКИ ═══════
+      // Отправляем всем игрокам анимацию атаки (визуальный эффект)
+      io.to(attacker.roomId).emit('player_attacked', {
         socketId: socket.id,
-        attackType: data.attackType || 'melee',
-        targetType: data.targetType, // 'player' or 'enemy'
-        targetId: data.targetId,
-        damage: data.damage,
-        position: data.position,
-        direction: data.direction,
-        skillId: data.skillId,
+        attackType: attackType,
+        targetType: targetType,
+        targetId: targetId,
+        damage: finalDamage,
+        isCritical: isCritical,
+        position: position,
+        direction: direction,
         timestamp: Date.now()
       });
     });

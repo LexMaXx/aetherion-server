@@ -187,7 +187,7 @@ public class FogOfWar : MonoBehaviour
     private void FindAllEnemies()
     {
         allEnemies.Clear();
-        Enemy[] enemies = FindObjectsOfType<Enemy>();
+        Enemy[] enemies = FindObjectsByType<Enemy>(FindObjectsSortMode.None);
         allEnemies.AddRange(enemies);
 
         Debug.Log($"[FogOfWar] Найдено врагов: {allEnemies.Count}");
@@ -292,7 +292,16 @@ public class FogOfWar : MonoBehaviour
     {
         if (enemy == null) return;
 
-        // Получаем все Renderer'ы врага
+        // ВАЖНО: Не скрываем NetworkPlayer (других игроков)
+        // Они должны быть видны всегда (как в MMO)
+        NetworkPlayer networkPlayer = enemy.GetComponent<NetworkPlayer>();
+        if (networkPlayer != null)
+        {
+            // Это сетевой игрок - ВСЕГДА видим
+            return;
+        }
+
+        // Получаем все Renderer'ы врага (только для NPC)
         Renderer[] renderers = enemy.GetComponentsInChildren<Renderer>();
 
         foreach (Renderer rend in renderers)
@@ -499,7 +508,7 @@ public class FogOfWar : MonoBehaviour
         allBuildings.Clear();
 
         // Находим все объекты с Renderer
-        Renderer[] allRenderers = FindObjectsOfType<Renderer>();
+        Renderer[] allRenderers = FindObjectsByType<Renderer>(FindObjectsSortMode.None);
 
         foreach (Renderer rend in allRenderers)
         {

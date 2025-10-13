@@ -19,10 +19,6 @@ public class TPSCameraController : MonoBehaviour
     [SerializeField] private float minVerticalAngle = 5f;  // Минимальный угол (вниз)
     [SerializeField] private float maxVerticalAngle = 80f; // Максимальный угол (вверх)
 
-    [Header("Camera Smoothing")]
-    [SerializeField] private float positionSmoothSpeed = 15f;  // Скорость следования
-    [SerializeField] private float rotationSmoothSpeed = 10f;  // Скорость вращения
-
     [Header("Zoom")]
     [SerializeField] private float minDistance = 3f;
     [SerializeField] private float maxDistance = 12f;

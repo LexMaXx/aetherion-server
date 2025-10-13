@@ -234,21 +234,15 @@ public class GameSceneManager : MonoBehaviour
             {
                 if (response.success && response.rooms != null && response.rooms.Length > 0)
                 {
-                    // Найдем первую доступную комнату
-                    RoomInfo availableRoom = null;
-                    foreach (var room in response.rooms)
-                    {
-                        if (room.status == "waiting" && room.currentPlayers < room.maxPlayers)
-                        {
-                            availableRoom = room;
-                            break;
-                        }
-                    }
+                    // ВСЕГДА выбираем ПЕРВУЮ комнату из списка (для мультиплеера)
+                    RoomInfo firstRoom = response.rooms[0];
+                    Debug.Log($"[GameScene] Найдена комната: {firstRoom.roomName} (игроков: {firstRoom.currentPlayers}/{firstRoom.maxPlayers})");
 
-                    if (availableRoom != null)
+                    // Проверяем, есть ли место
+                    if (firstRoom.currentPlayers < firstRoom.maxPlayers)
                     {
-                        Debug.Log($"[GameScene] Найдена доступная комната: {availableRoom.roomName}");
-                        JoinExistingRoom(availableRoom.roomId);
+                        Debug.Log($"[GameScene] Входим в комнату: {firstRoom.roomName}");
+                        JoinExistingRoom(firstRoom.roomId);
                     }
                     else
                     {

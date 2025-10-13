@@ -49,22 +49,47 @@ public class ClassWeaponManager : MonoBehaviour
     private Transform leftHandBone;
     private Transform spineBone;
 
+    // КЕШИРУЕМ класс персонажа чтобы не определять его каждый кадр
+    private CharacterClass cachedCharacterClass;
+    private bool classInitialized = false;
+
     /// <summary>
     /// Определить класс персонажа по имени GameObject
     /// </summary>
     public CharacterClass GetCharacterClass()
     {
+        // Если класс уже определён - возвращаем кеш
+        if (classInitialized)
+        {
+            return cachedCharacterClass;
+        }
+
         string name = gameObject.name.ToLower();
 
-        if (name.Contains("warrior")) return CharacterClass.Warrior;
-        if (name.Contains("mage")) return CharacterClass.Mage;
-        if (name.Contains("archer")) return CharacterClass.Archer;
-        if (name.Contains("rogue")) return CharacterClass.Rogue;
-        if (name.Contains("paladin")) return CharacterClass.Paladin;
+        if (name.Contains("warrior")) cachedCharacterClass = CharacterClass.Warrior;
+        else if (name.Contains("mage")) cachedCharacterClass = CharacterClass.Mage;
+        else if (name.Contains("archer")) cachedCharacterClass = CharacterClass.Archer;
+        else if (name.Contains("rogue")) cachedCharacterClass = CharacterClass.Rogue;
+        else if (name.Contains("paladin")) cachedCharacterClass = CharacterClass.Paladin;
+        else
+        {
+            // Если не определён - возвращаем Warrior по умолчанию (логируем только один раз)
+            Debug.LogWarning($"[ClassWeaponManager] Не удалось определить класс для {gameObject.name}, использую Warrior");
+            cachedCharacterClass = CharacterClass.Warrior;
+        }
 
-        // Если не определён - возвращаем Warrior по умолчанию
-        Debug.LogWarning($"[ClassWeaponManager] Не удалось определить класс для {gameObject.name}, использую Warrior");
-        return CharacterClass.Warrior;
+        classInitialized = true;
+        return cachedCharacterClass;
+    }
+
+    /// <summary>
+    /// Установить класс персонажа вручную (для сетевых игроков)
+    /// </summary>
+    public void SetCharacterClass(CharacterClass characterClass)
+    {
+        cachedCharacterClass = characterClass;
+        classInitialized = true;
+        Debug.Log($"[ClassWeaponManager] Класс установлен вручную: {characterClass}");
     }
 
     void Start()
@@ -74,8 +99,13 @@ public class ClassWeaponManager : MonoBehaviour
 
     void Update()
     {
-        // Обновляем трансформы оружия в реальном времени
-        UpdateWeaponTransforms();
+        // Обновляем трансформы оружия в реальном времени (только в редакторе)
+        #if UNITY_EDITOR
+        if (!UnityEngine.Application.isPlaying)
+        {
+            UpdateWeaponTransforms();
+        }
+        #endif
     }
 
     /// <summary>
@@ -83,7 +113,7 @@ public class ClassWeaponManager : MonoBehaviour
     /// </summary>
     private void UpdateWeaponTransforms()
     {
-        CharacterClass characterClass = GetCharacterClass();
+        CharacterClass characterClass = cachedCharacterClass;
 
         switch (characterClass)
         {

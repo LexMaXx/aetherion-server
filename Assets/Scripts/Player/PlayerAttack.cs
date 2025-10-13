@@ -625,8 +625,28 @@ public class PlayerAttack : MonoBehaviour
         // Ближняя атака - наносим урон сразу
         else
         {
-            currentAttackTarget.TakeDamage(finalDamage);
-            Debug.Log($"[PlayerAttack] ⚔️ Урон {finalDamage:F0} нанесён {currentAttackTarget.GetEnemyName()}");
+            // ВАЖНО: В мультиплеере НЕ наносим урон NetworkPlayer локально!
+            // Сервер рассчитает урон и отправит событие enemy_damaged_by_server
+            NetworkPlayer networkTarget = currentAttackTarget.GetComponent<NetworkPlayer>();
+            if (networkTarget == null)
+            {
+                // Это обычный NPC враг - наносим урон локально
+                currentAttackTarget.TakeDamage(finalDamage);
+                Debug.Log($"[PlayerAttack] ⚔️ Урон {finalDamage:F0} нанесён NPC {currentAttackTarget.GetEnemyName()}");
+            }
+            else
+            {
+                // Это NetworkPlayer - урон нанесёт сервер
+                Debug.Log($"[PlayerAttack] 🌐 Атака на NetworkPlayer {networkTarget.username} - ждём ответа сервера");
+            }
+        }
+
+        // МУЛЬТИПЛЕЕР: Отправляем информацию об атаке на сервер
+        NetworkCombatSync combatSync = GetComponent<NetworkCombatSync>();
+        if (combatSync != null)
+        {
+            string attackType = isRangedAttack ? "ranged" : "melee";
+            combatSync.SendAttack(currentAttackTarget.gameObject, finalDamage, attackType);
         }
 
         // Очищаем цель после использования
@@ -796,8 +816,28 @@ public class PlayerAttack : MonoBehaviour
         // Ближняя атака - наносим урон сразу
         else
         {
-            currentAttackTarget.TakeDamage(finalDamage);
-            Debug.Log($"[PlayerAttack] ⚔️ Урон {finalDamage:F0} нанесён {currentAttackTarget.GetEnemyName()}");
+            // ВАЖНО: В мультиплеере НЕ наносим урон NetworkPlayer локально!
+            // Сервер рассчитает урон и отправит событие enemy_damaged_by_server
+            NetworkPlayer networkTarget = currentAttackTarget.GetComponent<NetworkPlayer>();
+            if (networkTarget == null)
+            {
+                // Это обычный NPC враг - наносим урон локально
+                currentAttackTarget.TakeDamage(finalDamage);
+                Debug.Log($"[PlayerAttack] ⚔️ Урон {finalDamage:F0} нанесён NPC {currentAttackTarget.GetEnemyName()}");
+            }
+            else
+            {
+                // Это NetworkPlayer - урон нанесёт сервер
+                Debug.Log($"[PlayerAttack] 🌐 Атака на NetworkPlayer {networkTarget.username} - ждём ответа сервера");
+            }
+        }
+
+        // МУЛЬТИПЛЕЕР: Отправляем информацию об атаке на сервер
+        NetworkCombatSync combatSync = GetComponent<NetworkCombatSync>();
+        if (combatSync != null)
+        {
+            string attackType = isRangedAttack ? "ranged" : "melee";
+            combatSync.SendAttack(currentAttackTarget.gameObject, finalDamage, attackType);
         }
 
         // Очищаем цель после использования

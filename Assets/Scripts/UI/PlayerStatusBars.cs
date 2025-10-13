@@ -58,7 +58,7 @@ public class PlayerStatusBars : MonoBehaviour
         GameObject player = GameObject.FindGameObjectWithTag("Player");
         if (player == null)
         {
-            CharacterStats[] allStats = FindObjectsOfType<CharacterStats>();
+            CharacterStats[] allStats = FindObjectsByType<CharacterStats>(FindObjectsSortMode.None);
             if (allStats.Length > 0)
             {
                 player = allStats[0].gameObject;
@@ -128,7 +128,7 @@ public class PlayerStatusBars : MonoBehaviour
         Debug.Log("[PlayerStatusBars] 🔧 Создание HP/MP баров...");
 
         // Находим или создаём Canvas
-        canvas = FindObjectOfType<Canvas>();
+        canvas = FindFirstObjectByType<Canvas>();
         if (canvas == null)
         {
             GameObject canvasObj = new GameObject("StatusBars_Canvas");

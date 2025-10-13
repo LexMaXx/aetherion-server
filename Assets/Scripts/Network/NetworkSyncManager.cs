@@ -13,7 +13,7 @@ public class NetworkSyncManager : MonoBehaviour
     public static NetworkSyncManager Instance { get; private set; }
 
     [Header("Settings")]
-    [SerializeField] private float positionSyncInterval = 0.1f; // 10 Hz
+    [SerializeField] private float positionSyncInterval = 0.05f; // 20 Hz для плавного движения (как в MMO)
     [SerializeField] private bool syncEnabled = true;
 
     [Header("Spawn Points")]
@@ -36,6 +36,7 @@ public class NetworkSyncManager : MonoBehaviour
     private GameObject localPlayer;
     private string localPlayerClass;
     private float lastPositionSync = 0f;
+    private string lastAnimationState = "Idle";
 
     void Awake()
     {
@@ -75,18 +76,18 @@ public class NetworkSyncManager : MonoBehaviour
 
     void Update()
     {
-        if (!syncEnabled) return;
+        if (!syncEnabled)
+            return;
 
         // Проверяем подключение перед отправкой
         if (SocketIOManager.Instance == null || !SocketIOManager.Instance.IsConnected)
-        {
             return;
-        }
 
         // Send local player position to server
         if (Time.time - lastPositionSync > positionSyncInterval)
         {
             SyncLocalPlayerPosition();
+            SyncLocalPlayerAnimation();  // ВАЖНО: Синхронизируем анимацию
             lastPositionSync = Time.time;
         }
     }
@@ -104,33 +105,18 @@ public class NetworkSyncManager : MonoBehaviour
 
         // Room players list (when we join)
         SocketIOManager.Instance.On("room_players", OnRoomPlayers);
-
-        // Player joined room
         SocketIOManager.Instance.On("player_joined", OnPlayerJoined);
-
-        // Player left room
         SocketIOManager.Instance.On("player_left", OnPlayerLeft);
-
-        // Player moved (position/rotation update)
         SocketIOManager.Instance.On("player_moved", OnPlayerMoved);
-
-        // Player animation changed
         SocketIOManager.Instance.On("player_animation_changed", OnAnimationChanged);
-
-        // Player attacked
         SocketIOManager.Instance.On("player_attacked", OnPlayerAttacked);
-
-        // Player health changed
         SocketIOManager.Instance.On("player_health_changed", OnHealthChanged);
-
-        // Player died
         SocketIOManager.Instance.On("player_died", OnPlayerDied);
-
-        // Player respawned
         SocketIOManager.Instance.On("player_respawned", OnPlayerRespawned);
 
         // Enemy events
         SocketIOManager.Instance.On("enemy_health_changed", OnEnemyHealthChanged);
+        SocketIOManager.Instance.On("enemy_damaged_by_server", OnEnemyDamagedByServer);
         SocketIOManager.Instance.On("enemy_died", OnEnemyDied);
         SocketIOManager.Instance.On("enemy_respawned", OnEnemyRespawned);
 
@@ -144,7 +130,11 @@ public class NetworkSyncManager : MonoBehaviour
     {
         localPlayer = player;
         localPlayerClass = characterClass;
-        Debug.Log($"[NetworkSync] Локальный игрок установлен: {characterClass}");
+        Debug.Log($"[NetworkSync] ✅ Локальный игрок установлен: {characterClass}");
+        Debug.Log($"[NetworkSync] 🔍 localPlayer: {(localPlayer != null ? localPlayer.name : "NULL")}");
+        Debug.Log($"[NetworkSync] 🔍 SocketIOManager.Instance: {(SocketIOManager.Instance != null ? "EXISTS" : "NULL")}");
+        Debug.Log($"[NetworkSync] 🔍 SocketIOManager.IsConnected: {(SocketIOManager.Instance != null ? SocketIOManager.Instance.IsConnected.ToString() : "N/A")}");
+        Debug.Log($"[NetworkSync] 🔍 syncEnabled: {syncEnabled}");
     }
 
     /// <summary>
@@ -155,7 +145,7 @@ public class NetworkSyncManager : MonoBehaviour
         if (localPlayer == null || SocketIOManager.Instance == null || !SocketIOManager.Instance.IsConnected)
             return;
 
-        // Get velocity и позицию (localPlayer это Model, а CharacterController на нем)
+        // Get velocity и позицию
         Vector3 velocity = Vector3.zero;
         bool isGrounded = true;
         Vector3 position = localPlayer.transform.position;
@@ -176,10 +166,10 @@ public class NetworkSyncManager : MonoBehaviour
             }
         }
 
-        // ОТЛАДКА: Логируем отправку позиции (раз в секунду)
+        // ДИАГНОСТИКА: Логируем каждую 60-ю отправку (1 раз в секунду при 20Hz)
         if (Time.frameCount % 60 == 0)
         {
-            Debug.Log($"[NetworkSync] 📤 Отправка позиции: pos=({position.x:F2}, {position.y:F2}, {position.z:F2}), vel=({velocity.x:F2}, {velocity.y:F2}, {velocity.z:F2})");
+            Debug.Log($"[NetworkSync] 📤 Отправка позиции: pos=({position.x:F1}, {position.y:F1}, {position.z:F1}), vel=({velocity.x:F1}, {velocity.y:F1}, {velocity.z:F1}), rot={rotation.eulerAngles.y:F0}°");
         }
 
         // Send to server
@@ -187,12 +177,45 @@ public class NetworkSyncManager : MonoBehaviour
     }
 
     /// <summary>
+    /// Синхронизировать анимацию локального игрока
+    /// </summary>
+    private void SyncLocalPlayerAnimation()
+    {
+        if (localPlayer == null || SocketIOManager.Instance == null || !SocketIOManager.Instance.IsConnected)
+            return;
+
+        string currentState = GetLocalPlayerAnimationState();
+
+        // ВАЖНО: Отправляем анимацию КАЖДЫЙ раз для real-time синхронизации
+        // Сервер сам решит нужно ли рассылать всем (если изменилась)
+        if (currentState != lastAnimationState)
+        {
+            Debug.Log($"[NetworkSync] 🎬 Анимация изменилась: {lastAnimationState} → {currentState}");
+            lastAnimationState = currentState;
+        }
+
+        SocketIOManager.Instance.UpdateAnimation(currentState);
+    }
+
+    /// <summary>
     /// Получить текущее состояние анимации локального игрока
     /// </summary>
     private string GetLocalPlayerAnimationState()
     {
+        if (localPlayer == null) return "Idle";
+
+        // ВАЖНО: Animator может быть на самом объекте или в дочернем Model
         var animator = localPlayer.GetComponent<Animator>();
-        if (animator == null) return "Idle";
+        if (animator == null)
+        {
+            animator = localPlayer.GetComponentInChildren<Animator>();
+        }
+
+        if (animator == null)
+        {
+            Debug.LogWarning("[NetworkSync] ⚠️ Animator не найден для локального игрока!");
+            return "Idle";
+        }
 
         // Check if parameters exist before trying to get them
         if (HasParameter(animator, "isDead") && animator.GetBool("isDead")) return "Dead";
@@ -301,46 +324,38 @@ public class NetworkSyncManager : MonoBehaviour
     {
         try
         {
-            // ОТЛАДКА: Логируем сырой JSON
-            Debug.Log($"[NetworkSync] 🔍 RAW JSON for player_moved: {jsonData}");
-
             var data = JsonConvert.DeserializeObject<PlayerMovedEvent>(jsonData);
 
-            // ОТЛАДКА: Логируем результат десериализации
-            if (data == null)
-            {
-                Debug.LogError($"[NetworkSync] ❌ PlayerMovedEvent is null after deserialization!");
+            if (data == null || string.IsNullOrEmpty(data.socketId))
                 return;
-            }
-
-            Debug.Log($"[NetworkSync] 🔍 Deserialized: socketId='{data.socketId}', position=({data.position?.x}, {data.position?.y}, {data.position?.z})");
-
-            if (string.IsNullOrEmpty(data.socketId))
-            {
-                Debug.LogError($"[NetworkSync] ❌ socketId is null or empty after deserialization!");
-                Debug.LogError($"[NetworkSync] 🔍 Full PlayerMovedEvent object: socketId='{data.socketId}', timestamp={data.timestamp}");
-                return;
-            }
-
-            // Skip our own updates - server should not send us our own position
-            // but check anyway
 
             if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer player))
             {
+                // Проверяем что объект не уничтожен
+                if (player == null || player.gameObject == null)
+                {
+                    networkPlayers.Remove(data.socketId);
+                    return;
+                }
+
                 Vector3 pos = new Vector3(data.position.x, data.position.y, data.position.z);
                 Quaternion rot = Quaternion.Euler(data.rotation.x, data.rotation.y, data.rotation.z);
 
-                player.UpdatePosition(pos, rot);
-                Debug.Log($"[NetworkSync] ✅ Updated position for {data.socketId}");
-            }
-            else
-            {
-                Debug.LogWarning($"[NetworkSync] ⚠️ Network player {data.socketId} not found in dictionary. Available: {string.Join(", ", networkPlayers.Keys)}");
+                // ВАЖНО: velocity может быть null если сервер не отправил
+                Vector3 vel = Vector3.zero;
+                if (data.velocity != null)
+                {
+                    vel = new Vector3(data.velocity.x, data.velocity.y, data.velocity.z);
+                }
+
+                float timestamp = data.timestamp > 0 ? (data.timestamp / 1000f) : Time.time;
+
+                player.UpdatePosition(pos, rot, vel, timestamp);
             }
         }
         catch (Exception ex)
         {
-            Debug.LogError($"[NetworkSync] ❌ Error in OnPlayerMoved: {ex.Message}\n{ex.StackTrace}\nJSON: {jsonData}");
+            Debug.LogError($"[NetworkSync] ❌ Error in OnPlayerMoved: {ex.Message}");
         }
     }
 
@@ -351,11 +366,25 @@ public class NetworkSyncManager : MonoBehaviour
     {
         var data = JsonUtility.FromJson<AnimationChangedEvent>(jsonData);
 
+        Debug.Log($"[NetworkSync] 📥 Получена анимация от сервера: socketId={data.socketId}, animation={data.animation}");
+
         // Skip our own updates - server should not send us our own animation
 
         if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer player))
         {
+            // ВАЖНО: Проверяем что объект не уничтожен
+            if (player == null || player.gameObject == null)
+            {
+                Debug.LogWarning($"[NetworkSync] ⚠️ Player {data.socketId} is destroyed (animation), removing from dictionary");
+                networkPlayers.Remove(data.socketId);
+                return;
+            }
+
             player.UpdateAnimation(data.animation);
+        }
+        else
+        {
+            Debug.LogWarning($"[NetworkSync] ⚠️ Получена анимация для несуществующего игрока: {data.socketId}");
         }
     }
 
@@ -379,18 +408,22 @@ public class NetworkSyncManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Обработать обновление здоровья игрока
+    /// Обработать обновление здоровья игрока (SERVER AUTHORITY)
     /// </summary>
     private void OnHealthChanged(string jsonData)
     {
         var data = JsonUtility.FromJson<HealthChangedEvent>(jsonData);
-        Debug.Log($"[NetworkSync] 💔 Здоровье игрока {data.socketId}: {data.currentHealth}/{data.maxHealth}");
+        string critText = data.isCritical ? " 💥 КРИТИЧЕСКИЙ УДАР!" : "";
+        Debug.Log($"[NetworkSync] 💔 Здоровье игрока {data.socketId}: {data.currentHealth}/{data.maxHealth}{critText}");
 
         if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer player))
         {
             player.ShowDamage(data.damage);
             // TODO: Update health bar
         }
+
+        // TODO: Если это мы получили урон, применить к локальному игроку
+        // Сервер должен отправить специальное событие для локального игрока
     }
 
     /// <summary>
@@ -435,6 +468,32 @@ public class NetworkSyncManager : MonoBehaviour
 
         // TODO: Find enemy by ID and update its health
         // This will be implemented when we have enemy manager
+    }
+
+    /// <summary>
+    /// Обработать урон врага от сервера (SERVER AUTHORITY)
+    /// Сервер рассчитал урон на основе SPECIAL статов атакующего
+    /// </summary>
+    private void OnEnemyDamagedByServer(string jsonData)
+    {
+        var data = JsonUtility.FromJson<EnemyDamagedByServerEvent>(jsonData);
+        Debug.Log($"[NetworkSync] 🎯 Сервер нанёс урон врагу {data.enemyId}: {data.damage} урона{(data.isCritical ? " (КРИТ!)" : "")}");
+
+        // Найти врага по ID и применить урон
+        GameObject[] enemies = GameObject.FindGameObjectsWithTag("Enemy");
+        foreach (GameObject enemyObj in enemies)
+        {
+            Enemy enemy = enemyObj.GetComponent<Enemy>();
+            if (enemy != null && enemy.GetEnemyId() == data.enemyId)
+            {
+                // Применяем урон к врагу
+                enemy.TakeDamage(data.damage);
+                Debug.Log($"[NetworkSync] ✅ Применён серверный урон к {enemy.GetEnemyName()}: {data.damage}{(data.isCritical ? " КРИТИЧЕСКИЙ" : "")}");
+                return;
+            }
+        }
+
+        Debug.LogWarning($"[NetworkSync] ⚠️ Враг {data.enemyId} не найден для применения серверного урона");
     }
 
     /// <summary>
@@ -515,9 +574,12 @@ public class NetworkSyncManager : MonoBehaviour
             field?.SetValue(networkPlayer, nameplatePrefab);
         }
 
+        // ВАЖНО: Добавляем компонент Enemy для системы таргетинга и тумана войны
+        SetupNetworkPlayerAsEnemy(playerObj, username);
+
         networkPlayers[socketId] = networkPlayer;
 
-        Debug.Log($"[NetworkSync] ✅ Создан сетевой игрок: {username} ({characterClass}) с оружием");
+        Debug.Log($"[NetworkSync] ✅ Создан сетевой игрок: {username} ({characterClass}) - враг для таргетинга");
     }
 
     /// <summary>
@@ -533,13 +595,15 @@ public class NetworkSyncManager : MonoBehaviour
             Debug.Log($"[NetworkSync] Добавлен ClassWeaponManager для {characterClass}");
         }
 
+        // ВАЖНО: Устанавливаем класс персонажа вручную, чтобы не было миллионов логов
+        var characterClassEnum = (CharacterClass)System.Enum.Parse(typeof(CharacterClass), characterClass);
+        weaponManager.SetCharacterClass(characterClassEnum);
+        Debug.Log($"[NetworkSync] Установлен класс {characterClass} для сетевого игрока");
+
         // Загрузить WeaponDatabase
         var weaponDatabase = Resources.Load<WeaponDatabase>("WeaponDatabase");
         if (weaponDatabase != null)
         {
-            // Установить класс и прикрепить оружие
-            var characterClassEnum = (CharacterClass)System.Enum.Parse(typeof(CharacterClass), characterClass);
-
             // Вызываем метод через рефлексию или делаем публичным
             var method = typeof(ClassWeaponManager).GetMethod("AttachWeaponForClass", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             if (method != null)
@@ -559,12 +623,85 @@ public class NetworkSyncManager : MonoBehaviour
     }
 
     /// <summary>
+    /// Настроить сетевого игрока как Enemy (для таргетинга и тумана войны)
+    /// </summary>
+    private void SetupNetworkPlayerAsEnemy(GameObject playerObj, string username)
+    {
+        // Добавляем компонент Enemy
+        Enemy enemyComponent = playerObj.AddComponent<Enemy>();
+
+        // Используем reflection для установки приватных полей
+        var enemyNameField = typeof(Enemy).GetField("enemyName", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        if (enemyNameField != null)
+        {
+            enemyNameField.SetValue(enemyComponent, username);
+        }
+
+        var maxHealthField = typeof(Enemy).GetField("maxHealth", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        if (maxHealthField != null)
+        {
+            maxHealthField.SetValue(enemyComponent, 10000f); // ОЧЕНЬ ВЫСОКОЕ HP - сетевые игроки бессмертные
+        }
+
+        // ВАЖНО: Также установить currentHealth чтобы избежать отрицательного HP
+        var currentHealthField = typeof(Enemy).GetField("currentHealth", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        if (currentHealthField != null)
+        {
+            currentHealthField.SetValue(enemyComponent, 10000f); // Инициализируем currentHealth = maxHealth
+            Debug.Log($"[NetworkSync] ✅ currentHealth установлено: 10000");
+        }
+
+        // ВАЖНО: Отключаем Enemy компонент чтобы он не вызывал TakeDamage/Die
+        // Оставляем только для таргетинга и регистрации в FogOfWar
+        enemyComponent.enabled = false;
+        Debug.Log($"[NetworkSync] ⚠️ Enemy компонент ОТКЛЮЧЁН (только для таргетинга)");
+
+        // ВАЖНО: Установить тег "Enemy" для системы таргетинга
+        if (!playerObj.CompareTag("Enemy"))
+        {
+            try
+            {
+                playerObj.tag = "Enemy";
+                Debug.Log($"[NetworkSync] ✅ Установлен тег 'Enemy' для {username}");
+            }
+            catch (UnityException ex)
+            {
+                Debug.LogError($"[NetworkSync] ❌ Не удалось установить тег 'Enemy': {ex.Message}. Создайте тег 'Enemy' в Project Settings → Tags and Layers!");
+            }
+        }
+
+        // Зарегистрировать в FogOfWar системе локального игрока
+        if (localPlayer != null)
+        {
+            FogOfWar fogOfWar = localPlayer.GetComponent<FogOfWar>();
+            if (fogOfWar != null)
+            {
+                fogOfWar.RegisterEnemy(enemyComponent);
+                Debug.Log($"[NetworkSync] ✅ Сетевой игрок {username} зарегистрирован в FogOfWar");
+            }
+        }
+
+        Debug.Log($"[NetworkSync] ✅ Сетевой игрок {username} настроен как Enemy (можно таргетить)");
+    }
+
+    /// <summary>
     /// Удалить сетевого игрока
     /// </summary>
     private void RemoveNetworkPlayer(string socketId)
     {
         if (networkPlayers.TryGetValue(socketId, out NetworkPlayer player))
         {
+            // Отрегистрируем из FogOfWar перед удалением
+            Enemy enemyComponent = player.GetComponent<Enemy>();
+            if (enemyComponent != null && localPlayer != null)
+            {
+                FogOfWar fogOfWar = localPlayer.GetComponent<FogOfWar>();
+                if (fogOfWar != null)
+                {
+                    fogOfWar.UnregisterEnemy(enemyComponent);
+                }
+            }
+
             Destroy(player.gameObject);
             networkPlayers.Remove(socketId);
             Debug.Log($"[NetworkSync] Удален сетевой игрок: {socketId}");
@@ -759,6 +896,7 @@ public class HealthChangedEvent
     public float currentHealth;
     public float maxHealth;
     public string attackerId;
+    public bool isCritical;
     public long timestamp;
 }
 
@@ -795,6 +933,20 @@ public class EnemyHealthChangedEvent
     public float damage;
     public float currentHealth;
     public string attackerId;
+    public long timestamp;
+}
+
+/// <summary>
+/// Enemy damaged by server event (SERVER AUTHORITY)
+/// </summary>
+[Serializable]
+public class EnemyDamagedByServerEvent
+{
+    public string enemyId;
+    public float damage;
+    public string attackerId;
+    public string attackerUsername;
+    public bool isCritical;
     public long timestamp;
 }
 

@@ -1,0 +1,51 @@
+=================================================================
+БЫСТРОЕ ПЕРЕИМЕНОВАНИЕ ИКОНОК ДЛЯ СКИЛЛОВ
+=================================================================
+
+Переименуй иконки точно так (без пробелов!):
+
+ARCHER (6 иконок):
+- PowerShot
+- MultiShot
+- PoisonArrow
+- BearTrap
+- EagleEye
+- RainOfArrows
+
+WARRIOR (6 иконок):
+- ShieldBash
+- Whirlwind
+- BattleCry
+- Charge
+- Execute
+- DefensiveStance
+
+MAGE (6 иконок):
+- Fireball
+- IceLance
+- LightningBolt
+- ManaShield
+- Teleport
+- Meteor
+
+ROGUE (6 иконок):
+- Backstab
+- SummonSkeletons
+- SmokeBomb
+- PoisonDagger
+- ShadowStep
+- CriticalStrike
+
+PALADIN (6 иконок):
+- HolyLight
+- BearForm
+- DivineShield
+- Resurrection
+- HammerOfJustice
+- Blessing
+
+=================================================================
+ПОСЛЕ ПЕРЕИМЕНОВАНИЯ:
+=================================================================
+Tools → Aetherion → Assign Icons to Skills
+(автоматически назначит все иконки)

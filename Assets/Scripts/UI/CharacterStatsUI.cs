@@ -68,7 +68,7 @@ public class CharacterStatsUI : MonoBehaviour
         if (player == null)
         {
             // Пробуем найти по компонентам
-            CharacterStats[] allStats = FindObjectsOfType<CharacterStats>();
+            CharacterStats[] allStats = FindObjectsByType<CharacterStats>(FindObjectsSortMode.None);
             if (allStats.Length > 0)
             {
                 player = allStats[0].gameObject;
@@ -180,7 +180,7 @@ public class CharacterStatsUI : MonoBehaviour
     private void CreateStatsPanel()
     {
         // Находим или создаём Canvas
-        Canvas canvas = FindObjectOfType<Canvas>();
+        Canvas canvas = FindFirstObjectByType<Canvas>();
         if (canvas == null)
         {
             GameObject canvasObj = new GameObject("Canvas");

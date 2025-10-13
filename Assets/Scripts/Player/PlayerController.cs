@@ -126,17 +126,6 @@ public class PlayerController : MonoBehaviour
             float speedMultiplier = GetAgilitySpeedMultiplier();
             float currentSpeed = baseSpeed * speedMultiplier;
 
-            // ДЕБАГ: Логируем скорость каждые 2 секунды
-            if (Time.frameCount % 120 == 0)
-            {
-                Debug.Log($"[PlayerController] SPEED DEBUG:");
-                Debug.Log($"  baseSpeed: {baseSpeed}");
-                Debug.Log($"  speedMultiplier: {speedMultiplier}");
-                Debug.Log($"  currentSpeed: {currentSpeed}");
-                Debug.Log($"  agility: {(characterStats != null ? characterStats.agility.ToString() : "NULL")}");
-                Debug.Log($"  statsFormulas: {(statsFormulas != null ? "OK" : "NULL")}");
-            }
-
             // Применяем скорость к направлению
             moveDirection *= currentSpeed;
 
@@ -267,14 +256,6 @@ public class PlayerController : MonoBehaviour
         }
 
         // Используем формулу из StatsFormulas
-        float multiplier = statsFormulas.CalculateSpeedMultiplier(characterStats.agility);
-
-        // Логируем раз в 2 секунды
-        if (Time.frameCount % 120 == 0)
-        {
-            Debug.Log($"[PlayerController] GetAgilitySpeedMultiplier: agility={characterStats.agility}, multiplier={multiplier}");
-        }
-
-        return multiplier;
+        return statsFormulas.CalculateSpeedMultiplier(characterStats.agility);
     }
 }

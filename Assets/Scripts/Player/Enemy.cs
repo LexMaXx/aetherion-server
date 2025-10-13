@@ -7,7 +7,7 @@ public class Enemy : MonoBehaviour
 {
     [Header("Enemy Info")]
     [SerializeField] private string enemyName = "Enemy";
-    [SerializeField] private float maxHealth = 100f;
+    [SerializeField] private float maxHealth = 200f; // Увеличено для баланса (было 100)
 
     [Header("Hit Effect")]
     [SerializeField] private GameObject hitEffectPrefab;
@@ -22,6 +22,9 @@ public class Enemy : MonoBehaviour
     void Start()
     {
         currentHealth = maxHealth;
+
+        // ДИАГНОСТИКА: Проверяем нежелательные компоненты
+        CheckForPlayerComponents();
 
         // Убеждаемся что у объекта есть тег Enemy
         if (!gameObject.CompareTag("Enemy"))
@@ -40,7 +43,7 @@ public class Enemy : MonoBehaviour
         }
 
         // Регистрируемся в системе тумана войны
-        FogOfWar fogOfWar = FindObjectOfType<FogOfWar>();
+        FogOfWar fogOfWar = FindFirstObjectByType<FogOfWar>();
         if (fogOfWar != null)
         {
             fogOfWar.RegisterEnemy(this);
@@ -143,6 +146,74 @@ public class Enemy : MonoBehaviour
     public float GetHealthPercent()
     {
         return currentHealth / maxHealth;
+    }
+
+    /// <summary>
+    /// Получить уникальный ID врага (для мультиплеера)
+    /// Использует instanceID GameObject который уникален в текущей сессии
+    /// </summary>
+    public string GetEnemyId()
+    {
+        return $"enemy_{gameObject.GetInstanceID()}";
+    }
+
+    /// <summary>
+    /// ДИАГНОСТИКА: Проверка нежелательных компонентов
+    /// Враги НЕ должны иметь PlayerController, CharacterStats и т.д.
+    /// </summary>
+    private void CheckForPlayerComponents()
+    {
+        Debug.Log($"[Enemy] 🔍 Диагностика компонентов для {gameObject.name}...");
+
+        // Проверяем PlayerController
+        PlayerController playerController = GetComponent<PlayerController>();
+        if (playerController != null)
+        {
+            Debug.LogError($"[Enemy] ❌❌❌ КРИТИЧЕСКАЯ ОШИБКА: Враг {gameObject.name} имеет компонент PlayerController!");
+            Debug.LogError($"[Enemy] ❌ Это ПРИЧИНА ТЕЛЕПОРТАЦИИ! PlayerController двигает персонажа на основе input!");
+            Debug.LogError($"[Enemy] ❌ РЕШЕНИЕ: Удалите PlayerController из Inspector этого врага!");
+            Debug.LogError($"[Enemy] ❌ Автоматически удаляю PlayerController...");
+            Destroy(playerController);
+        }
+
+        // Проверяем CharacterStats
+        CharacterStats characterStats = GetComponent<CharacterStats>();
+        if (characterStats != null)
+        {
+            Debug.LogWarning($"[Enemy] ⚠️ ВНИМАНИЕ: Враг {gameObject.name} имеет CharacterStats!");
+            Debug.LogWarning($"[Enemy] ⚠️ Ловкость (agility): {characterStats.agility}");
+            Debug.LogWarning($"[Enemy] ⚠️ Это может влиять на скорость если есть PlayerController!");
+            Debug.LogWarning($"[Enemy] ⚠️ Враги не должны иметь SPECIAL статы!");
+        }
+
+        // Проверяем CharacterController
+        CharacterController characterController = GetComponent<CharacterController>();
+        if (characterController != null)
+        {
+            Debug.LogWarning($"[Enemy] ⚠️ Враг {gameObject.name} имеет CharacterController");
+            Debug.LogWarning($"[Enemy] ⚠️ Это нормально если враг двигается, но может конфликтовать с физикой");
+        }
+
+        // Проверяем NetworkTransform
+        NetworkTransform networkTransform = GetComponent<NetworkTransform>();
+        if (networkTransform != null)
+        {
+            Debug.LogWarning($"[Enemy] ⚠️ Враг {gameObject.name} имеет NetworkTransform!");
+            Debug.LogWarning($"[Enemy] ⚠️ Враги не должны синхронизироваться по сети (только игроки)!");
+        }
+
+        // Проверяем Rigidbody
+        Rigidbody rb = GetComponent<Rigidbody>();
+        if (rb != null)
+        {
+            Debug.Log($"[Enemy] ✅ Rigidbody найден: isKinematic={rb.isKinematic}, useGravity={rb.useGravity}");
+            if (!rb.isKinematic)
+            {
+                Debug.LogWarning($"[Enemy] ⚠️ Rigidbody.isKinematic = false - враг может падать/двигаться от физики");
+            }
+        }
+
+        Debug.Log($"[Enemy] ✅ Диагностика {gameObject.name} завершена");
     }
 
     /// <summary>

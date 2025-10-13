@@ -228,9 +228,9 @@ module.exports = (io) => {
         socketId: socket.id,
         position: player.position,
         rotation: player.rotation,
-        velocity: data.velocity,
-        isGrounded: data.isGrounded,
-        timestamp: Date.now()
+        velocity: parsedData.velocity || { x: 0, y: 0, z: 0 },
+        isGrounded: parsedData.isGrounded !== undefined ? parsedData.isGrounded : true,
+        timestamp: parsedData.timestamp || Date.now()
       });
     });
 
@@ -242,14 +242,25 @@ module.exports = (io) => {
       const player = activePlayers.get(socket.id);
       if (!player) return;
 
-      player.animation = data.animation;
-      player.animationSpeed = data.speed || 1.0;
+      // ВАЖНО: Unity может отправить как строку, так и как объект
+      let parsedData = data;
+      if (typeof data === 'string') {
+        try {
+          parsedData = JSON.parse(data);
+        } catch (e) {
+          console.error('[Player Animation] ❌ Failed to parse JSON:', e.message);
+          return;
+        }
+      }
+
+      player.animation = parsedData.animation;
+      player.animationSpeed = parsedData.speed || 1.0;
 
       // Отправляем другим игрокам
-      socket.to(player.roomId).emit('player_animation_changed', {
+      socket.to(player.roomId).emit('animation_changed', {
         socketId: socket.id,
-        animation: data.animation,
-        speed: data.speed || 1.0,
+        animation: parsedData.animation,
+        speed: parsedData.speed || 1.0,
         timestamp: Date.now()
       });
     });

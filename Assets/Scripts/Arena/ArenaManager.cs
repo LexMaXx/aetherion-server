@@ -392,6 +392,24 @@ public class ArenaManager : MonoBehaviour
             }
         }
 
+        // ВАЖНО: Принудительно вызываем RecalculateStats() СРАЗУ
+        // Это нужно потому что HealthSystem/ManaSystem могут вызвать Start() раньше CharacterStats
+        if (classPreset != null && formulas != null)
+        {
+            // Применяем характеристики класса
+            characterStats.strength = classPreset.strength;
+            characterStats.perception = classPreset.perception;
+            characterStats.endurance = classPreset.endurance;
+            characterStats.wisdom = classPreset.wisdom;
+            characterStats.intelligence = classPreset.intelligence;
+            characterStats.agility = classPreset.agility;
+            characterStats.luck = classPreset.luck;
+
+            // Рассчитываем все производные характеристики
+            characterStats.RecalculateStats();
+            Debug.Log("✓ CharacterStats инициализированы НЕМЕДЛЕННО (до Start())");
+        }
+
         // 2. LevelingSystem (прокачка)
         LevelingSystem levelingSystem = modelTransform.GetComponent<LevelingSystem>();
         if (levelingSystem == null)
@@ -572,7 +590,7 @@ public class ArenaManager : MonoBehaviour
     private void SetupActionPointsUI()
     {
         // Проверяем, уже создан ли UI
-        ActionPointsUI existingUI = FindObjectOfType<ActionPointsUI>();
+        ActionPointsUI existingUI = FindFirstObjectByType<ActionPointsUI>();
         if (existingUI != null)
         {
             Debug.Log("✓ ActionPointsUI уже существует");
@@ -580,7 +598,7 @@ public class ArenaManager : MonoBehaviour
         }
 
         // Находим или создаем Canvas
-        UnityEngine.Canvas canvas = FindObjectOfType<UnityEngine.Canvas>();
+        UnityEngine.Canvas canvas = FindFirstObjectByType<UnityEngine.Canvas>();
         if (canvas == null)
         {
             GameObject canvasObj = new GameObject("Canvas");
@@ -654,7 +672,7 @@ public class ArenaManager : MonoBehaviour
     private void SetupCharacterStatsUI()
     {
         // Проверяем, уже создан ли UI
-        CharacterStatsUI existingUI = FindObjectOfType<CharacterStatsUI>();
+        CharacterStatsUI existingUI = FindFirstObjectByType<CharacterStatsUI>();
         if (existingUI != null)
         {
             Debug.Log("✓ CharacterStatsUI уже существует");
@@ -674,7 +692,7 @@ public class ArenaManager : MonoBehaviour
     private void SetupStatsHUD()
     {
         // Проверяем, уже создан ли HUD
-        SimpleStatsHUD existingHUD = FindObjectOfType<SimpleStatsHUD>();
+        SimpleStatsHUD existingHUD = FindFirstObjectByType<SimpleStatsHUD>();
         if (existingHUD != null)
         {
             Debug.Log("✓ SimpleStatsHUD уже существует");

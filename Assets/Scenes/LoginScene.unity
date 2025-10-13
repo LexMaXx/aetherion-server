@@ -1085,6 +1085,54 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 298157388}
   m_CullTransparentMesh: 1
+--- !u!1 &364275318
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 364275320}
+  - component: {fileID: 364275319}
+  m_Layer: 0
+  m_Name: 'ClearPlayerPrefs '
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &364275319
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 364275318}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  info: "\u042D\u0442\u043E\u0442 \u0441\u043A\u0440\u0438\u043F\u0442 \u043E\u0447\u0438\u0449\u0430\u0435\u0442
+    \u0432\u0441\u0435 PlayerPrefs.\n\u041F\u041A\u041C \u043D\u0430 \u0441\u043A\u0440\u0438\u043F\u0442\u0435
+    \u0432 Inspector \u2192 Clear All PlayerPrefs\n\u0418\u043B\u0438 \u043D\u0430\u0436\u043C\u0438\u0442\u0435
+    \u043A\u043D\u043E\u043F\u043A\u0443 \u0432 Inspector"
+--- !u!4 &364275320
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 364275318}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 49.48411, y: 13.798634, z: 20.930561}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &373531368
 GameObject:
   m_ObjectHideFlags: 0
@@ -6053,3 +6101,4 @@ SceneRoots:
   - {fileID: 1634948632}
   - {fileID: 412657625}
   - {fileID: 373531370}
+  - {fileID: 364275320}
