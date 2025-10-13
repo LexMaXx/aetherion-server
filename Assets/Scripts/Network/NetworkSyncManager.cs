@@ -458,18 +458,37 @@ public class NetworkSyncManager : MonoBehaviour
     /// </summary>
     private void OnPlayerAttacked(string jsonData)
     {
-        var data = JsonUtility.FromJson<PlayerAttackedEvent>(jsonData);
-        Debug.Log($"[NetworkSync] ⚔️ Атака: {data.socketId}, тип: {data.attackType}, цель: {data.targetType} {data.targetId}");
+        Debug.Log($"[NetworkSync] ⚔️ RAW player_attacked JSON: {jsonData}");
 
-        // Play attack animation on attacker (if it's a network player)
-        if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer attacker))
+        try
         {
-            attacker.PlayAttackAnimation(data.attackType);
-        }
+            var data = JsonUtility.FromJson<PlayerAttackedEvent>(jsonData);
+            Debug.Log($"[NetworkSync] ⚔️ Атака получена: socketId={data.socketId}, attackType={data.attackType}, targetType={data.targetType}, targetId={data.targetId}");
 
-        // If target is a player and it's us, apply damage
-        // Note: We need to track our socket ID from room_players event
-        // For now, server handles damage logic
+            // Play attack animation on attacker (if it's a network player)
+            if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer attacker))
+            {
+                Debug.Log($"[NetworkSync] ⚔️ Проигрываем анимацию атаки для {attacker.username}, тип: {data.attackType}");
+                attacker.PlayAttackAnimation(data.attackType);
+                Debug.Log($"[NetworkSync] ✅ Анимация атаки применена для {attacker.username}");
+            }
+            else
+            {
+                Debug.LogWarning($"[NetworkSync] ⚠️ Атакующий игрок {data.socketId} НЕ НАЙДЕН в networkPlayers! Всего игроков: {networkPlayers.Count}");
+                foreach (var kvp in networkPlayers)
+                {
+                    Debug.Log($"[NetworkSync]    - {kvp.Key}: {kvp.Value.username}");
+                }
+            }
+
+            // If target is a player and it's us, apply damage
+            // Note: We need to track our socket ID from room_players event
+            // For now, server handles damage logic
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[NetworkSync] ❌ Ошибка в OnPlayerAttacked: {ex.Message}\nJSON: {jsonData}");
+        }
     }
 
     /// <summary>

@@ -84,6 +84,21 @@ public class NetworkPlayer : MonoBehaviour
     void Start()
     {
         CreateNameplate();
+
+        // ВАЖНО: Устанавливаем боевую стойку для NetworkPlayer (InBattle = true)
+        if (animator != null)
+        {
+            // Проверяем есть ли параметр InBattle
+            foreach (AnimatorControllerParameter param in animator.parameters)
+            {
+                if (param.name == "InBattle")
+                {
+                    animator.SetBool("InBattle", true);
+                    Debug.Log($"[NetworkPlayer] ✅ Боевая стойка установлена для {username}");
+                    break;
+                }
+            }
+        }
     }
 
     void Update()

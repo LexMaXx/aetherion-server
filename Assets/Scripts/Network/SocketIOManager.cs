@@ -398,9 +398,11 @@ public class SocketIOManager : MonoBehaviour
         };
 
         string json = JsonConvert.SerializeObject(data);
-        DebugLog($"⚔️ Отправка атаки на сервер: {attackType} на {targetType} (ID: {targetId})");
-        DebugLog($"   Сервер рассчитает урон на основе ваших SPECIAL статов");
+        Debug.Log($"[SocketIO] ⚔️ Отправка атаки на сервер: {attackType} на {targetType} (ID: {targetId})");
+        Debug.Log($"[SocketIO] ⚔️ JSON атаки: {json}");
+        Debug.Log($"[SocketIO]    Сервер рассчитает урон на основе ваших SPECIAL статов");
         Emit("player_attack", json);
+        Debug.Log($"[SocketIO] ✅ player_attack отправлен");
     }
 
     /// <summary>

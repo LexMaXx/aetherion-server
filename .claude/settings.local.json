@@ -51,7 +51,10 @@
       "Bash(curl -s \"https://raw.githubusercontent.com/LexMaXx/aetherion-server/bb9ddb3/server.js\")",
       "Bash(curl -s \"https://raw.githubusercontent.com/LexMaXx/aetherion-server/main/server.js\")",
       "Bash(curl -s \"https://aetherion-server-gv5u.onrender.com/\")",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(node:*)",
+      "Bash(git log:*)",
+      "Bash(python:*)"
     ],
     "deny": [],
     "ask": []
