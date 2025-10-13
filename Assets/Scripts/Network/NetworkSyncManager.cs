@@ -364,9 +364,11 @@ public class NetworkSyncManager : MonoBehaviour
         // SocketIOManager doesn't have SessionId, so we compare with our socket ID from room_players
         // For now, skip this check - room_players already filters us out
 
-        // Spawn network player
-        Vector3 pos = new Vector3(data.position.x, data.position.y, data.position.z);
-        SpawnNetworkPlayer(data.socketId, data.username, data.characterClass, pos);
+        // КРИТИЧЕСКОЕ: Сервер НЕ отправляет position в player_joined (игрок еще не заспавнился)
+        // Спавним NetworkPlayer временно в (0,1,0), а реальная позиция придет в первом player_moved
+        Vector3 tempPos = new Vector3(0, 1, 0);
+        Debug.Log($"[NetworkSync] ⏳ Спавним {data.username} временно в (0,1,0), ждем реальной позиции...");
+        SpawnNetworkPlayer(data.socketId, data.username, data.characterClass, tempPos);
     }
 
     /// <summary>

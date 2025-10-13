@@ -16,6 +16,13 @@ const roomEnemies = new Map(); // roomId => Map(enemyId => { health, alive, posi
 const roomSpawnPoints = new Map(); // roomId => Set(spawnIndex)
 const MAX_SPAWN_POINTS = 20; // Максимум 20 точек спавна
 
+// ═══════════════════════════════════════════
+// SERVER AUTHORITY SETTINGS
+// ═══════════════════════════════════════════
+const MAX_PLAYER_SPEED = 15.0; // Максимальная скорость игрока (m/s)
+const POSITION_CORRECTION_THRESHOLD = 2.0; // Коррекция если рассинхрон > 2 метров
+const VALIDATION_ENABLED = true; // Включить серверную валидацию позиций
+
 module.exports = (io) => {
   console.log('🎮 Multiplayer module loaded');
 
@@ -52,6 +59,61 @@ module.exports = (io) => {
       roomSpawnPoints.get(roomId).delete(spawnIndex);
       console.log(`[Spawn] 🔓 Released spawn point ${spawnIndex} in room ${roomId}`);
     }
+  }
+
+  // ═══════════════════════════════════════════
+  // HELPER: Валидация и коррекция позиции (SERVER AUTHORITY)
+  // ═══════════════════════════════════════════
+  function validateAndCorrectPosition(player, newPosition, newVelocity, deltaTime) {
+    if (!VALIDATION_ENABLED || !player.position) {
+      return { corrected: false, position: newPosition };
+    }
+
+    const oldPos = player.position;
+
+    // ═══════ 1. ПРОВЕРКА СКОРОСТИ (ANTI-CHEAT) ═══════
+    const distance = Math.sqrt(
+      Math.pow(newPosition.x - oldPos.x, 2) +
+      Math.pow(newPosition.y - oldPos.y, 2) +
+      Math.pow(newPosition.z - oldPos.z, 2)
+    );
+
+    const speed = deltaTime > 0 ? distance / deltaTime : 0;
+
+    if (speed > MAX_PLAYER_SPEED) {
+      // Скорость слишком высокая - возможен читер или телепорт
+      console.warn(`[Authority] ⚠️ ${player.username} speed too high: ${speed.toFixed(2)} m/s (max: ${MAX_PLAYER_SPEED})`);
+
+      // КОРРЕКЦИЯ: Интерполируем позицию с максимальной скоростью
+      const maxDistance = MAX_PLAYER_SPEED * deltaTime;
+      const direction = {
+        x: newPosition.x - oldPos.x,
+        y: newPosition.y - oldPos.y,
+        z: newPosition.z - oldPos.z
+      };
+      const dirLength = Math.sqrt(direction.x ** 2 + direction.y ** 2 + direction.z ** 2);
+
+      if (dirLength > 0) {
+        const correctedPosition = {
+          x: oldPos.x + (direction.x / dirLength) * maxDistance,
+          y: oldPos.y + (direction.y / dirLength) * maxDistance,
+          z: oldPos.z + (direction.z / dirLength) * maxDistance
+        };
+
+        return { corrected: true, position: correctedPosition, reason: 'speed_limit' };
+      }
+    }
+
+    // ═══════ 2. ПРОВЕРКА ТЕЛЕПОРТАЦИИ ═══════
+    if (distance > POSITION_CORRECTION_THRESHOLD * 10) {
+      // Слишком большой скачок позиции (>20 метров) - возможен телепорт
+      console.warn(`[Authority] ⚠️ ${player.username} teleport detected: ${distance.toFixed(2)}m`);
+      // Возвращаем старую позицию (отклоняем телепорт)
+      return { corrected: true, position: oldPos, reason: 'teleport_blocked' };
+    }
+
+    // Позиция валидна
+    return { corrected: false, position: newPosition };
   }
 
   io.on('connection', (socket) => {
@@ -151,12 +213,14 @@ module.exports = (io) => {
         });
 
         // Уведомляем других игроков о новом игроке
+        // КРИТИЧЕСКОЕ: НЕ отправляем position здесь - игрок еще не заспавнился на клиенте!
+        // Клиент отправит реальную позицию через player_update после спавна
+        // NetworkPlayer временно заспавнится в (0,1,0), а потом телепортируется при первом player_moved
         socket.to(roomId).emit('player_joined', {
           socketId: socket.id,
           username,
           characterClass,
-          position: { x: 0, y: 0, z: 0 },
-          rotation: { x: 0, y: 0, z: 0 },
+          // position/rotation НЕ отправляем - будут в первом player_moved
           spawnIndex: spawnIndex  // ВАЖНО: Индекс точки спавна нового игрока
         });
 
@@ -248,24 +312,49 @@ module.exports = (io) => {
         }
       }
 
-      // Обновляем данные игрока
-      if (parsedData.position) player.position = parsedData.position;
+      // ═══════ SERVER AUTHORITY: Валидация позиции ═══════
+      const now = Date.now();
+      const deltaTime = player.lastUpdateTime ? (now - player.lastUpdateTime) / 1000.0 : 0.05; // 50ms по умолчанию
+      player.lastUpdateTime = now;
+
+      const validation = validateAndCorrectPosition(
+        player,
+        parsedData.position,
+        parsedData.velocity,
+        deltaTime
+      );
+
+      // Используем СКОРРЕКТИРОВАННУЮ позицию от сервера
+      const authorityPosition = validation.position;
+
+      // Обновляем данные игрока СЕРВЕРНОЙ позицией
+      player.position = authorityPosition;
       if (parsedData.rotation) player.rotation = parsedData.rotation;
       if (parsedData.velocity) player.velocity = parsedData.velocity;
       if (parsedData.isGrounded !== undefined) player.isGrounded = parsedData.isGrounded;
 
-      // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Используем parsedData.velocity вместо data.velocity
+      // КРИТИЧЕСКОЕ: Используем серверную позицию для broadcast
       const movementUpdate = {
         socketId: socket.id,
-        position: player.position,
+        position: authorityPosition, // СЕРВЕРНАЯ ИСТИННАЯ ПОЗИЦИЯ
         rotation: player.rotation,
         velocity: parsedData.velocity || { x: 0, y: 0, z: 0 },
         isGrounded: parsedData.isGrounded || false,
-        timestamp: Date.now()
+        timestamp: now
       };
 
       // Отправляем обновление другим игрокам в комнате
       socket.to(player.roomId).emit('player_moved', movementUpdate);
+
+      // Если была коррекция - отправляем клиенту его ИСТИННУЮ позицию
+      if (validation.corrected) {
+        console.log(`[Authority] 🔧 Correcting ${player.username} position (reason: ${validation.reason})`);
+        socket.emit('position_correction', {
+          position: authorityPosition,
+          reason: validation.reason,
+          timestamp: now
+        });
+      }
     });
 
     // ═══════════════════════════════════════════
