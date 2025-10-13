@@ -35,6 +35,7 @@ public class ArenaManager : MonoBehaviour
     private GameObject spawnedCharacter;
     private bool isMultiplayer = false;
     private int assignedSpawnIndex = -1; // Индекс точки спавна от сервера (-1 = не назначен)
+    private bool spawnIndexReceived = false; // Флаг получения spawnIndex от сервера
 
     void Start()
     {
@@ -46,6 +47,10 @@ public class ArenaManager : MonoBehaviour
         {
             Debug.Log("[ArenaManager] 🌐 MULTIPLAYER MODE");
             SetupMultiplayer();
+
+            // КРИТИЧЕСКОЕ: НЕ спавним сразу в мультиплеере!
+            // Ждем spawnIndex от сервера
+            Debug.Log("[ArenaManager] ⏳ Ожидаем spawnIndex от сервера...");
         }
         else
         {
@@ -53,12 +58,13 @@ public class ArenaManager : MonoBehaviour
             // Очищаем мультиплеер данные при запуске одиночной игры
             PlayerPrefs.DeleteKey("CurrentRoomId");
             PlayerPrefs.Save();
+
+            // Singleplayer - спавним сразу
+            SpawnSelectedCharacter();
         }
 
         // Создаем UI для Action Points
         SetupActionPointsUI();
-
-        SpawnSelectedCharacter();
 
         // Создаём UI для характеристик (нажми C во время игры)
         SetupCharacterStatsUI();
@@ -857,7 +863,15 @@ public class ArenaManager : MonoBehaviour
     public void SetSpawnIndex(int spawnIndex)
     {
         assignedSpawnIndex = spawnIndex;
+        spawnIndexReceived = true;
         Debug.Log($"[ArenaManager] 🎯 Сервер назначил точку спавна: #{spawnIndex}");
+
+        // КРИТИЧЕСКОЕ: Теперь можно заспавнить персонажа с правильной точкой спавна!
+        if (isMultiplayer && spawnedCharacter == null)
+        {
+            Debug.Log("[ArenaManager] ✅ Спавним персонажа ПОСЛЕ получения spawnIndex от сервера");
+            SpawnSelectedCharacter();
+        }
     }
 
     /// <summary>
