@@ -183,7 +183,11 @@ module.exports = (io) => {
 
     socket.on('player_update', (data) => {
       const player = activePlayers.get(socket.id);
-      if (!player) return;
+      if (!player) {
+        // Это может быть нормально если игрок ещё не в activePlayers
+        // console.warn(`[Player Update] Player ${socket.id} not found in activePlayers`);
+        return;
+      }
 
       // ВАЖНО: Unity может отправить как строку, так и как объект
       let parsedData = data;
@@ -202,15 +206,18 @@ module.exports = (io) => {
       if (parsedData.velocity) player.velocity = parsedData.velocity;
       if (parsedData.isGrounded !== undefined) player.isGrounded = parsedData.isGrounded;
 
-      // Отправляем обновление другим игрокам в комнате
-      socket.to(player.roomId).emit('player_moved', {
+      // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Используем parsedData.velocity вместо data.velocity
+      const movementUpdate = {
         socketId: socket.id,
         position: player.position,
         rotation: player.rotation,
-        velocity: data.velocity,
-        isGrounded: data.isGrounded,
+        velocity: parsedData.velocity || { x: 0, y: 0, z: 0 },
+        isGrounded: parsedData.isGrounded || false,
         timestamp: Date.now()
-      });
+      };
+
+      // Отправляем обновление другим игрокам в комнате
+      socket.to(player.roomId).emit('player_moved', movementUpdate);
     });
 
     // ═══════════════════════════════════════════
@@ -218,19 +225,51 @@ module.exports = (io) => {
     // ═══════════════════════════════════════════
 
     socket.on('player_animation', (data) => {
+      // ДИАГНОСТИКА: Логируем ВСЁ что приходит
+      console.log(`[Animation] 🔍 RAW EVENT RECEIVED! Type: ${typeof data}`);
+      console.log(`[Animation] 🔍 RAW data:`, data);
+      console.log(`[Animation] 🔍 RAW data (JSON):`, JSON.stringify(data));
+
       const player = activePlayers.get(socket.id);
-      if (!player) return;
+      if (!player) {
+        console.warn(`[Animation] Player ${socket.id} not found in activePlayers`);
+        return;
+      }
 
-      player.animation = data.animation;
-      player.animationSpeed = data.speed || 1.0;
+      // ВАЖНО: Unity может отправить как строку, так и как объект
+      let parsedData = data;
+      if (typeof data === 'string') {
+        try {
+          parsedData = JSON.parse(data);
+          console.log('[Animation] ✅ Parsed JSON string to object');
+        } catch (e) {
+          console.error('[Animation] ❌ Failed to parse JSON:', e.message);
+          console.error('[Animation] ❌ Problematic data:', data);
+          return;
+        }
+      }
 
-      // Отправляем другим игрокам
-      socket.to(player.roomId).emit('player_animation_changed', {
+      const { animation, speed } = parsedData;
+
+      console.log(`[Animation] 🎬 ${player.username} (${socket.id}) animation: ${animation}, speed: ${speed || 1.0}`);
+
+      player.animation = animation;
+      player.animationSpeed = speed || 1.0;
+
+      // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Отправляем другим игрокам с правильными полями
+      const animationUpdate = {
         socketId: socket.id,
-        animation: data.animation,
-        speed: data.speed || 1.0,
+        animation: animation,
+        speed: speed || 1.0,
         timestamp: Date.now()
-      });
+      };
+
+      console.log(`[Animation] 📤 Broadcasting to room ${player.roomId}:`, animationUpdate);
+
+      // Отправляем другим игрокам в комнате
+      socket.to(player.roomId).emit('player_animation_changed', animationUpdate);
+
+      console.log(`[Animation] ✅ Animation broadcasted for ${player.username}`);
     });
 
     // ═══════════════════════════════════════════

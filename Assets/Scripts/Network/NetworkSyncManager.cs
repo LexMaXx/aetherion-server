@@ -108,7 +108,7 @@ public class NetworkSyncManager : MonoBehaviour
         SocketIOManager.Instance.On("player_joined", OnPlayerJoined);
         SocketIOManager.Instance.On("player_left", OnPlayerLeft);
         SocketIOManager.Instance.On("player_moved", OnPlayerMoved);
-        SocketIOManager.Instance.On("animation_changed", OnAnimationChanged); // ИСПРАВЛЕНО: было player_animation_changed
+        SocketIOManager.Instance.On("player_animation_changed", OnAnimationChanged); // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: теперь совпадает с сервером!
         SocketIOManager.Instance.On("player_attacked", OnPlayerAttacked);
         SocketIOManager.Instance.On("player_health_changed", OnHealthChanged);
         SocketIOManager.Instance.On("player_died", OnPlayerDied);
@@ -181,24 +181,38 @@ public class NetworkSyncManager : MonoBehaviour
     /// </summary>
     private void SyncLocalPlayerAnimation()
     {
-        if (localPlayer == null || SocketIOManager.Instance == null || !SocketIOManager.Instance.IsConnected)
+        if (localPlayer == null)
+        {
+            Debug.LogWarning("[NetworkSync] ⚠️ SyncLocalPlayerAnimation: localPlayer == NULL!");
             return;
+        }
+
+        if (SocketIOManager.Instance == null)
+        {
+            Debug.LogWarning("[NetworkSync] ⚠️ SyncLocalPlayerAnimation: SocketIOManager.Instance == NULL!");
+            return;
+        }
+
+        if (!SocketIOManager.Instance.IsConnected)
+        {
+            // Не спамим если не подключены
+            return;
+        }
 
         string currentState = GetLocalPlayerAnimationState();
 
         // ВАЖНО: Отправляем анимацию КАЖДЫЙ раз для real-time синхронизации
         // Сервер сам решит нужно ли рассылать всем (если изменилась)
-        if (currentState != lastAnimationState)
+        bool stateChanged = (currentState != lastAnimationState);
+
+        if (stateChanged)
         {
             Debug.Log($"[NetworkSync] 🎬 Анимация изменилась: {lastAnimationState} → {currentState}");
             lastAnimationState = currentState;
         }
 
-        // ДИАГНОСТИКА: Логируем каждую 60-ю отправку (1 раз в секунду при 20Hz)
-        if (Time.frameCount % 60 == 0)
-        {
-            Debug.Log($"[NetworkSync] 📤 Отправка анимации: {currentState}");
-        }
+        // ДИАГНОСТИКА: Логируем КАЖДУЮ отправку анимации
+        Debug.Log($"[NetworkSync] 📤 Отправка анимации на сервер: {currentState} (changed={stateChanged})");
 
         SocketIOManager.Instance.UpdateAnimation(currentState);
     }
@@ -400,27 +414,42 @@ public class NetworkSyncManager : MonoBehaviour
     /// </summary>
     private void OnAnimationChanged(string jsonData)
     {
-        var data = JsonUtility.FromJson<AnimationChangedEvent>(jsonData);
-
-        Debug.Log($"[NetworkSync] 📥 Получена анимация от сервера: socketId={data.socketId}, animation={data.animation}");
-
-        // Skip our own updates - server should not send us our own animation
-
-        if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer player))
+        try
         {
-            // ВАЖНО: Проверяем что объект не уничтожен
-            if (player == null || player.gameObject == null)
+            Debug.Log($"[NetworkSync] 📥 RAW animation data: {jsonData}");
+
+            var data = JsonConvert.DeserializeObject<AnimationChangedEvent>(jsonData);
+
+            if (data == null)
             {
-                Debug.LogWarning($"[NetworkSync] ⚠️ Player {data.socketId} is destroyed (animation), removing from dictionary");
-                networkPlayers.Remove(data.socketId);
+                Debug.LogError($"[NetworkSync] ❌ Failed to deserialize animation data!");
                 return;
             }
 
-            player.UpdateAnimation(data.animation);
+            Debug.Log($"[NetworkSync] 📥 Получена анимация от сервера: socketId={data.socketId}, animation={data.animation}");
+
+            // Skip our own updates - server should not send us our own animation
+
+            if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer player))
+            {
+                // ВАЖНО: Проверяем что объект не уничтожен
+                if (player == null || player.gameObject == null)
+                {
+                    Debug.LogWarning($"[NetworkSync] ⚠️ Player {data.socketId} is destroyed (animation), removing from dictionary");
+                    networkPlayers.Remove(data.socketId);
+                    return;
+                }
+
+                player.UpdateAnimation(data.animation);
+            }
+            else
+            {
+                Debug.LogWarning($"[NetworkSync] ⚠️ Получена анимация для несуществующего игрока: {data.socketId}");
+            }
         }
-        else
+        catch (Exception ex)
         {
-            Debug.LogWarning($"[NetworkSync] ⚠️ Получена анимация для несуществующего игрока: {data.socketId}");
+            Debug.LogError($"[NetworkSync] ❌ Error in OnAnimationChanged: {ex.Message}\nJSON: {jsonData}");
         }
     }
 

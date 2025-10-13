@@ -183,24 +183,39 @@ public class NetworkPlayer : MonoBehaviour
     /// </summary>
     public void UpdateAnimation(string animationState)
     {
-        // ДИАГНОСТИКА: Логируем ВСЕ попытки обновления анимации
-        if (Time.frameCount % 60 == 0) // Каждую секунду
-        {
-            Debug.Log($"[NetworkPlayer] 🔄 UpdateAnimation вызван для {username}: текущее={currentAnimationState}, новое={animationState}");
-        }
+        // ДИАГНОСТИКА: Логируем ВСЕ попытки обновления анимации (ВСЕГДА, не только каждую секунду!)
+        Debug.Log($"[NetworkPlayer] 🔄 UpdateAnimation вызван для {username}: текущее={currentAnimationState}, новое={animationState}");
 
         if (animator == null)
         {
-            Debug.LogWarning($"[NetworkPlayer] ⚠️ Animator is null для {username}, cannot update animation to {animationState}");
-            return;
+            Debug.LogError($"[NetworkPlayer] ❌ КРИТИЧЕСКАЯ ОШИБКА: Animator is null для {username}!");
+            Debug.LogError($"[NetworkPlayer] 🔍 Пытаюсь найти Animator в дочерних объектах...");
+
+            // Пытаемся найти Animator снова
+            animator = GetComponentInChildren<Animator>();
+
+            if (animator == null)
+            {
+                Debug.LogError($"[NetworkPlayer] ❌ Animator НЕ НАЙДЕН даже в дочерних объектах!");
+                return;
+            }
+            else
+            {
+                Debug.Log($"[NetworkPlayer] ✅ Animator найден в дочернем объекте: {animator.gameObject.name}");
+            }
         }
 
-        // ВАЖНО: Обновляем анимацию даже если состояние не изменилось
-        // Потому что параметры Animator могли быть сброшены другими компонентами
-        if (currentAnimationState != animationState)
+        // ВАЖНО: ВСЕГДА обновляем анимацию для реал-тайм синхронизации
+        bool stateChanged = (currentAnimationState != animationState);
+
+        if (stateChanged)
         {
             Debug.Log($"[NetworkPlayer] 🎬 Анимация для {username}: {currentAnimationState} → {animationState}");
             currentAnimationState = animationState;
+        }
+        else
+        {
+            Debug.Log($"[NetworkPlayer] 🔄 Повторное применение анимации {animationState} для {username}");
         }
 
         // ВАЖНО: PlayerController использует Blend Tree систему
@@ -208,9 +223,12 @@ public class NetworkPlayer : MonoBehaviour
         // Не используем isWalking/isRunning, потому что они отсутствуют
 
         // Set new state
+        Debug.Log($"[NetworkPlayer] 🎭 Применяю анимацию '{animationState}' для {username}");
+
         switch (animationState)
         {
             case "Idle":
+                Debug.Log($"[NetworkPlayer] ➡️ Idle: IsMoving=false, MoveX=0, MoveY=0, speed=1.0");
                 animator.SetBool("IsMoving", false);
                 animator.SetFloat("MoveX", 0);
                 animator.SetFloat("MoveY", 0);
@@ -218,6 +236,7 @@ public class NetworkPlayer : MonoBehaviour
                 break;
 
             case "Walking":
+                Debug.Log($"[NetworkPlayer] ➡️ Walking: IsMoving=true, MoveX=0, MoveY=0.5, speed=0.5");
                 animator.SetBool("IsMoving", true);
                 animator.SetFloat("MoveX", 0);
                 animator.SetFloat("MoveY", 0.5f); // 0.5 = Slow Run (ходьба)
@@ -225,6 +244,7 @@ public class NetworkPlayer : MonoBehaviour
                 break;
 
             case "Running":
+                Debug.Log($"[NetworkPlayer] ➡️ Running: IsMoving=true, MoveX=0, MoveY=1.0, speed=1.0");
                 animator.SetBool("IsMoving", true);
                 animator.SetFloat("MoveX", 0);
                 animator.SetFloat("MoveY", 1.0f); // 1.0 = Sprint (бег)
@@ -232,11 +252,13 @@ public class NetworkPlayer : MonoBehaviour
                 break;
 
             case "Attacking":
+                Debug.Log($"[NetworkPlayer] ➡️ Attacking: Trigger=Attack");
                 animator.SetTrigger("Attack");
                 // Не меняем IsMoving - атака может быть во время движения
                 break;
 
             case "Dead":
+                Debug.Log($"[NetworkPlayer] ➡️ Dead: isDead=true, IsMoving=false");
                 if (HasAnimatorParameter(animator, "isDead"))
                 {
                     animator.SetBool("isDead", true);
@@ -245,9 +267,17 @@ public class NetworkPlayer : MonoBehaviour
                 break;
 
             case "Casting":
+                Debug.Log($"[NetworkPlayer] ➡️ Casting: Trigger=Cast");
                 animator.SetTrigger("Cast");
                 break;
+
+            default:
+                Debug.LogWarning($"[NetworkPlayer] ⚠️ Неизвестное состояние анимации: '{animationState}' для {username}");
+                break;
         }
+
+        // Логируем итоговое состояние параметров аниматора
+        Debug.Log($"[NetworkPlayer] 📊 Состояние Animator для {username}: IsMoving={animator.GetBool("IsMoving")}, MoveY={animator.GetFloat("MoveY"):F2}, speed={animator.speed:F2}");
     }
 
     /// <summary>

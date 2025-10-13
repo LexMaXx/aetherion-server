@@ -351,7 +351,11 @@ public class SocketIOManager : MonoBehaviour
     /// </summary>
     public void UpdateAnimation(string animationState, float speed = 1f)
     {
-        if (!isConnected) return;
+        if (!isConnected)
+        {
+            Debug.LogWarning($"[SocketIO] ⚠️ UpdateAnimation: Не подключен к серверу! animation={animationState}");
+            return;
+        }
 
         var data = new
         {
@@ -361,7 +365,14 @@ public class SocketIOManager : MonoBehaviour
         };
 
         string json = JsonConvert.SerializeObject(data);
+
+        // ДИАГНОСТИКА: Логируем каждую отправку анимации
+        Debug.Log($"[SocketIO] 📤 Отправка анимации: animation={animationState}, speed={speed}, socketId={socket.Id}");
+        Debug.Log($"[SocketIO] 📤 JSON: {json}");
+
         Emit("player_animation", json);
+
+        Debug.Log($"[SocketIO] ✅ Анимация отправлена на сервер");
     }
 
     /// <summary>
