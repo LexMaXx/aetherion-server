@@ -859,10 +859,18 @@ public class ArenaManager : MonoBehaviour
     /// </summary>
     private void SetupStatusBars()
     {
+        // PlayerStatusBars - HP/MP бары над головой игрока
         if (GetComponent<PlayerStatusBars>() == null)
         {
             gameObject.AddComponent<PlayerStatusBars>();
-            Debug.Log("[ArenaManager] ✅ PlayerStatusBars добавлен");
+            Debug.Log("[ArenaManager] ✅ PlayerStatusBars добавлен (над головой)");
+        }
+
+        // PlayerHUD - HP/MP/Class Icon в верхнем левом углу (НОВОЕ!)
+        if (GetComponent<PlayerHUD>() == null)
+        {
+            gameObject.AddComponent<PlayerHUD>();
+            Debug.Log("[ArenaManager] ✅ PlayerHUD добавлен (верхний левый угол)");
         }
     }
 
