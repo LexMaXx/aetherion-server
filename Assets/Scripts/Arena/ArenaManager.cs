@@ -342,6 +342,16 @@ public class ArenaManager : MonoBehaviour
             string selectedClass = PlayerPrefs.GetString("SelectedCharacterClass", "");
             NetworkSyncManager.Instance.SetLocalPlayer(modelTransform.gameObject, selectedClass);
             Debug.Log("[ArenaManager] ✅ Локальный игрок зарегистрирован в NetworkSyncManager");
+
+            // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Отправляем начальную позицию на сервер НЕМЕДЛЕННО
+            // Чтобы другие игроки увидели нас на правильной позиции спавна
+            if (SocketIOManager.Instance != null && SocketIOManager.Instance.IsConnected)
+            {
+                Vector3 initialPosition = spawnedCharacter.transform.position;
+                Quaternion initialRotation = spawnedCharacter.transform.rotation;
+                SocketIOManager.Instance.UpdatePosition(initialPosition, initialRotation, Vector3.zero, true);
+                Debug.Log($"[ArenaManager] ✅ Начальная позиция отправлена на сервер: {initialPosition}");
+            }
         }
     }
 
