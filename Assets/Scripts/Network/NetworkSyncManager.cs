@@ -578,19 +578,45 @@ public class NetworkSyncManager : MonoBehaviour
         // ВАЖНО: Найти модель внутри префаба
         Transform modelTransform = playerObj.transform.Find("Model") ?? playerObj.transform;
 
-        // Отключить ненужные компоненты для сетевого игрока
-        var playerController = modelTransform.GetComponent<PlayerController>();
-        if (playerController != null)
+        // ВАЖНО: Отключить ненужные компоненты для сетевого игрока
+        // Ищем PlayerController на ВСЕХ уровнях (root, model, children)
+        PlayerController[] allPlayerControllers = playerObj.GetComponentsInChildren<PlayerController>(true);
+        foreach (var pc in allPlayerControllers)
         {
-            playerController.enabled = false;
-            Debug.Log($"[NetworkSync] Отключен PlayerController для {username}");
+            pc.enabled = false;
+            Debug.Log($"[NetworkSync] ✅ Отключен PlayerController на {pc.gameObject.name} для {username}");
         }
 
+        // Отключаем PlayerAttack чтобы NetworkPlayer не атаковал локально
+        PlayerAttack[] allPlayerAttacks = playerObj.GetComponentsInChildren<PlayerAttack>(true);
+        foreach (var pa in allPlayerAttacks)
+        {
+            pa.enabled = false;
+            Debug.Log($"[NetworkSync] ✅ Отключен PlayerAttack на {pa.gameObject.name} для {username}");
+        }
+
+        // Отключаем TargetSystem чтобы NetworkPlayer не таргетил
+        TargetSystem[] allTargetSystems = playerObj.GetComponentsInChildren<TargetSystem>(true);
+        foreach (var ts in allTargetSystems)
+        {
+            ts.enabled = false;
+            Debug.Log($"[NetworkSync] ✅ Отключен TargetSystem на {ts.gameObject.name} для {username}");
+        }
+
+        // Отключаем локальные input компоненты
         var cameraController = playerObj.GetComponentInChildren<Camera>();
         if (cameraController != null)
         {
             cameraController.gameObject.SetActive(false);
-            Debug.Log($"[NetworkSync] Отключена камера для {username}");
+            Debug.Log($"[NetworkSync] ✅ Отключена камера для {username}");
+        }
+
+        // Отключаем CharacterController (NetworkPlayer управляется через NetworkTransform)
+        CharacterController[] allCharControllers = playerObj.GetComponentsInChildren<CharacterController>(true);
+        foreach (var cc in allCharControllers)
+        {
+            cc.enabled = false;
+            Debug.Log($"[NetworkSync] ✅ Отключен CharacterController на {cc.gameObject.name} для {username}");
         }
 
         // ВАЖНО: Настроить оружие из WeaponDatabase
