@@ -183,16 +183,24 @@ public class NetworkPlayer : MonoBehaviour
     /// </summary>
     public void UpdateAnimation(string animationState)
     {
-        if (currentAnimationState == animationState) return;
-
-        Debug.Log($"[NetworkPlayer] 🎬 Анимация для {username}: {currentAnimationState} → {animationState}");
-
-        currentAnimationState = animationState;
+        // ДИАГНОСТИКА: Логируем ВСЕ попытки обновления анимации
+        if (Time.frameCount % 60 == 0) // Каждую секунду
+        {
+            Debug.Log($"[NetworkPlayer] 🔄 UpdateAnimation вызван для {username}: текущее={currentAnimationState}, новое={animationState}");
+        }
 
         if (animator == null)
         {
-            Debug.LogWarning($"[NetworkPlayer] ⚠️ Animator is null, cannot update animation to {animationState}");
+            Debug.LogWarning($"[NetworkPlayer] ⚠️ Animator is null для {username}, cannot update animation to {animationState}");
             return;
+        }
+
+        // ВАЖНО: Обновляем анимацию даже если состояние не изменилось
+        // Потому что параметры Animator могли быть сброшены другими компонентами
+        if (currentAnimationState != animationState)
+        {
+            Debug.Log($"[NetworkPlayer] 🎬 Анимация для {username}: {currentAnimationState} → {animationState}");
+            currentAnimationState = animationState;
         }
 
         // Reset all animation states
@@ -205,29 +213,23 @@ public class NetworkPlayer : MonoBehaviour
         switch (animationState)
         {
             case "Idle":
-                // Default state
-                Debug.Log($"[NetworkPlayer] ✅ Установлена анимация Idle для {username}");
+                // Default state (все параметры false)
                 break;
             case "Walking":
                 animator.SetBool("isWalking", true);
-                Debug.Log($"[NetworkPlayer] ✅ Установлена анимация Walking для {username}");
                 break;
             case "Running":
                 animator.SetBool("isRunning", true);
-                Debug.Log($"[NetworkPlayer] ✅ Установлена анимация Running для {username}");
                 break;
             case "Attacking":
                 animator.SetTrigger("Attack");
                 animator.SetBool("isAttacking", true);
-                Debug.Log($"[NetworkPlayer] ✅ Установлена анимация Attacking для {username}");
                 break;
             case "Dead":
                 animator.SetBool("isDead", true);
-                Debug.Log($"[NetworkPlayer] ✅ Установлена анимация Dead для {username}");
                 break;
             case "Casting":
                 animator.SetTrigger("Cast");
-                Debug.Log($"[NetworkPlayer] ✅ Установлена анимация Casting для {username}");
                 break;
         }
     }

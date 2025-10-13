@@ -108,7 +108,7 @@ public class NetworkSyncManager : MonoBehaviour
         SocketIOManager.Instance.On("player_joined", OnPlayerJoined);
         SocketIOManager.Instance.On("player_left", OnPlayerLeft);
         SocketIOManager.Instance.On("player_moved", OnPlayerMoved);
-        SocketIOManager.Instance.On("player_animation_changed", OnAnimationChanged);
+        SocketIOManager.Instance.On("animation_changed", OnAnimationChanged); // ИСПРАВЛЕНО: было player_animation_changed
         SocketIOManager.Instance.On("player_attacked", OnPlayerAttacked);
         SocketIOManager.Instance.On("player_health_changed", OnHealthChanged);
         SocketIOManager.Instance.On("player_died", OnPlayerDied);
@@ -194,6 +194,12 @@ public class NetworkSyncManager : MonoBehaviour
             lastAnimationState = currentState;
         }
 
+        // ДИАГНОСТИКА: Логируем каждую 60-ю отправку (1 раз в секунду при 20Hz)
+        if (Time.frameCount % 60 == 0)
+        {
+            Debug.Log($"[NetworkSync] 📤 Отправка анимации: {currentState}");
+        }
+
         SocketIOManager.Instance.UpdateAnimation(currentState);
     }
 
@@ -215,6 +221,16 @@ public class NetworkSyncManager : MonoBehaviour
         {
             Debug.LogWarning("[NetworkSync] ⚠️ Animator не найден для локального игрока!");
             return "Idle";
+        }
+
+        // ДИАГНОСТИКА: Логируем состояние параметров каждую секунду
+        if (Time.frameCount % 60 == 0)
+        {
+            bool isDead = HasParameter(animator, "isDead") && animator.GetBool("isDead");
+            bool isAttacking = HasParameter(animator, "isAttacking") && animator.GetBool("isAttacking");
+            bool isRunning = HasParameter(animator, "isRunning") && animator.GetBool("isRunning");
+            bool isWalking = HasParameter(animator, "isWalking") && animator.GetBool("isWalking");
+            Debug.Log($"[NetworkSync] 🎭 Animator parameters: isDead={isDead}, isAttacking={isAttacking}, isRunning={isRunning}, isWalking={isWalking}");
         }
 
         // Check if parameters exist before trying to get them
