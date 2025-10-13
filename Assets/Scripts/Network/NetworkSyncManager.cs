@@ -33,6 +33,9 @@ public class NetworkSyncManager : MonoBehaviour
     // Network players
     private Dictionary<string, NetworkPlayer> networkPlayers = new Dictionary<string, NetworkPlayer>();
 
+    // Player data cache (для игроков которые еще не заспавнились)
+    private Dictionary<string, RoomPlayerInfo> pendingPlayers = new Dictionary<string, RoomPlayerInfo>();
+
     // Local player reference
     private GameObject localPlayer;
     private string localPlayerClass;
@@ -335,11 +338,21 @@ public class NetworkSyncManager : MonoBehaviour
                     continue;
                 }
 
+                // КРИТИЧЕСКОЕ: Не спавним игроков с позицией (0,0,0) - игрок еще не отправил реальную позицию
+                // Дождемся первого player_moved события, как в CS:GO/Dota
+                Vector3 pos = new Vector3(playerData.position.x, playerData.position.y, playerData.position.z);
+
+                if (pos.x == 0 && pos.y == 0 && pos.z == 0)
+                {
+                    Debug.Log($"[NetworkSync] ⏳ Игрок {playerData.username} еще не отправил позицию, сохраняем в pending...");
+                    pendingPlayers[playerData.socketId] = playerData; // Сохраняем данные игрока
+                    continue; // НЕ спавним, дождемся первого player_moved
+                }
+
                 // Spawn if not already exists
                 if (!networkPlayers.ContainsKey(playerData.socketId))
                 {
-                    Debug.Log($"[NetworkSync] 🎭 Spawning network player: {playerData.username}");
-                    Vector3 pos = new Vector3(playerData.position.x, playerData.position.y, playerData.position.z);
+                    Debug.Log($"[NetworkSync] 🎭 Spawning network player: {playerData.username} at {pos}");
                     SpawnNetworkPlayer(playerData.socketId, playerData.username, playerData.characterClass, pos);
                 }
             }
@@ -364,11 +377,19 @@ public class NetworkSyncManager : MonoBehaviour
         // SocketIOManager doesn't have SessionId, so we compare with our socket ID from room_players
         // For now, skip this check - room_players already filters us out
 
-        // КРИТИЧЕСКОЕ: Сервер НЕ отправляет position в player_joined (игрок еще не заспавнился)
-        // Спавним NetworkPlayer временно в (0,1,0), а реальная позиция придет в первом player_moved
-        Vector3 tempPos = new Vector3(0, 1, 0);
-        Debug.Log($"[NetworkSync] ⏳ Спавним {data.username} временно в (0,1,0), ждем реальной позиции...");
-        SpawnNetworkPlayer(data.socketId, data.username, data.characterClass, tempPos);
+        // КРИТИЧЕСКОЕ: НЕ спавним сразу - ждем первого player_moved с реальной позицией
+        // Сохраняем данные в pending (как в CS:GO/Dota)
+        RoomPlayerInfo playerInfo = new RoomPlayerInfo
+        {
+            socketId = data.socketId,
+            username = data.username,
+            characterClass = data.characterClass,
+            spawnIndex = data.spawnIndex,
+            position = new Vector3Data { x = 0, y = 0, z = 0 } // Позиция пока неизвестна
+        };
+
+        pendingPlayers[data.socketId] = playerInfo;
+        Debug.Log($"[NetworkSync] ⏳ Игрок {data.username} добавлен в pending, ждем player_moved...");
     }
 
     /// <summary>
@@ -394,6 +415,23 @@ public class NetworkSyncManager : MonoBehaviour
             if (data == null || string.IsNullOrEmpty(data.socketId))
                 return;
 
+            Vector3 pos = new Vector3(data.position.x, data.position.y, data.position.z);
+            Quaternion rot = Quaternion.Euler(data.rotation.x, data.rotation.y, data.rotation.z);
+            Vector3 vel = Vector3.zero;
+            if (data.velocity != null)
+            {
+                vel = new Vector3(data.velocity.x, data.velocity.y, data.velocity.z);
+            }
+
+            // КРИТИЧЕСКОЕ: Если игрок в pending (еще не заспавнился) - спавним его СЕЙЧАС
+            if (!networkPlayers.ContainsKey(data.socketId) && pendingPlayers.TryGetValue(data.socketId, out RoomPlayerInfo playerInfo))
+            {
+                Debug.Log($"[NetworkSync] 🎬 Первый player_moved для {playerInfo.username} - спавним в позиции {pos}");
+                SpawnNetworkPlayer(data.socketId, playerInfo.username, playerInfo.characterClass, pos);
+                pendingPlayers.Remove(data.socketId); // Удаляем из pending
+                // После спавна продолжим обновление позиции ниже
+            }
+
             if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer player))
             {
                 // Проверяем что объект не уничтожен
@@ -403,19 +441,13 @@ public class NetworkSyncManager : MonoBehaviour
                     return;
                 }
 
-                Vector3 pos = new Vector3(data.position.x, data.position.y, data.position.z);
-                Quaternion rot = Quaternion.Euler(data.rotation.x, data.rotation.y, data.rotation.z);
-
-                // ВАЖНО: velocity может быть null если сервер не отправил
-                Vector3 vel = Vector3.zero;
-                if (data.velocity != null)
-                {
-                    vel = new Vector3(data.velocity.x, data.velocity.y, data.velocity.z);
-                }
-
                 float timestamp = data.timestamp > 0 ? (data.timestamp / 1000f) : Time.time;
-
                 player.UpdatePosition(pos, rot, vel, timestamp);
+            }
+            else
+            {
+                // Игрок не найден и не в pending - это странно, но может произойти
+                Debug.LogWarning($"[NetworkSync] ⚠️ player_moved для неизвестного игрока {data.socketId}");
             }
         }
         catch (Exception ex)
