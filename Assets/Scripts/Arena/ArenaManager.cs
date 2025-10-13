@@ -381,6 +381,22 @@ public class ArenaManager : MonoBehaviour
                 Debug.Log($"[ArenaManager] ✅ Начальная позиция отправлена на сервер: {initialPosition}");
             }
         }
+
+        // Добавляем никнейм над головой (зеленый для своего игрока)
+        AddLocalPlayerNameplate(modelTransform);
+    }
+
+    /// <summary>
+    /// Добавить никнейм над головой локального игрока (зеленый)
+    /// </summary>
+    private void AddLocalPlayerNameplate(Transform playerTransform)
+    {
+        string username = PlayerPrefs.GetString("Username", "Player");
+
+        Nameplate nameplate = playerTransform.gameObject.AddComponent<Nameplate>();
+        nameplate.Initialize(playerTransform, username, true); // true = зеленый (свой)
+
+        Debug.Log($"[ArenaManager] ✅ Никнейм '{username}' добавлен над головой (зеленый)");
     }
 
     /// <summary>

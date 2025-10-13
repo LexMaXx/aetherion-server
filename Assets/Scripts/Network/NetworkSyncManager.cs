@@ -848,9 +848,13 @@ public class NetworkSyncManager : MonoBehaviour
         // ВАЖНО: Добавляем компонент Enemy для системы таргетинга и тумана войны
         SetupNetworkPlayerAsEnemy(playerObj, username);
 
+        // Добавляем красный никнейм над головой врага
+        Nameplate nameplate = playerObj.AddComponent<Nameplate>();
+        nameplate.Initialize(playerObj.transform, username, false); // false = красный (враг)
+
         networkPlayers[socketId] = networkPlayer;
 
-        Debug.Log($"[NetworkSync] ✅ Создан сетевой игрок: {username} ({characterClass}) - враг для таргетинга");
+        Debug.Log($"[NetworkSync] ✅ Создан сетевой игрок: {username} ({characterClass}) - враг для таргетинга с красным никнеймом");
     }
 
     /// <summary>
