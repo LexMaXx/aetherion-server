@@ -13,7 +13,8 @@ public class NetworkSyncManager : MonoBehaviour
     public static NetworkSyncManager Instance { get; private set; }
 
     [Header("Settings")]
-    [SerializeField] private float positionSyncInterval = 0.05f; // 20 Hz для плавного движения (как в MMO)
+    [Tooltip("Интервал синхронизации позиций (секунды). 0.0167 = 60Hz, 0.033 = 30Hz, 0.05 = 20Hz")]
+    [SerializeField] private float positionSyncInterval = 0.0167f; // 60 Hz для REAL-TIME PvP (было 20Hz = 0.05)
     [SerializeField] private bool syncEnabled = true;
 
     [Header("Spawn Points")]

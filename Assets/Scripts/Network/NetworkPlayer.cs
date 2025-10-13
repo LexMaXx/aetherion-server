@@ -24,8 +24,8 @@ public class NetworkPlayer : MonoBehaviour
     private UnityEngine.UI.Image healthBar;
 
     [Header("Sync Settings")]
-    [SerializeField] private float positionLerpSpeed = 20f; // Увеличено для PvP (было 10)
-    [SerializeField] private float rotationLerpSpeed = 20f; // Увеличено для PvP (было 10)
+    [SerializeField] private float positionLerpSpeed = 30f; // Увеличено для 60Hz PvP (было 10 → 20 → 30)
+    [SerializeField] private float rotationLerpSpeed = 40f; // Увеличено для 60Hz PvP (было 10 → 20 → 40)
 
     // Target state (received from server)
     private Vector3 targetPosition;

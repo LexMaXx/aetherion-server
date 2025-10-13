@@ -14,14 +14,14 @@ using System.Collections.Generic;
 public class NetworkTransform : MonoBehaviour
 {
     [Header("Interpolation Settings")]
-    [Tooltip("Время интерполяции (мс). Уменьшено для PvP (было 100ms)")]
-    [SerializeField] private float interpolationDelay = 30f; // 30ms для реал-тайм PvP
+    [Tooltip("Время интерполяции (мс). Минимальная задержка для 60Hz синхронизации")]
+    [SerializeField] private float interpolationDelay = 16.7f; // ~1 frame @ 60Hz для реал-тайм PvP
 
-    [Tooltip("Скорость интерполяции позиции (увеличено для PvP)")]
-    [SerializeField] private float positionLerpSpeed = 20f; // Было 10, теперь 20
+    [Tooltip("Скорость интерполяции позиции (очень высокая для PvP)")]
+    [SerializeField] private float positionLerpSpeed = 30f; // Увеличено до 30 для мгновенного отклика
 
-    [Tooltip("Скорость интерполяции ротации (увеличено для PvP)")]
-    [SerializeField] private float rotationLerpSpeed = 25f; // Было 15, теперь 25
+    [Tooltip("Скорость интерполяции ротации (очень высокая для PvP)")]
+    [SerializeField] private float rotationLerpSpeed = 40f; // Увеличено до 40 для мгновенного поворота
 
     [Header("Prediction Settings")]
     [Tooltip("Включить Dead Reckoning (предсказание)")]
@@ -31,8 +31,8 @@ public class NetworkTransform : MonoBehaviour
     [SerializeField] private float maxPredictionTime = 1f;
 
     [Header("Snap Settings")]
-    [Tooltip("Дистанция для телепортации вместо интерполяции (уменьшено для PvP)")]
-    [SerializeField] private float snapThreshold = 2f; // Было 5m, теперь 2m для точности
+    [Tooltip("Дистанция для телепортации вместо интерполяции (минимальная для PvP)")]
+    [SerializeField] private float snapThreshold = 1.5f; // Было 5m → 2m → теперь 1.5m для максимальной точности
 
     [Header("Debug")]
     [SerializeField] private bool showDebugInfo = false;
