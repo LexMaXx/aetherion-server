@@ -1046,10 +1046,21 @@ public class ArenaManager : MonoBehaviour
             Debug.Log("[ArenaManager] ✅ Корутина таймера лобби остановлена");
         }
 
+        // КРИТИЧЕСКОЕ: Скрываем countdown text перед удалением UI!
+        if (countdownText != null)
+        {
+            countdownText.gameObject.SetActive(false);
+            Debug.Log("[ArenaManager] ✅ Countdown text скрыт");
+        }
+
         // Скрываем Lobby UI
         if (lobbyUI != null)
         {
             Destroy(lobbyUI);
+            lobbyUI = null;
+            lobbyText = null;
+            countdownText = null;
+            Debug.Log("[ArenaManager] ✅ Lobby UI удален");
         }
 
         // КРИТИЧЕСКОЕ: Теперь можно спавнить!
