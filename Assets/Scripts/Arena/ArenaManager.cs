@@ -919,6 +919,15 @@ public class ArenaManager : MonoBehaviour
     {
         Debug.Log($"[ArenaManager] ⏱️ COUNTDOWN: {countdown}");
 
+        // КРИТИЧЕСКОЕ: Останавливаем корутину таймера ДО скрытия текста!
+        // Иначе корутина продолжит обновлять lobbyText и делать его видимым
+        if (lobbyTimerCoroutine != null)
+        {
+            StopCoroutine(lobbyTimerCoroutine);
+            lobbyTimerCoroutine = null;
+            Debug.Log("[ArenaManager] ✅ Корутина таймера остановлена при countdown");
+        }
+
         // Скрываем таймер лобби, показываем большой countdown
         if (lobbyText != null)
             lobbyText.gameObject.SetActive(false);
