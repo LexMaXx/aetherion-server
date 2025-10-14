@@ -152,7 +152,10 @@ public class SkillManager : MonoBehaviour
             AudioSource.PlayClipAtPoint(skill.castSound, transform.position);
         }
 
-        // Выполняем скилл в зависимости от типа
+        // НОВОЕ: Отправляем скилл на сервер для синхронизации в мультиплеере
+        SendSkillToServer(skill, target);
+
+        // Выполняем скилл локально
         ExecuteSkill(skill, target);
 
         // Событие
@@ -552,6 +555,36 @@ public class SkillManager : MonoBehaviour
             }
         }
         summonedCreatures.Clear();
+    }
+
+    /// <summary>
+    /// Отправить скилл на сервер для синхронизации
+    /// </summary>
+    private void SendSkillToServer(SkillData skill, Transform target)
+    {
+        // Проверяем что мы в мультиплеере
+        if (SocketIOManager.Instance == null || !SocketIOManager.Instance.IsConnected)
+        {
+            Debug.Log("[SkillManager] Не в мультиплеере - пропускаем отправку на сервер");
+            return;
+        }
+
+        // Получаем target socketId (если цель - другой игрок)
+        string targetSocketId = "";
+        if (target != null)
+        {
+            NetworkPlayer networkTarget = target.GetComponent<NetworkPlayer>();
+            if (networkTarget != null)
+            {
+                targetSocketId = networkTarget.socketId;
+            }
+        }
+
+        // Отправляем на сервер
+        Vector3 targetPos = target != null ? target.position : transform.position;
+        SocketIOManager.Instance.SendPlayerSkill(skill.skillId, targetSocketId, targetPos);
+
+        Debug.Log($"[SkillManager] 📡 Скилл {skill.skillName} (ID:{skill.skillId}) отправлен на сервер");
     }
 
     void OnDestroy()
