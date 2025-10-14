@@ -74,6 +74,7 @@ public class NetworkCombatSync : MonoBehaviour
     /// <summary>
     /// Отправить атаку на сервер
     /// ВАЖНО: Этот метод должен вызываться из PlayerAttack после нанесения урона
+    /// ИЗМЕНЕНО: Теперь отправляет SPECIAL stats вместо pre-calculated damage
     /// </summary>
     public void SendAttack(GameObject target, float damage, string attackType)
     {
@@ -122,13 +123,45 @@ public class NetworkCombatSync : MonoBehaviour
             return;
         }
 
-        // Отправляем атаку на сервер (сервер сам рассчитает урон на основе SPECIAL статов)
+        // Получаем SPECIAL stats для отправки на сервер
+        CharacterStats characterStats = GetComponent<CharacterStats>();
+        PlayerAttack playerAttack = GetComponent<PlayerAttack>();
+
+        if (characterStats == null)
+        {
+            Debug.LogError("[NetworkCombatSync] ❌ CharacterStats не найден! Не могу отправить статы на сервер.");
+            return;
+        }
+
+        if (playerAttack == null)
+        {
+            Debug.LogError("[NetworkCombatSync] ❌ PlayerAttack не найден! Не могу получить базовый урон.");
+            return;
+        }
+
+        // Получаем базовый урон оружия (БЕЗ бонусов от статов)
+        float baseDamage = playerAttack.BaseDamage;
+
+        // Отправляем атаку на сервер с SPECIAL stats (сервер сам рассчитает урон и криты!)
         Vector3 attackPosition = transform.position;
         Vector3 targetPosition = target.transform.position;
         Vector3 attackDirection = (targetPosition - attackPosition).normalized;
 
-        SocketIOManager.Instance.SendPlayerAttack(targetType, targetId, damage, attackType, attackPosition, attackDirection, targetPosition);
+        SocketIOManager.Instance.SendPlayerAttack(
+            targetType,
+            targetId,
+            characterStats.strength,      // SPECIAL: Strength для физ. урона
+            characterStats.intelligence,  // SPECIAL: Intelligence для маг. урона
+            characterStats.luck,          // SPECIAL: Luck для критов
+            baseDamage,                   // Базовый урон оружия (БЕЗ бонусов)
+            attackType,
+            attackPosition,
+            attackDirection,
+            targetPosition
+        );
+
         Debug.Log($"[NetworkCombatSync] ✅ Атака отправлена на сервер: {attackType} → {targetType} (ID: {targetId})");
+        Debug.Log($"[NetworkCombatSync] 📊 SPECIAL: STR={characterStats.strength}, INT={characterStats.intelligence}, LUCK={characterStats.luck}, Base Damage={baseDamage}");
     }
 
     /// <summary>

@@ -377,9 +377,10 @@ public class SocketIOManager : MonoBehaviour
 
     /// <summary>
     /// Отправить атаку на сервер (для мультиплеера)
-    /// Сервер сам рассчитает урон на основе SPECIAL статов
+    /// ИЗМЕНЕНО: Теперь отправляет SPECIAL stats для расчёта урона на сервере
+    /// Сервер сам рассчитает урон (damage = baseDamage + (strength/intelligence * 5)) и криты (luck)
     /// </summary>
-    public void SendPlayerAttack(string targetType, string targetId, float damage, string attackType, Vector3 position, Vector3 direction, Vector3 targetPosition)
+    public void SendPlayerAttack(string targetType, string targetId, int strength, int intelligence, int luck, float baseDamage, string attackType, Vector3 position, Vector3 direction, Vector3 targetPosition)
     {
         if (!isConnected)
         {
@@ -392,6 +393,11 @@ public class SocketIOManager : MonoBehaviour
             targetType = targetType,  // "player" or "enemy"
             targetId = targetId,      // socketId (для игрока) или enemyId (для врага)
             attackType = attackType,  // "melee", "ranged", "magic"
+            // SPECIAL stats для расчёта урона на сервере
+            strength = strength,      // Для физического урона (melee)
+            intelligence = intelligence, // Для магического урона (ranged)
+            luck = luck,             // Для критических ударов
+            baseDamage = baseDamage, // Базовый урон оружия (БЕЗ бонусов от статов)
             position = new { x = position.x, y = position.y, z = position.z },
             direction = new { x = direction.x, y = direction.y, z = direction.z },
             targetPosition = new { x = targetPosition.x, y = targetPosition.y, z = targetPosition.z }
@@ -399,8 +405,9 @@ public class SocketIOManager : MonoBehaviour
 
         string json = JsonConvert.SerializeObject(data);
         Debug.Log($"[SocketIO] ⚔️ Отправка атаки на сервер: {attackType} на {targetType} (ID: {targetId})");
+        Debug.Log($"[SocketIO] 📊 SPECIAL stats: STR={strength}, INT={intelligence}, LUCK={luck}, Base Damage={baseDamage}");
         Debug.Log($"[SocketIO] ⚔️ JSON атаки: {json}");
-        Debug.Log($"[SocketIO]    Сервер рассчитает урон на основе ваших SPECIAL статов");
+        Debug.Log($"[SocketIO] 🎲 Сервер рассчитает финальный урон и крит на основе SPECIAL статов");
         Emit("player_attack", json);
         Debug.Log($"[SocketIO] ✅ player_attack отправлен");
     }

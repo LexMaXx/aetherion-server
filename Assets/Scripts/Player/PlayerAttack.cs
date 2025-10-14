@@ -13,6 +13,10 @@ public class PlayerAttack : MonoBehaviour
     [SerializeField] private float optimalAttackDistance = 1.8f; // Оптимальная дистанция для удара
     [SerializeField] private float attackRotationOffset = 45f; // Поворот во время атаки (градусы)
 
+    // Public properties для NetworkCombatSync
+    public float BaseDamage => attackDamage;
+    public bool IsRangedAttack => isRangedAttack;
+
     [Header("Projectile Settings")]
     [SerializeField] private GameObject projectilePrefab; // Префаб снаряда (стрела, шар, осколки)
     [SerializeField] private bool isRangedAttack = false; // Дальняя атака? (лучник, маг, разбойник)
