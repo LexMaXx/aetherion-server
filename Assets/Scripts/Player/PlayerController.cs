@@ -50,6 +50,14 @@ public class PlayerController : MonoBehaviour
         // Ищем CharacterStats (может быть добавлен позже через ArenaManager)
         characterStats = GetComponent<CharacterStats>();
 
+        // КРИТИЧЕСКОЕ: Добавляем SkillManager если его нет
+        SkillManager skillManager = GetComponent<SkillManager>();
+        if (skillManager == null)
+        {
+            skillManager = gameObject.AddComponent<SkillManager>();
+            Debug.Log("[PlayerController] ✅ SkillManager автоматически добавлен к игроку");
+        }
+
         // Устанавливаем в боевую стойку по умолчанию
         animator.SetBool(inBattleHash, true);
 

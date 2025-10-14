@@ -40,10 +40,10 @@ MonoBehaviour:
   projectilePrefab: {fileID: 0}
   castSound: {fileID: 0}
   impactSound: {fileID: 0}
-  summonPrefab: {fileID: 2392146731170012137, guid: 854220d1cd63d4049a99e4c4ec58555e, type: 3}
+  summonPrefab: {fileID: 0}
   summonCount: 1
   summonDuration: 30
-  transformationModel: {fileID: 0}
+  transformationModel: {fileID: 2392146731170012137, guid: 854220d1cd63d4049a99e4c4ec58555e, type: 3}
   transformationDuration: 30
   hpBonusPercent: 50
   physicalDamageBonusPercent: 30

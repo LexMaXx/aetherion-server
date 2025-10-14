@@ -158,48 +158,29 @@ public class SkillBarUI : MonoBehaviour
             return;
         }
 
-        // Проверяем ману
-        PlayerController player = FindObjectOfType<PlayerController>();
-        if (player != null)
+        Debug.Log($"[SkillBarUI] ⚡ Попытка использовать скилл: '{skill.skillName}' (Урон: {skill.baseDamageOrHeal}, Мана: {skill.manaCost})");
+
+        // Применяем скилл (SkillManager сам проверит ману и запустит кулдаун)
+        bool success = ApplySkill(skill);
+
+        // Запускаем кулдаун UI только если скилл успешно применён
+        if (success)
         {
-            ManaSystem manaSystem = player.GetComponent<ManaSystem>();
-            if (manaSystem != null)
-            {
-                if (!manaSystem.HasEnoughMana(skill.manaCost))
-                {
-                    Debug.LogWarning($"[SkillBarUI] Недостаточно маны для '{skill.skillName}'! Требуется: {skill.manaCost}");
-                    return;
-                }
-
-                // Используем ману
-                if (!manaSystem.SpendMana(skill.manaCost))
-                {
-                    Debug.LogWarning($"[SkillBarUI] Не удалось потратить ману для '{skill.skillName}'!");
-                    return;
-                }
-            }
+            slot.StartCooldown(skill.cooldown);
         }
-
-        Debug.Log($"[SkillBarUI] ✅ Использован скилл: '{skill.skillName}' (Урон: {skill.baseDamageOrHeal}, Мана: {skill.manaCost})");
-
-        // Применяем скилл
-        ApplySkill(skill);
-
-        // Запускаем кулдаун
-        slot.StartCooldown(skill.cooldown);
     }
 
     /// <summary>
     /// Применить эффект скилла
     /// ИЗМЕНЕНО: Использует SkillManager для полной поддержки всех типов скиллов
     /// </summary>
-    private void ApplySkill(SkillData skill)
+    private bool ApplySkill(SkillData skill)
     {
         PlayerController player = FindObjectOfType<PlayerController>();
         if (player == null)
         {
             Debug.LogWarning("[SkillBarUI] PlayerController не найден!");
-            return;
+            return false;
         }
 
         // НОВОЕ: Используем SkillManager если есть
@@ -233,7 +214,7 @@ public class SkillBarUI : MonoBehaviour
             {
                 Debug.LogWarning($"[SkillBarUI] ❌ Не удалось применить скилл '{skill.skillName}' через SkillManager");
             }
-            return;
+            return success;
         }
 
         // FALLBACK: Старая система (если нет SkillManager)
@@ -244,7 +225,7 @@ public class SkillBarUI : MonoBehaviour
         if (targetSystem2 == null)
         {
             Debug.LogWarning("[SkillBarUI] TargetSystem не найден!");
-            return;
+            return false;
         }
 
         // Получаем текущую цель
@@ -253,7 +234,7 @@ public class SkillBarUI : MonoBehaviour
         if (currentTarget2 == null)
         {
             Debug.LogWarning($"[SkillBarUI] Нет цели для скилла '{skill.skillName}'!");
-            return;
+            return false;
         }
 
         GameObject target2 = currentTarget2.gameObject;
@@ -263,7 +244,7 @@ public class SkillBarUI : MonoBehaviour
         if (distance > skill.castRange)
         {
             Debug.LogWarning($"[SkillBarUI] Цель слишком далеко! Дистанция: {distance:F1}м, Макс: {skill.castRange}м");
-            return;
+            return false;
         }
 
         Debug.Log($"[SkillBarUI] Применяю скилл '{skill.skillName}' к цели '{target2.name}' (дистанция: {distance:F1}м)");
@@ -315,6 +296,8 @@ public class SkillBarUI : MonoBehaviour
             float delay = skill.projectilePrefab != null ? 0.5f : 0f;
             StartCoroutine(PlayImpactSoundDelayed(skill.impactSound, target2.transform.position, delay));
         }
+
+        return true; // Fallback система успешно применила скилл
     }
 
     /// <summary>
