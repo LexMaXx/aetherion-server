@@ -17,6 +17,7 @@ public class Nameplate : MonoBehaviour
     private Transform targetTransform;
 
     private string username = "Player";
+    private bool isTargeted = false; // КРИТИЧЕСКОЕ: Никнейм врага показываем ТОЛЬКО при таргете!
 
     /// <summary>
     /// Инициализация никнейма
@@ -30,6 +31,12 @@ public class Nameplate : MonoBehaviour
         CreateNameplateUI();
         UpdateNameplateColor();
 
+        // ВАЖНО: Никнейм врага скрыт по умолчанию (пока не таргетнут)
+        if (!isFriendly && nameplateContainer != null)
+        {
+            nameplateContainer.SetActive(false);
+        }
+
         Debug.Log($"[Nameplate] ✅ Создан никнейм для {username} ({(friendly ? "Союзник" : "Враг")})");
     }
 
@@ -41,17 +48,58 @@ public class Nameplate : MonoBehaviour
             Vector3 worldPosition = targetTransform.position + offset;
             Vector3 screenPosition = Camera.main.WorldToScreenPoint(worldPosition);
 
-            // Скрываем если за камерой
-            if (screenPosition.z < 0)
+            // КРИТИЧЕСКОЕ: Проверяем видимость через FogOfWar!
+            bool isVisible = CheckFogOfWarVisibility();
+            bool isBehindCamera = screenPosition.z < 0;
+
+            // ВАЖНО: Для ВРАГОВ никнейм показываем ТОЛЬКО если таргетнут!
+            // Для союзников показываем всегда (когда видим)
+            bool shouldShow = isVisible && !isBehindCamera && (isFriendly || isTargeted);
+
+            if (shouldShow)
             {
-                nameplateContainer.SetActive(false);
+                if (!nameplateContainer.activeSelf)
+                {
+                    nameplateContainer.SetActive(true);
+                }
+                nameplateContainer.transform.position = screenPosition;
             }
             else
             {
-                nameplateContainer.SetActive(true);
-                nameplateContainer.transform.position = screenPosition;
+                if (nameplateContainer.activeSelf)
+                {
+                    nameplateContainer.SetActive(false);
+                }
             }
         }
+    }
+
+    /// <summary>
+    /// Проверить видимость через FogOfWar локального игрока
+    /// </summary>
+    private bool CheckFogOfWarVisibility()
+    {
+        // ВАЖНО: Никнейм показываем ТОЛЬКО врагам (красным)
+        // Союзники (зеленые) всегда видны
+        if (isFriendly) return true;
+
+        // Найти локального игрока
+        GameObject localPlayer = GameObject.FindGameObjectWithTag("Player");
+        if (localPlayer == null) return false;
+
+        // Получить FogOfWar компонент
+        FogOfWar fogOfWar = localPlayer.GetComponent<FogOfWar>();
+        if (fogOfWar == null) return false;
+
+        // Проверить через Enemy компонент
+        Enemy enemy = targetTransform.GetComponent<Enemy>();
+        if (enemy != null)
+        {
+            return fogOfWar.IsEnemyVisible(enemy);
+        }
+
+        // Fallback: проверка по Transform
+        return fogOfWar.IsEnemyVisible(targetTransform);
     }
 
     private void CreateNameplateUI()
@@ -141,6 +189,31 @@ public class Nameplate : MonoBehaviour
         {
             usernameText.text = username;
         }
+    }
+
+    /// <summary>
+    /// Установить статус таргета (показывать/скрывать никнейм врага)
+    /// </summary>
+    public void SetTargeted(bool targeted)
+    {
+        isTargeted = targeted;
+        Debug.Log($"[Nameplate] Никнейм {username} - таргет: {targeted}");
+    }
+
+    /// <summary>
+    /// Показать никнейм (для совместимости с TargetSystem)
+    /// </summary>
+    public void Show()
+    {
+        SetTargeted(true);
+    }
+
+    /// <summary>
+    /// Скрыть никнейм (для совместимости с TargetSystem)
+    /// </summary>
+    public void Hide()
+    {
+        SetTargeted(false);
     }
 
     void OnDestroy()
