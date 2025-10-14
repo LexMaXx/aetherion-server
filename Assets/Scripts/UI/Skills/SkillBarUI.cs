@@ -191,6 +191,7 @@ public class SkillBarUI : MonoBehaviour
 
     /// <summary>
     /// Применить эффект скилла
+    /// ИЗМЕНЕНО: Использует SkillManager для полной поддержки всех типов скиллов
     /// </summary>
     private void ApplySkill(SkillData skill)
     {
@@ -201,47 +202,84 @@ public class SkillBarUI : MonoBehaviour
             return;
         }
 
+        // НОВОЕ: Используем SkillManager если есть
+        SkillManager skillManager = player.GetComponent<SkillManager>();
+        if (skillManager != null)
+        {
+            Debug.Log("[SkillBarUI] Используется SkillManager для применения скилла");
+
+            // Получаем цель (если требуется)
+            Transform target = null;
+            if (skill.requiresTarget)
+            {
+                TargetSystem targetSystem = player.GetComponent<TargetSystem>();
+                if (targetSystem != null)
+                {
+                    Enemy currentTarget = targetSystem.GetCurrentTarget();
+                    if (currentTarget != null)
+                    {
+                        target = currentTarget.transform;
+                    }
+                }
+            }
+
+            // Используем скилл через SkillManager
+            bool success = skillManager.UseSkill(skill, target);
+            if (success)
+            {
+                Debug.Log($"[SkillBarUI] ✅ Скилл '{skill.skillName}' применён через SkillManager");
+            }
+            else
+            {
+                Debug.LogWarning($"[SkillBarUI] ❌ Не удалось применить скилл '{skill.skillName}' через SkillManager");
+            }
+            return;
+        }
+
+        // FALLBACK: Старая система (если нет SkillManager)
+        Debug.LogWarning("[SkillBarUI] SkillManager не найден! Используется старая система (только урон)");
+
         // Получаем систему таргетинга
-        TargetSystem targetSystem = player.GetComponent<TargetSystem>();
-        if (targetSystem == null)
+        TargetSystem targetSystem2 = player.GetComponent<TargetSystem>();
+        if (targetSystem2 == null)
         {
             Debug.LogWarning("[SkillBarUI] TargetSystem не найден!");
             return;
         }
 
         // Получаем текущую цель
-        Enemy currentTarget = targetSystem.GetCurrentTarget();
+        Enemy currentTarget2 = targetSystem2.GetCurrentTarget();
 
-        if (currentTarget == null)
+        if (currentTarget2 == null)
         {
             Debug.LogWarning($"[SkillBarUI] Нет цели для скилла '{skill.skillName}'!");
             return;
         }
 
-        GameObject target = currentTarget.gameObject;
+        GameObject target2 = currentTarget2.gameObject;
 
         // Проверяем дистанцию
-        float distance = Vector3.Distance(player.transform.position, target.transform.position);
+        float distance = Vector3.Distance(player.transform.position, target2.transform.position);
         if (distance > skill.castRange)
         {
             Debug.LogWarning($"[SkillBarUI] Цель слишком далеко! Дистанция: {distance:F1}м, Макс: {skill.castRange}м");
             return;
         }
 
-        Debug.Log($"[SkillBarUI] Применяю скилл '{skill.skillName}' к цели '{target.name}' (дистанция: {distance:F1}м)");
+        Debug.Log($"[SkillBarUI] Применяю скилл '{skill.skillName}' к цели '{target2.name}' (дистанция: {distance:F1}м)");
 
         // Получаем статы игрока для расчёта урона
         CharacterStats playerStats = player.GetComponent<CharacterStats>();
         float damage = skill.CalculateDamage(playerStats);
 
         // Наносим урон цели (используем Enemy напрямую, т.к. currentTarget уже типа Enemy)
-        currentTarget.TakeDamage(damage);
+        currentTarget2.TakeDamage(damage);
         Debug.Log($"[SkillBarUI] ✅ Нанесён урон: {damage:F0}");
 
         // Спавним визуальный эффект (если есть)
         if (skill.visualEffectPrefab != null)
         {
-            Vector3 spawnPosition = target.transform.position;
+            Vector3 spawnPosition = target2.transform.position;
             GameObject effectInstance = Instantiate(skill.visualEffectPrefab, spawnPosition, Quaternion.identity);
 
             // Автоматически удаляем через 5 секунд
@@ -258,7 +296,7 @@ public class SkillBarUI : MonoBehaviour
 
             // TODO: Добавить скрипт движения снаряда к цели
             // Пока просто направим его на цель
-            Vector3 direction = (target.transform.position - spawnPosition).normalized;
+            Vector3 direction = (target2.transform.position - spawnPosition).normalized;
             projectile.transform.forward = direction;
 
             Debug.Log($"[SkillBarUI] ✅ Создан снаряд '{skill.skillName}'");
