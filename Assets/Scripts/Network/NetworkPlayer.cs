@@ -17,11 +17,9 @@ public class NetworkPlayer : MonoBehaviour
     private CharacterController characterController;
     private NetworkTransform networkTransform;
 
-    [Header("UI")]
-    [SerializeField] private GameObject nameplatePrefab;
-    private GameObject nameplateInstance;
-    private TextMeshProUGUI usernameText;
-    private UnityEngine.UI.Image healthBar;
+    [Header("Health (for health bar only)")]
+    private int currentHP = 100;
+    private int maxHP = 100;
 
     [Header("Sync Settings")]
     [SerializeField] private float positionLerpSpeed = 30f; // Увеличено для 60Hz PvP (было 10 → 20 → 30)
@@ -33,8 +31,6 @@ public class NetworkPlayer : MonoBehaviour
     private string currentAnimationState = "Idle";
 
     // Health
-    private int currentHP = 100;
-    private int maxHP = 100;
     private int currentMP = 100;
     private int maxMP = 100;
 
