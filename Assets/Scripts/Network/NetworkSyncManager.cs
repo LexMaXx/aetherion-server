@@ -347,23 +347,10 @@ public class NetworkSyncManager : MonoBehaviour
                     continue;
                 }
 
-                // КРИТИЧЕСКОЕ: Не спавним игроков с позицией (0,0,0) - игрок еще не отправил реальную позицию
-                // Дождемся первого player_moved события, как в CS:GO/Dota
-                Vector3 pos = new Vector3(playerData.position.x, playerData.position.y, playerData.position.z);
-
-                if (pos.x == 0 && pos.y == 0 && pos.z == 0)
-                {
-                    Debug.Log($"[NetworkSync] ⏳ Игрок {playerData.username} еще не отправил позицию, сохраняем в pending...");
-                    pendingPlayers[playerData.socketId] = playerData; // Сохраняем данные игрока
-                    continue; // НЕ спавним, дождемся первого player_moved
-                }
-
-                // Spawn if not already exists
-                if (!networkPlayers.ContainsKey(playerData.socketId))
-                {
-                    Debug.Log($"[NetworkSync] 🎭 Spawning network player: {playerData.username} at {pos}");
-                    SpawnNetworkPlayer(playerData.socketId, playerData.username, playerData.characterClass, pos, playerData.stats);
-                }
+                // ИЗМЕНЕНО: Сохраняем в pending ВСЕГДА - игроки заспавнятся при game_start или player_moved
+                // Это нужно чтобы игроки стояли в арене и ждали таймер, а не ждали первого движения
+                pendingPlayers[playerData.socketId] = playerData;
+                Debug.Log($"[NetworkSync] ⏳ Игрок {playerData.username} добавлен в pending, заспавнится при game_start");
             }
 
             Debug.Log($"[NetworkSync] 📊 Всего сетевых игроков: {networkPlayers.Count}");
@@ -728,16 +715,25 @@ public class NetworkSyncManager : MonoBehaviour
                 // Skip ourselves - мы заспавнимся через ArenaManager
                 // (мы не знаем свой socketId здесь, но это не страшно - pending не содержит нас)
 
-                // Если игрок в pending - спавним его
+                // Если игрок в pending - спавним его СЕЙЧАС с реальной позицией
                 if (pendingPlayers.TryGetValue(playerData.socketId, out RoomPlayerInfo playerInfo))
                 {
                     Debug.Log($"[NetworkSync] 🎬 Спавним pending игрока {playerInfo.username} при game_start");
 
-                    // Позиция будет от первого player_moved, но можно использовать spawn point
-                    Vector3 spawnPos = Vector3.zero; // Временная позиция, обновится от player_moved
+                    // КРИТИЧЕСКОЕ: Используем spawn point по индексу от сервера
+                    Vector3 spawnPos = Vector3.zero;
+                    if (spawnPoints != null && playerData.spawnIndex >= 0 && playerData.spawnIndex < spawnPoints.Length)
+                    {
+                        spawnPos = spawnPoints[playerData.spawnIndex].position;
+                        Debug.Log($"[NetworkSync] 📍 Spawn position для {playerInfo.username}: {spawnPos} (index {playerData.spawnIndex})");
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[NetworkSync] ⚠️ Некорректный spawnIndex {playerData.spawnIndex} для {playerInfo.username}, используем (0,0,0)");
+                    }
 
                     SpawnNetworkPlayer(playerData.socketId, playerInfo.username, playerInfo.characterClass, spawnPos, playerInfo.stats);
-                    // НЕ удаляем из pending - дождемся первого player_moved для реальной позиции
+                    pendingPlayers.Remove(playerData.socketId); // Удаляем из pending после спавна
                 }
             }
 

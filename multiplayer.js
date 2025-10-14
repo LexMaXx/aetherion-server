@@ -11,6 +11,9 @@ const activePlayers = new Map(); // socketId => { roomId, username, characterCla
 // Хранилище врагов в комнатах
 const roomEnemies = new Map(); // roomId => Map(enemyId => { health, alive, position })
 
+// LOBBY SYSTEM: Хранилище лобби комнат
+const roomLobbies = new Map(); // roomId => { waitTime, startTime, countdownTimer, gameStarted }
+
 module.exports = (io) => {
   console.log('🎮 Multiplayer module loaded');
 
@@ -136,6 +139,126 @@ module.exports = (io) => {
         });
 
         console.log(`✅ ${username} joined room ${roomId}. Total players: ${playersInRoom.length}`);
+
+        // ═══════════════════════════════════════════
+        // LOBBY SYSTEM: Запускаем таймер если >= 2 игроков
+        // ═══════════════════════════════════════════
+
+        if (playersInRoom.length >= 2) {
+          let lobby = roomLobbies.get(roomId);
+
+          // Если лобби еще нет - создаём и запускаем таймер
+          if (!lobby || lobby.gameStarted) {
+            console.log(`[Lobby] 🎮 Starting lobby for room ${roomId} (${playersInRoom.length} players)`);
+
+            lobby = {
+              waitTime: 20, // 20 секунд ожидания
+              currentTime: 20,
+              startTime: Date.now(),
+              countdownStarted: false,
+              gameStarted: false,
+              timer: null
+            };
+
+            roomLobbies.set(roomId, lobby);
+
+            // Отправляем lobby_created ВСЕМ игрокам в комнате
+            io.to(roomId).emit('lobby_created', {
+              roomId,
+              waitTime: lobby.waitTime,
+              playerCount: playersInRoom.length,
+              maxPlayers: 20,
+              timestamp: Date.now()
+            });
+
+            // Таймер обратного отсчёта (каждую секунду)
+            lobby.timer = setInterval(() => {
+              lobby.currentTime--;
+
+              // Отправляем обновление всем игрокам
+              io.to(roomId).emit('lobby_timer_update', {
+                roomId,
+                timeRemaining: lobby.currentTime,
+                timestamp: Date.now()
+              });
+
+              console.log(`[Lobby] Room ${roomId}: ${lobby.currentTime} seconds remaining`);
+
+              // Когда осталось 3 секунды - начинаем финальный отсчёт
+              if (lobby.currentTime === 3 && !lobby.countdownStarted) {
+                lobby.countdownStarted = true;
+                console.log(`[Lobby] 🎯 Starting final countdown for room ${roomId}`);
+
+                // Финальный отсчёт 3-2-1
+                let countdownTimer = setInterval(() => {
+                  if (lobby.currentTime > 0 && lobby.currentTime <= 3) {
+                    io.to(roomId).emit('game_countdown', {
+                      roomId,
+                      count: lobby.currentTime,
+                      timestamp: Date.now()
+                    });
+                    console.log(`[Lobby] Countdown: ${lobby.currentTime}`);
+                  }
+                }, 1000);
+
+                // Останавливаем финальный отсчёт через 3 секунды
+                setTimeout(() => {
+                  clearInterval(countdownTimer);
+                }, 3000);
+              }
+
+              // Когда таймер закончился - начинаем игру
+              if (lobby.currentTime <= 0) {
+                clearInterval(lobby.timer);
+                lobby.gameStarted = true;
+
+                console.log(`[Lobby] ✅ Game starting for room ${roomId}`);
+
+                // Получаем финальный список игроков и НАЗНАЧАЕМ spawn indices
+                const finalPlayers = [];
+                let spawnIndex = 0;
+                for (const [sid, player] of activePlayers.entries()) {
+                  if (player.roomId === roomId) {
+                    // КРИТИЧЕСКОЕ: Назначаем spawn index каждому игроку
+                    player.spawnIndex = spawnIndex++;
+
+                    finalPlayers.push({
+                      socketId: sid,
+                      username: player.username,
+                      characterClass: player.characterClass,
+                      spawnIndex: player.spawnIndex, // КРИТИЧЕСКОЕ: Отправляем spawnIndex для синхронизации позиций!
+                      position: player.position, // Оставляем для совместимости (будет 0,0,0)
+                      rotation: player.rotation,
+                      health: player.health,
+                      maxHealth: player.maxHealth
+                    });
+                  }
+                }
+
+                // Отправляем game_start ВСЕМ игрокам
+                io.to(roomId).emit('game_start', {
+                  roomId,
+                  players: finalPlayers,
+                  timestamp: Date.now()
+                });
+
+                console.log(`[Lobby] 🚀 Game started! Players: ${finalPlayers.length}`);
+              }
+            }, 1000);
+          } else {
+            // Лобби уже существует - отправляем текущее состояние новому игроку
+            console.log(`[Lobby] Player ${username} joined existing lobby. Time remaining: ${lobby.currentTime}s`);
+
+            socket.emit('lobby_created', {
+              roomId,
+              waitTime: lobby.currentTime, // Отправляем оставшееся время
+              playerCount: playersInRoom.length,
+              maxPlayers: 20,
+              timestamp: Date.now()
+            });
+          }
+        }
+
       } catch (error) {
         console.error('[Join Room] Error:', error);
         socket.emit('error', { message: 'Failed to join room' });
@@ -472,6 +595,24 @@ module.exports = (io) => {
           socketId: socket.id,
           username: player.username
         });
+
+        // LOBBY CLEANUP: Останавливаем таймер если игроков < 2
+        const remainingPlayers = Array.from(activePlayers.values()).filter(p => p.roomId === player.roomId);
+        if (remainingPlayers.length < 2) {
+          const lobby = roomLobbies.get(player.roomId);
+          if (lobby && lobby.timer) {
+            clearInterval(lobby.timer);
+            roomLobbies.delete(player.roomId);
+            console.log(`[Lobby] ⏹️ Lobby cancelled for room ${player.roomId} (not enough players)`);
+
+            // Уведомляем оставшихся игроков
+            io.to(player.roomId).emit('lobby_cancelled', {
+              roomId: player.roomId,
+              reason: 'Not enough players',
+              timestamp: Date.now()
+            });
+          }
+        }
 
         // Удаляем игрока из памяти
         activePlayers.delete(socket.id);
