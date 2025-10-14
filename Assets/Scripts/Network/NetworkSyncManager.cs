@@ -387,6 +387,20 @@ public class NetworkSyncManager : MonoBehaviour
 
         pendingPlayers[data.socketId] = playerInfo;
         Debug.Log($"[NetworkSync] ⏳ Игрок {data.username} добавлен в pending (STR={data.stats?.strength ?? 5}), ждем player_moved...");
+
+        // ВРЕМЕННОЕ ИСПРАВЛЕНИЕ: Если это второй+ игрок и лобби еще не запущено - запускаем сами
+        // (сервер должен отправлять lobby_created новым игрокам, но пока не делает этого)
+        int totalPlayers = networkPlayers.Count + pendingPlayers.Count + 1; // +1 = мы сами
+        if (totalPlayers >= 2 && ArenaManager.Instance != null)
+        {
+            // Проверяем, уже запущено ли лобби (если UI создан - значит да)
+            var lobbyUI = GameObject.Find("LobbyUI");
+            if (lobbyUI == null)
+            {
+                Debug.Log($"[NetworkSync] 🏁 FALLBACK: Запускаем лобби локально (всего игроков: {totalPlayers})");
+                ArenaManager.Instance.OnLobbyStarted(20000); // 20 секунд
+            }
+        }
     }
 
     /// <summary>
