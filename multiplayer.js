@@ -195,6 +195,7 @@ module.exports = (io) => {
               }
 
               // Когда таймер закончился - начинаем игру
+              if (lobby.currentTime <= 0) {
                 clearInterval(lobby.timer);
                 lobby.gameStarted = true;
 
