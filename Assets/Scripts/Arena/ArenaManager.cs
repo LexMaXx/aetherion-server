@@ -896,6 +896,7 @@ public class ArenaManager : MonoBehaviour
     private GameObject lobbyUI;
     private UnityEngine.UI.Text lobbyText;
     private UnityEngine.UI.Text countdownText;
+    private Coroutine lobbyTimerCoroutine; // КРИТИЧЕСКОЕ: Ссылка на корутину для остановки
 
     /// <summary>
     /// Callback: Лобби создано, начинается 20-секундное ожидание
@@ -907,8 +908,8 @@ public class ArenaManager : MonoBehaviour
         // Создаем UI для лобби
         CreateLobbyUI();
 
-        // Запускаем таймер
-        StartCoroutine(LobbyTimerCoroutine(waitTimeMs / 1000f));
+        // Запускаем таймер и СОХРАНЯЕМ ссылку на корутину
+        lobbyTimerCoroutine = StartCoroutine(LobbyTimerCoroutine(waitTimeMs / 1000f));
     }
 
     /// <summary>
@@ -1027,6 +1028,14 @@ public class ArenaManager : MonoBehaviour
     {
         Debug.Log($"[ArenaManager] 🎮 GAME START! Спавним персонажа...");
         gameStarted = true;
+
+        // КРИТИЧЕСКОЕ: Останавливаем корутину таймера лобби!
+        if (lobbyTimerCoroutine != null)
+        {
+            StopCoroutine(lobbyTimerCoroutine);
+            lobbyTimerCoroutine = null;
+            Debug.Log("[ArenaManager] ✅ Корутина таймера лобби остановлена");
+        }
 
         // Скрываем Lobby UI
         if (lobbyUI != null)
