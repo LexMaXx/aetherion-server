@@ -87,8 +87,10 @@ public class FogOfWar : MonoBehaviour
         if (characterStats != null)
         {
             characterStats.OnStatsChanged += UpdateVisionRadiusFromStats;
-            UpdateVisionRadiusFromStats();
-            Debug.Log("[FogOfWar] ✅ Интеграция с CharacterStats активирована");
+            // НЕ вызываем UpdateVisionRadiusFromStats() здесь!
+            // CharacterStats.Start() может выполниться позже
+            // Обновление будет в LateStart() когда CharacterStats точно готов
+            Debug.Log("[FogOfWar] ✅ Подписались на события CharacterStats");
         }
 
         // Создаем черную маску используя Canvas (работает с любым рендер пайплайном)
@@ -107,7 +109,31 @@ public class FogOfWar : MonoBehaviour
             FindAllBuildings();
         }
 
-        Debug.Log($"[FogOfWar] Система инициализирована. Радиус видимости: {visibilityRadius}м");
+        Debug.Log($"[FogOfWar] Система инициализирована. Начальный радиус: {visibilityRadius}м (будет обновлен из CharacterStats)");
+
+        // КРИТИЧЕСКОЕ: Запускаем корутину для обновления радиуса через кадр
+        // Когда CharacterStats.Start() точно выполнится
+        StartCoroutine(LateStartCoroutine());
+    }
+
+    /// <summary>
+    /// КРИТИЧЕСКОЕ: Обновляем радиус после того как CharacterStats.Start() точно выполнился
+    /// </summary>
+    System.Collections.IEnumerator LateStartCoroutine()
+    {
+        // Ждем один кадр чтобы все Start() методы выполнились
+        yield return null;
+
+        // Принудительно обновляем радиус из CharacterStats
+        if (characterStats != null)
+        {
+            UpdateVisionRadiusFromStats();
+            Debug.Log("[FogOfWar] ✅ Радиус обновлен из CharacterStats через один кадр после Start()");
+        }
+        else
+        {
+            Debug.LogWarning("[FogOfWar] ⚠️ CharacterStats не найден! Используется дефолтный радиус.");
+        }
     }
 
     /// <summary>
