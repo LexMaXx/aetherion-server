@@ -1012,6 +1012,7 @@ public class ArenaManager : MonoBehaviour
 
     /// <summary>
     /// Корутина для обновления таймера лобби
+    /// ИЗМЕНЕНО: Показывает таймер только когда остаётся 3 секунды или меньше
     /// </summary>
     private System.Collections.IEnumerator LobbyTimerCoroutine(float totalSeconds)
     {
@@ -1019,10 +1020,20 @@ public class ArenaManager : MonoBehaviour
 
         while (timeRemaining > 0)
         {
+            int seconds = Mathf.CeilToInt(timeRemaining);
+
             if (lobbyText != null)
             {
-                int seconds = Mathf.CeilToInt(timeRemaining);
-                lobbyText.text = $"Ожидание игроков... {seconds} сек";
+                // Показываем текст только если осталось 3 секунды или меньше
+                if (seconds <= 3)
+                {
+                    lobbyText.gameObject.SetActive(true);
+                    lobbyText.text = $"Старт через... {seconds} сек";
+                }
+                else
+                {
+                    lobbyText.gameObject.SetActive(false);
+                }
             }
 
             yield return new WaitForSeconds(0.1f);

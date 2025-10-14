@@ -513,13 +513,14 @@ public class NetworkPlayer : MonoBehaviour
 
     /// <summary>
     /// Показать урон (визуальный эффект + взрыв)
+    /// ИЗМЕНЕНО: Отключено мигание красным по запросу пользователя
     /// </summary>
     public void ShowDamage(float damage)
     {
         Debug.Log($"[NetworkPlayer] {username} получил {damage} урона!");
 
-        // ЭФФЕКТ 1: Мигание красным
-        StartCoroutine(FlashRed());
+        // ЭФФЕКТ 1: Мигание красным (ОТКЛЮЧЕНО)
+        // StartCoroutine(FlashRed());
 
         // ЭФФЕКТ 2: Hit effect (включён обратно с оптимизацией - не зацикленный)
         SpawnHitEffect();
