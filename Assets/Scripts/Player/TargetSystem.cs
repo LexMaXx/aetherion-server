@@ -252,12 +252,12 @@ public class TargetSystem : MonoBehaviour
         {
             currentTarget.OnDeath -= OnCurrentTargetDeath;
 
-            // Проверяем является ли старая цель NetworkPlayer
-            NetworkPlayer oldNetworkPlayer = currentTarget.GetComponent<NetworkPlayer>();
-            if (oldNetworkPlayer != null)
-            {
-                oldNetworkPlayer.HideNameplate();
-            }
+            // TODO: Обновить для новой системы EnemyNameplate
+            // NetworkPlayer oldNetworkPlayer = currentTarget.GetComponent<NetworkPlayer>();
+            // if (oldNetworkPlayer != null)
+            // {
+            //     oldNetworkPlayer.HideNameplate(); // УДАЛЕНО - метод не существует
+            // }
         }
 
         currentTarget = enemy;
@@ -268,21 +268,12 @@ public class TargetSystem : MonoBehaviour
             currentTarget.OnDeath += OnCurrentTargetDeath;
             Debug.Log($"[TargetSystem] Новая цель: {currentTarget.GetEnemyName()}");
 
-            // Проверяем является ли новая цель NetworkPlayer
-            NetworkPlayer newNetworkPlayer = currentTarget.GetComponent<NetworkPlayer>();
-            if (newNetworkPlayer != null)
-            {
-                // ВАЖНО: Показываем nameplate ТОЛЬКО если враг виден (не в тумане войны и не за стеной)
-                if (fogOfWar != null && fogOfWar.IsEnemyVisible(currentTarget))
-                {
-                    newNetworkPlayer.ShowNameplate();
-                    Debug.Log($"[TargetSystem] ✅ Никнейм {newNetworkPlayer.username} показан (враг виден)");
-                }
-                else
-                {
-                    Debug.Log($"[TargetSystem] ❌ Никнейм {newNetworkPlayer.username} НЕ показан (враг в тумане/за стеной)");
-                }
-            }
+            // TODO: Обновить для новой системы EnemyNameplate
+            // NetworkPlayer newNetworkPlayer = currentTarget.GetComponent<NetworkPlayer>();
+            // if (newNetworkPlayer != null)
+            // {
+            //     newNetworkPlayer.ShowNameplate(); // УДАЛЕНО - метод не существует
+            // }
         }
 
         // Вызываем событие смены цели
@@ -298,12 +289,12 @@ public class TargetSystem : MonoBehaviour
         {
             currentTarget.OnDeath -= OnCurrentTargetDeath;
 
-            // СКРЫВАЕМ никнейм при сбросе цели (если это NetworkPlayer)
-            NetworkPlayer networkPlayer = currentTarget.GetComponent<NetworkPlayer>();
-            if (networkPlayer != null)
-            {
-                networkPlayer.HideNameplate();
-            }
+            // TODO: Обновить для новой системы EnemyNameplate
+            // NetworkPlayer networkPlayer = currentTarget.GetComponent<NetworkPlayer>();
+            // if (networkPlayer != null)
+            // {
+            //     networkPlayer.HideNameplate(); // УДАЛЕНО - метод не существует
+            // }
 
             Debug.Log("[TargetSystem] Цель сброшена");
         }

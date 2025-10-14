@@ -279,7 +279,7 @@ public class NetworkPlayer : MonoBehaviour
         currentMP = mp;
         maxMP = maxMp;
 
-        UpdateHealthBar();
+        // УДАЛЕНО: UpdateHealthBar() - теперь EnemyNameplate сам обновляет HP бар через LateUpdate
 
         // Check death
         if (currentHP <= 0)
@@ -313,7 +313,8 @@ public class NetworkPlayer : MonoBehaviour
 
         UpdatePosition(spawnPosition, Quaternion.identity);
         UpdateAnimation("Idle");
-        UpdateHealthBar();
+
+        // УДАЛЕНО: UpdateHealthBar() - теперь EnemyNameplate сам обновляет HP бар
 
         // Re-enable collider
         var collider = GetComponent<Collider>();
