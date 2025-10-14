@@ -559,20 +559,42 @@ public class NetworkPlayer : MonoBehaviour
     /// </summary>
     private System.Collections.IEnumerator FlashRed()
     {
-        var renderer = GetComponentInChildren<SkinnedMeshRenderer>();
-        if (renderer != null)
+        // КРИТИЧЕСКОЕ: Находим ВСЕ SkinnedMeshRenderer (может быть тело + одежда + оружие)
+        SkinnedMeshRenderer[] renderers = GetComponentsInChildren<SkinnedMeshRenderer>();
+
+        if (renderers.Length == 0)
         {
-            // ВАЖНО: Сохраняем ссылку на material instance (не создаём новый каждый раз)
-            Material materialInstance = renderer.material; // Создаётся один раз
-            Color originalColor = materialInstance.color;
+            Debug.LogWarning($"[NetworkPlayer] ⚠️ SkinnedMeshRenderer не найден для {username}!");
+            yield break;
+        }
+
+        Debug.Log($"[NetworkPlayer] 💥 FlashRed для {username}: найдено {renderers.Length} mesh'ей");
+
+        // Сохраняем оригинальные цвета ВСЕХ mesh'ей
+        Material[] materialInstances = new Material[renderers.Length];
+        Color[] originalColors = new Color[renderers.Length];
+
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            materialInstances[i] = renderers[i].material; // Создаём instance один раз
+            originalColors[i] = materialInstances[i].color;
 
             // Красим в красный
-            materialInstance.color = Color.red;
-            yield return new WaitForSeconds(0.1f);
-
-            // Возвращаем оригинальный цвет
-            materialInstance.color = originalColor;
+            materialInstances[i].color = Color.red;
         }
+
+        yield return new WaitForSeconds(0.1f);
+
+        // Возвращаем оригинальные цвета
+        for (int i = 0; i < materialInstances.Length; i++)
+        {
+            if (materialInstances[i] != null)
+            {
+                materialInstances[i].color = originalColors[i];
+            }
+        }
+
+        Debug.Log($"[NetworkPlayer] ✅ FlashRed завершён для {username}");
     }
 
     // УДАЛЕНО: GetNameplate(), ShowNameplate(), HideNameplate(), OnDestroy() - заменено на EnemyNameplate.cs
