@@ -39,6 +39,7 @@ public class NetworkSyncManager : MonoBehaviour
     // Local player reference
     private GameObject localPlayer;
     private string localPlayerClass;
+    private string localPlayerSocketId; // КРИТИЧЕСКОЕ: Наш socketId для проверки урона
     private float lastPositionSync = 0f;
     private string lastAnimationState = "Idle";
 
@@ -320,6 +321,9 @@ public class NetworkSyncManager : MonoBehaviour
             Debug.Log($"[NetworkSync] Мой socketId: {data.yourSocketId}");
             Debug.Log($"[NetworkSync] 🎯 Мой spawnIndex от сервера: {data.yourSpawnIndex}");
 
+            // КРИТИЧЕСКОЕ: Сохраняем наш socketId для проверки получения урона
+            localPlayerSocketId = data.yourSocketId;
+
             // КРИТИЧЕСКОЕ: Устанавливаем индекс точки спавна в ArenaManager
             if (ArenaManager.Instance != null)
             {
@@ -553,17 +557,21 @@ public class NetworkSyncManager : MonoBehaviour
         string critText = data.isCritical ? " 💥 КРИТИЧЕСКИЙ УДАР!" : "";
         Debug.Log($"[NetworkSync] 💔 Здоровье игрока {data.socketId}: {data.currentHealth}/{data.maxHealth}{critText}");
 
-        if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer player))
+        // КРИТИЧЕСКОЕ: Проверяем это МЫ или сетевой игрок
+        if (data.socketId == localPlayerSocketId)
         {
-            // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Обновляем HP NetworkPlayer!
+            // ЭТО МЫ ПОЛУЧИЛИ УРОН! Применяем через HealthSystem
+            Debug.Log($"[NetworkSync] 💔 МЫ получили урон {data.damage}! HP: {data.currentHealth}/{data.maxHealth}");
+            ApplyDamageToLocalPlayer(data.damage);
+        }
+        else if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer player))
+        {
+            // Это сетевой игрок - обновляем его HP
             player.UpdateHealth((int)data.currentHealth, (int)data.maxHealth, player.CurrentMP, player.MaxMP);
             player.ShowDamage(data.damage);
 
             Debug.Log($"[NetworkSync] ✅ HP обновлён для {player.username}: {data.currentHealth}/{data.maxHealth}");
         }
-
-        // TODO: Если это МЫ получили урон, применить к локальному игроку через HealthSystem
-        // Для этого сервер должен включать поле "isLocalPlayer" в событие
     }
 
     /// <summary>
