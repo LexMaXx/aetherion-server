@@ -83,14 +83,8 @@ public class NetworkPlayer : MonoBehaviour
 
     void Start()
     {
+        // Создаём nameplate (он уже скрыт внутри CreateNameplate)
         CreateNameplate();
-
-        // ВАЖНО: Скрываем nameplate по умолчанию (показываем только при таргете)
-        if (nameplateInstance != null)
-        {
-            nameplateInstance.SetActive(false);
-            Debug.Log($"[NetworkPlayer] 👻 Никнейм {username} скрыт (показывается только при таргете)");
-        }
 
         // ВАЖНО: Устанавливаем боевую стойку для NetworkPlayer (InBattle = true)
         if (animator != null)
@@ -142,6 +136,10 @@ public class NetworkPlayer : MonoBehaviour
         if (nameplatePrefab != null)
         {
             nameplateInstance = Instantiate(nameplatePrefab, transform.position + Vector3.up * 2.5f, Quaternion.identity);
+
+            // КРИТИЧЕСКИ ВАЖНО: Скрываем СРАЗУ после создания!
+            nameplateInstance.SetActive(false);
+
             nameplateInstance.transform.SetParent(null); // Don't parent to player
 
             // Find UI components
@@ -154,6 +152,8 @@ public class NetworkPlayer : MonoBehaviour
             }
 
             UpdateHealthBar();
+
+            Debug.Log($"[NetworkPlayer] 👻 Nameplate для {username} создан и СКРЫТ");
         }
         else
         {
