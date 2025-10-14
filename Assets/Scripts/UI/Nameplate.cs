@@ -71,9 +71,10 @@ public class Nameplate : MonoBehaviour
             bool isVisible = CheckFogOfWarVisibility();
             bool isBehindCamera = screenPosition.z < 0;
 
-            // ВАЖНО: Для ВРАГОВ никнейм показываем ТОЛЬКО если таргетнут!
-            // Для союзников показываем всегда (когда видим)
-            bool shouldShow = isVisible && !isBehindCamera && (isFriendly || isTargeted);
+            // ВАЖНО: Для ВРАГОВ никнейм показываем если:
+            // 1. Таргетнут (показываем ВСЕГДА когда таргетнут, даже если FogOfWar говорит невидим)
+            // 2. Союзник и виден
+            bool shouldShow = !isBehindCamera && (isFriendly ? isVisible : isTargeted);
 
             // ДИАГНОСТИКА: Логируем состояние каждую секунду для врагов
             if (!isFriendly && Time.frameCount % 60 == 0)
