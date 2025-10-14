@@ -206,7 +206,7 @@ public class PlayerAttack : MonoBehaviour
             // Разбойник: средняя дистанция, похищение души
             attackRange = 20f;
             optimalAttackDistance = 5f;
-            attackRotationOffset = -30f;
+            attackRotationOffset = 0f; // ИСПРАВЛЕНО: было -30f, теперь 0f (смотрит прямо на цель)
             attackDamage = 50f; // Высокий урон за похищение души
             isRangedAttack = true;
             projectileSpeed = 15f;

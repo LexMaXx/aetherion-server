@@ -1047,7 +1047,8 @@ public class ArenaManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Респавн игрока после смерти на исходной точке спавна
+    /// Респавн игрока после смерти на СЛУЧАЙНОЙ точке спавна
+    /// ВАЖНО: Для мультиплеера синхронизация через сервер (пока временный fallback)
     /// </summary>
     public void RespawnPlayer()
     {
@@ -1057,22 +1058,10 @@ public class ArenaManager : MonoBehaviour
             return;
         }
 
-        // Определяем точку респавна (та же что и при спавне)
+        // Выбираем СЛУЧАЙНУЮ точку спавна
         Vector3 respawnPosition;
         Quaternion respawnRotation;
-
-        if (isMultiplayer && assignedSpawnIndex >= 0 && multiplayerSpawnPoints != null && assignedSpawnIndex < multiplayerSpawnPoints.Length)
-        {
-            Transform spawnTransform = multiplayerSpawnPoints[assignedSpawnIndex];
-            respawnPosition = spawnTransform.position;
-            respawnRotation = spawnTransform.rotation;
-            Debug.Log($"[ArenaManager] 🔄 Респавн на мультиплеер точке #{assignedSpawnIndex}: {respawnPosition}");
-        }
-        else
-        {
-            respawnPosition = spawnPoint != null ? spawnPoint.position : defaultSpawnPosition;
-            respawnRotation = spawnPoint != null ? spawnPoint.rotation : Quaternion.identity;
-        }
+        ChooseRandomSpawnPoint(out respawnPosition, out respawnRotation);
 
         // Телепортируем игрока на точку респавна
         spawnedCharacter.transform.position = respawnPosition;
@@ -1109,14 +1098,46 @@ public class ArenaManager : MonoBehaviour
             animator.ResetTrigger("Die");
         }
 
-        // Отправляем респавн на сервер
+        // Отправляем респавн на сервер (синхронизация позиции)
         if (isMultiplayer && SocketIOManager.Instance != null && SocketIOManager.Instance.IsConnected)
         {
             SocketIOManager.Instance.UpdatePosition(respawnPosition, respawnRotation, Vector3.zero, true);
-            Debug.Log("[ArenaManager] ✅ Респавн отправлен на сервер");
+            Debug.Log("[ArenaManager] ✅ Респавн отправлен на сервер (синхронизация позиции)");
+            Debug.LogWarning("[ArenaManager] ⚠️ TODO: Сервер должен выбирать точку спавна для 100% синхронизации!");
         }
 
-        Debug.Log($"[ArenaManager] ✅ Игрок респавнился: {respawnPosition}");
+        Debug.Log($"[ArenaManager] ✅ Игрок респавнился на случайной точке: {respawnPosition}");
+    }
+
+    /// <summary>
+    /// Выбрать случайную точку спавна
+    /// </summary>
+    private void ChooseRandomSpawnPoint(out Vector3 position, out Quaternion rotation)
+    {
+        // MULTIPLAYER: Используем массив multiplayerSpawnPoints (если есть)
+        if (multiplayerSpawnPoints != null && multiplayerSpawnPoints.Length > 0)
+        {
+            int randomIndex = Random.Range(0, multiplayerSpawnPoints.Length);
+            Transform randomSpawnPoint = multiplayerSpawnPoints[randomIndex];
+            position = randomSpawnPoint.position;
+            rotation = randomSpawnPoint.rotation;
+            Debug.Log($"[ArenaManager] 🎲 Выбрана случайная точка спавна #{randomIndex}: {position}");
+            return;
+        }
+
+        // FALLBACK: Используем дефолтную точку если multiplayerSpawnPoints не назначены
+        if (spawnPoint != null)
+        {
+            position = spawnPoint.position;
+            rotation = spawnPoint.rotation;
+            Debug.LogWarning("[ArenaManager] ⚠️ multiplayerSpawnPoints не назначены, используем дефолтный spawnPoint");
+        }
+        else
+        {
+            position = defaultSpawnPosition;
+            rotation = Quaternion.identity;
+            Debug.LogWarning("[ArenaManager] ⚠️ Нет точек спавна, используем defaultSpawnPosition");
+        }
     }
 
     /// <summary>

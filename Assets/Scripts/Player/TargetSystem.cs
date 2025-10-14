@@ -247,19 +247,42 @@ public class TargetSystem : MonoBehaviour
         if (currentTarget == enemy)
             return;
 
-        // Отписываемся от события смерти старой цели
+        // СКРЫВАЕМ никнейм старой цели (если это NetworkPlayer)
         if (currentTarget != null)
         {
             currentTarget.OnDeath -= OnCurrentTargetDeath;
+
+            // Проверяем является ли старая цель NetworkPlayer
+            NetworkPlayer oldNetworkPlayer = currentTarget.GetComponent<NetworkPlayer>();
+            if (oldNetworkPlayer != null)
+            {
+                oldNetworkPlayer.HideNameplate();
+            }
         }
 
         currentTarget = enemy;
 
-        // Подписываемся на событие смерти новой цели
+        // ПОКАЗЫВАЕМ никнейм новой цели (если это NetworkPlayer)
         if (currentTarget != null)
         {
             currentTarget.OnDeath += OnCurrentTargetDeath;
             Debug.Log($"[TargetSystem] Новая цель: {currentTarget.GetEnemyName()}");
+
+            // Проверяем является ли новая цель NetworkPlayer
+            NetworkPlayer newNetworkPlayer = currentTarget.GetComponent<NetworkPlayer>();
+            if (newNetworkPlayer != null)
+            {
+                // ВАЖНО: Показываем nameplate ТОЛЬКО если враг виден (не в тумане войны и не за стеной)
+                if (fogOfWar != null && fogOfWar.IsEnemyVisible(currentTarget))
+                {
+                    newNetworkPlayer.ShowNameplate();
+                    Debug.Log($"[TargetSystem] ✅ Никнейм {newNetworkPlayer.username} показан (враг виден)");
+                }
+                else
+                {
+                    Debug.Log($"[TargetSystem] ❌ Никнейм {newNetworkPlayer.username} НЕ показан (враг в тумане/за стеной)");
+                }
+            }
         }
 
         // Вызываем событие смены цели
@@ -274,6 +297,14 @@ public class TargetSystem : MonoBehaviour
         if (currentTarget != null)
         {
             currentTarget.OnDeath -= OnCurrentTargetDeath;
+
+            // СКРЫВАЕМ никнейм при сбросе цели (если это NetworkPlayer)
+            NetworkPlayer networkPlayer = currentTarget.GetComponent<NetworkPlayer>();
+            if (networkPlayer != null)
+            {
+                networkPlayer.HideNameplate();
+            }
+
             Debug.Log("[TargetSystem] Цель сброшена");
         }
 

@@ -85,6 +85,13 @@ public class NetworkPlayer : MonoBehaviour
     {
         CreateNameplate();
 
+        // ВАЖНО: Скрываем nameplate по умолчанию (показываем только при таргете)
+        if (nameplateInstance != null)
+        {
+            nameplateInstance.SetActive(false);
+            Debug.Log($"[NetworkPlayer] 👻 Никнейм {username} скрыт (показывается только при таргете)");
+        }
+
         // ВАЖНО: Устанавливаем боевую стойку для NetworkPlayer (InBattle = true)
         if (animator != null)
         {
@@ -117,8 +124,9 @@ public class NetworkPlayer : MonoBehaviour
             transform.rotation = Quaternion.Lerp(transform.rotation, targetRotation, rotationLerpSpeed * Time.deltaTime);
         }
 
-        // Update nameplate position
-        if (nameplateInstance != null)
+        // Update nameplate position ТОЛЬКО если nameplate активен
+        // ИСПРАВЛЕНО: Не обновляем позицию скрытого nameplate (оптимизация + логика)
+        if (nameplateInstance != null && nameplateInstance.activeSelf)
         {
             Vector3 nameplatePos = transform.position + Vector3.up * 2.5f; // Above player
             nameplateInstance.transform.position = nameplatePos;
@@ -620,6 +628,30 @@ public class NetworkPlayer : MonoBehaviour
     public GameObject GetNameplate()
     {
         return nameplateInstance;
+    }
+
+    /// <summary>
+    /// Показать никнейм (при наведении таргета)
+    /// </summary>
+    public void ShowNameplate()
+    {
+        if (nameplateInstance != null)
+        {
+            nameplateInstance.SetActive(true);
+            Debug.Log($"[NetworkPlayer] 👁️ Никнейм {username} показан (таргет)");
+        }
+    }
+
+    /// <summary>
+    /// Скрыть никнейм (при снятии таргета)
+    /// </summary>
+    public void HideNameplate()
+    {
+        if (nameplateInstance != null)
+        {
+            nameplateInstance.SetActive(false);
+            Debug.Log($"[NetworkPlayer] 👻 Никнейм {username} скрыт (таргет снят)");
+        }
     }
 
     void OnDestroy()

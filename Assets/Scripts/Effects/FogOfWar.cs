@@ -310,18 +310,14 @@ public class FogOfWar : MonoBehaviour
                 rend.enabled = visible;
             }
 
-            // ВАЖНО: Также скрываем/показываем nameplate
-            // ИСПРАВЛЕНО: Используем GetNameplate() для получения ссылки
-            GameObject nameplate = networkPlayer.GetNameplate();
-            if (nameplate != null)
-            {
-                nameplate.SetActive(visible);
-                Debug.Log($"[FogOfWar] Nameplate для {networkPlayer.username}: visible={visible}");
-            }
-            else
-            {
-                Debug.LogWarning($"[FogOfWar] Nameplate не найден для {networkPlayer.username}");
-            }
+            // ВАЖНО: Nameplate управляется ТОЛЬКО системой таргетинга!
+            // FogOfWar НЕ должен показывать/скрывать nameplate напрямую.
+            // Nameplate виден ТОЛЬКО когда враг:
+            // 1. В зоне видимости (проверка FogOfWar через IsEnemyVisible)
+            // 2. Является целью (TargetSystem показывает/скрывает через ShowNameplate/HideNameplate)
+            //
+            // Комментарий: Раньше здесь был код nameplate.SetActive(visible), но это конфликтовало
+            // с системой таргетинга. Теперь TargetSystem проверяет IsEnemyVisible перед показом nameplate.
 
             // ВАЖНО: НЕ отключаем коллайдер NetworkPlayer!
             // Иначе через них можно будет ходить

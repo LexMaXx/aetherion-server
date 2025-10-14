@@ -12,7 +12,7 @@ public class HealthSystem : MonoBehaviour
     [SerializeField] private float maxHealth = 100f;
 
     [Header("Health Regeneration")]
-    [SerializeField] private float healthRegenRate = 2f; // HP/сек когда стоит на месте
+    [SerializeField] private float healthRegenRate = 0.2f; // HP/сек когда стоит на месте (ЗАМЕДЛЕНО в 10 раз)
 
     // Интеграция с CharacterStats
     private CharacterStats characterStats;

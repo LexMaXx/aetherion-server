@@ -10,7 +10,7 @@ public class ManaSystem : MonoBehaviour
     [Header("Mana Settings")]
     [SerializeField] private float currentMana;
     [SerializeField] private float maxMana = 100f;
-    [SerializeField] private float manaRegenRate = 1f; // MP/сек
+    [SerializeField] private float manaRegenRate = 0.1f; // MP/сек (ЗАМЕДЛЕНО в 10 раз)
 
     // Интеграция с CharacterStats
     private CharacterStats characterStats;
