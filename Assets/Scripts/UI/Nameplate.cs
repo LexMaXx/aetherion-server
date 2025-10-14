@@ -24,24 +24,43 @@ public class Nameplate : MonoBehaviour
     /// </summary>
     public void Initialize(Transform target, string playerName, bool friendly)
     {
+        Debug.Log($"[Nameplate] Инициализация начата для {playerName} (friendly={friendly})");
+
         targetTransform = target;
         username = playerName;
         isFriendly = friendly;
 
-        CreateNameplateUI();
+        try
+        {
+            CreateNameplateUI();
+            Debug.Log($"[Nameplate] CreateNameplateUI() завершён для {username}");
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"[Nameplate] ОШИБКА в CreateNameplateUI(): {ex.Message}\n{ex.StackTrace}");
+            return;
+        }
+
         UpdateNameplateColor();
 
         // ВАЖНО: Никнейм врага скрыт по умолчанию (пока не таргетнут)
         if (!isFriendly && nameplateContainer != null)
         {
             nameplateContainer.SetActive(false);
+            Debug.Log($"[Nameplate] Никнейм врага {username} скрыт по умолчанию (SetActive false)");
         }
 
-        Debug.Log($"[Nameplate] ✅ Создан никнейм для {username} ({(friendly ? "Союзник" : "Враг")})");
+        Debug.Log($"[Nameplate] ✅ Создан никнейм для {username} ({(friendly ? "Союзник" : "Враг")}), enabled={enabled}");
     }
 
     void Update()
     {
+        // ДИАГНОСТИКА: Проверяем что Update вызывается
+        if (Time.frameCount % 60 == 0 && !isFriendly)
+        {
+            Debug.Log($"[Nameplate] Update() вызван для {username}, targetTransform={targetTransform != null}, nameplateContainer={nameplateContainer != null}, Camera={Camera.main != null}");
+        }
+
         // Обновляем позицию никнейма над головой игрока
         if (targetTransform != null && nameplateContainer != null && Camera.main != null)
         {
