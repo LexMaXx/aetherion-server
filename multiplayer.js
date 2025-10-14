@@ -184,31 +184,17 @@ module.exports = (io) => {
 
               console.log(`[Lobby] Room ${roomId}: ${lobby.currentTime} seconds remaining`);
 
-              // Когда осталось 3 секунды - начинаем финальный отсчёт
-              if (lobby.currentTime === 3 && !lobby.countdownStarted) {
-                lobby.countdownStarted = true;
-                console.log(`[Lobby] 🎯 Starting final countdown for room ${roomId}`);
-
-                // Финальный отсчёт 3-2-1
-                let countdownTimer = setInterval(() => {
-                  if (lobby.currentTime > 0 && lobby.currentTime <= 3) {
-                    io.to(roomId).emit('game_countdown', {
-                      roomId,
-                      count: lobby.currentTime,
-                      timestamp: Date.now()
-                    });
-                    console.log(`[Lobby] Countdown: ${lobby.currentTime}`);
-                  }
-                }, 1000);
-
-                // Останавливаем финальный отсчёт через 3 секунды
-                setTimeout(() => {
-                  clearInterval(countdownTimer);
-                }, 3000);
+              // Когда осталось 3 секунды или меньше - отправляем countdown
+              if (lobby.currentTime > 0 && lobby.currentTime <= 3) {
+                io.to(roomId).emit('game_countdown', {
+                  roomId,
+                  count: lobby.currentTime,
+                  timestamp: Date.now()
+                });
+                console.log(`[Lobby] ⏱️ Countdown: ${lobby.currentTime}`);
               }
 
               // Когда таймер закончился - начинаем игру
-              if (lobby.currentTime <= 0) {
                 clearInterval(lobby.timer);
                 lobby.gameStarted = true;
 
