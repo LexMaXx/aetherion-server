@@ -79,9 +79,6 @@ public class NetworkPlayer : MonoBehaviour
 
     void Start()
     {
-        // Создаём nameplate (он уже скрыт внутри CreateNameplate)
-        CreateNameplate();
-
         // ВАЖНО: Устанавливаем боевую стойку для NetworkPlayer (InBattle = true)
         if (animator != null)
         {
@@ -114,56 +111,9 @@ public class NetworkPlayer : MonoBehaviour
             transform.rotation = Quaternion.Lerp(transform.rotation, targetRotation, rotationLerpSpeed * Time.deltaTime);
         }
 
-        // Update nameplate position ТОЛЬКО если nameplate активен
-        // ИСПРАВЛЕНО: Не обновляем позицию скрытого nameplate (оптимизация + логика)
-        if (nameplateInstance != null && nameplateInstance.activeSelf)
-        {
-            Vector3 nameplatePos = transform.position + Vector3.up * 2.5f; // Above player
-            nameplateInstance.transform.position = nameplatePos;
-            nameplateInstance.transform.rotation = Camera.main.transform.rotation; // Billboard
-        }
     }
 
-    /// <summary>
-    /// Создать табличку с именем над головой
-    /// </summary>
-    private void CreateNameplate()
-    {
-        if (nameplatePrefab != null)
-        {
-            nameplateInstance = Instantiate(nameplatePrefab, transform.position + Vector3.up * 2.5f, Quaternion.identity);
-
-            Debug.Log($"[NetworkPlayer] 🔍 ДИАГНОСТИКА: Nameplate создан для {username}");
-            Debug.Log($"[NetworkPlayer] 🔍 Nameplate.activeSelf ДО SetActive(false) = {nameplateInstance.activeSelf}");
-            Debug.Log($"[NetworkPlayer] 🔍 Nameplate.activeInHierarchy ДО SetActive(false) = {nameplateInstance.activeInHierarchy}");
-
-            // КРИТИЧЕСКИ ВАЖНО: Скрываем СРАЗУ после создания!
-            nameplateInstance.SetActive(false);
-
-            Debug.Log($"[NetworkPlayer] 🔍 Nameplate.activeSelf ПОСЛЕ SetActive(false) = {nameplateInstance.activeSelf}");
-            Debug.Log($"[NetworkPlayer] 🔍 Nameplate.activeInHierarchy ПОСЛЕ SetActive(false) = {nameplateInstance.activeInHierarchy}");
-
-            nameplateInstance.transform.SetParent(null); // Don't parent to player
-
-            // Find UI components
-            usernameText = nameplateInstance.GetComponentInChildren<TextMeshProUGUI>();
-            healthBar = nameplateInstance.transform.Find("HealthBar")?.GetComponent<UnityEngine.UI.Image>();
-
-            if (usernameText != null)
-            {
-                usernameText.text = username;
-                Debug.Log($"[NetworkPlayer] ✅ Username text установлен: {username}");
-            }
-
-            UpdateHealthBar();
-
-            Debug.Log($"[NetworkPlayer] 👻 Nameplate для {username} создан и ДОЛЖЕН БЫТЬ СКРЫТ (activeSelf={nameplateInstance.activeSelf})");
-        }
-        else
-        {
-            Debug.LogWarning("[NetworkPlayer] Nameplate prefab не назначен!");
-        }
-    }
+    // УДАЛЕНО: Старая система nameplate - заменена на EnemyNameplate.cs
 
     /// <summary>
     /// Обновить позицию от сервера (с поддержкой velocity для Dead Reckoning)
@@ -338,16 +288,7 @@ public class NetworkPlayer : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Обновить визуализацию HP бара
-    /// </summary>
-    private void UpdateHealthBar()
-    {
-        if (healthBar != null && maxHP > 0)
-        {
-            healthBar.fillAmount = (float)currentHP / maxHP;
-        }
-    }
+    // УДАЛЕНО: UpdateHealthBar() - теперь управляется через EnemyNameplate.cs
 
     /// <summary>
     /// Обработать смерть
@@ -633,46 +574,7 @@ public class NetworkPlayer : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Получить ссылку на nameplate GameObject (для Fog of War)
-    /// </summary>
-    public GameObject GetNameplate()
-    {
-        return nameplateInstance;
-    }
-
-    /// <summary>
-    /// Показать никнейм (при наведении таргета)
-    /// </summary>
-    public void ShowNameplate()
-    {
-        if (nameplateInstance != null)
-        {
-            nameplateInstance.SetActive(true);
-            Debug.Log($"[NetworkPlayer] 👁️ Никнейм {username} показан (таргет)");
-        }
-    }
-
-    /// <summary>
-    /// Скрыть никнейм (при снятии таргета)
-    /// </summary>
-    public void HideNameplate()
-    {
-        if (nameplateInstance != null)
-        {
-            nameplateInstance.SetActive(false);
-            Debug.Log($"[NetworkPlayer] 👻 Никнейм {username} скрыт (таргет снят)");
-        }
-    }
-
-    void OnDestroy()
-    {
-        // Clean up nameplate
-        if (nameplateInstance != null)
-        {
-            Destroy(nameplateInstance);
-        }
-    }
+    // УДАЛЕНО: GetNameplate(), ShowNameplate(), HideNameplate(), OnDestroy() - заменено на EnemyNameplate.cs
 
     // Public getters
     public int CurrentHP => currentHP;
