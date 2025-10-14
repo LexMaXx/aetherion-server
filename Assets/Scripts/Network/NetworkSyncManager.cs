@@ -115,6 +115,7 @@ public class NetworkSyncManager : MonoBehaviour
         SocketIOManager.Instance.On("player_moved", OnPlayerMoved);
         SocketIOManager.Instance.On("player_animation_changed", OnAnimationChanged); // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: теперь совпадает с сервером!
         SocketIOManager.Instance.On("player_attacked", OnPlayerAttacked);
+        SocketIOManager.Instance.On("player_skill_used", OnPlayerSkillUsed); // НОВОЕ: Синхронизация скиллов
         SocketIOManager.Instance.On("player_health_changed", OnHealthChanged);
         SocketIOManager.Instance.On("player_died", OnPlayerDied);
         SocketIOManager.Instance.On("player_respawned", OnPlayerRespawned);
@@ -546,6 +547,89 @@ public class NetworkSyncManager : MonoBehaviour
         catch (Exception ex)
         {
             Debug.LogError($"[NetworkSync] ❌ Ошибка в OnPlayerAttacked: {ex.Message}\nJSON: {jsonData}");
+        }
+    }
+
+    /// <summary>
+    /// Обработать использование скилла игроком
+    /// </summary>
+    private void OnPlayerSkillUsed(string jsonData)
+    {
+        Debug.Log($"[NetworkSync] ⚡ RAW player_skill_used JSON: {jsonData}");
+
+        try
+        {
+            var data = JsonUtility.FromJson<PlayerSkillUsedEvent>(jsonData);
+            Debug.Log($"[NetworkSync] ⚡ Скилл получен: socketId={data.socketId}, skillId={data.skillId}");
+
+            // Skip if it's our own skill (we already executed it locally)
+            if (data.socketId == localPlayerSocketId)
+            {
+                Debug.Log($"[NetworkSync] ⏭️ Это наш собственный скилл, пропускаем");
+                return;
+            }
+
+            // Find the network player who used the skill
+            if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer player))
+            {
+                Debug.Log($"[NetworkSync] ⚡ Применяем скилл {data.skillId} для {player.username}");
+
+                // Get the skill from SkillDatabase
+                SkillDatabase db = SkillDatabase.Instance;
+                if (db != null)
+                {
+                    SkillData skill = db.GetSkillById(data.skillId);
+                    if (skill != null)
+                    {
+                        // Apply skill to network player via SkillManager
+                        SkillManager skillManager = player.GetComponent<SkillManager>();
+                        if (skillManager == null)
+                        {
+                            // Add SkillManager if not present
+                            skillManager = player.gameObject.AddComponent<SkillManager>();
+                            Debug.Log($"[NetworkSync] SkillManager добавлен к {player.username}");
+                        }
+
+                        if (skillManager != null)
+                        {
+                            // Get target if needed
+                            Transform target = null;
+                            if (!string.IsNullOrEmpty(data.targetSocketId))
+                            {
+                                if (networkPlayers.TryGetValue(data.targetSocketId, out NetworkPlayer targetPlayer))
+                                {
+                                    target = targetPlayer.transform;
+                                }
+                                else if (data.targetSocketId == localPlayerSocketId && localPlayer != null)
+                                {
+                                    // Target is local player
+                                    target = localPlayer.transform;
+                                }
+                            }
+
+                            // Execute skill on network player
+                            skillManager.UseSkill(skill, target);
+                            Debug.Log($"[NetworkSync] ✅ Скилл {skill.skillName} применён к {player.username}");
+                        }
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[NetworkSync] ⚠️ Скилл с ID {data.skillId} не найден в SkillDatabase");
+                    }
+                }
+                else
+                {
+                    Debug.LogError($"[NetworkSync] ❌ SkillDatabase.Instance == null!");
+                }
+            }
+            else
+            {
+                Debug.LogWarning($"[NetworkSync] ⚠️ Network player {data.socketId} не найден для применения скилла");
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[NetworkSync] ❌ Ошибка в OnPlayerSkillUsed: {ex.Message}\nJSON: {jsonData}");
         }
     }
 
@@ -1183,6 +1267,21 @@ public class PlayerAttackedEvent
     public Vector3Data position;
     public Vector3Data direction;
     public int skillId;
+    public long timestamp;
+}
+
+/// <summary>
+/// Player skill used event
+/// </summary>
+[Serializable]
+public class PlayerSkillUsedEvent
+{
+    public string socketId;
+    public string username;
+    public string characterClass;
+    public int skillId;
+    public string targetSocketId;
+    public Vector3Data targetPosition;
     public long timestamp;
 }
 
