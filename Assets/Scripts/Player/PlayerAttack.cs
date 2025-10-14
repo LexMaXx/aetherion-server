@@ -719,7 +719,8 @@ public class PlayerAttack : MonoBehaviour
         Projectile projectile = projectileObj.GetComponent<Projectile>();
         if (projectile != null)
         {
-            projectile.Initialize(target.transform, damage, direction);
+            // ВАЖНО: Передаём this.gameObject как owner чтобы снаряд не попадал в своего владельца
+            projectile.Initialize(target.transform, damage, direction, this.gameObject);
             Debug.Log($"[PlayerAttack] ✅ Снаряд создан: {projectilePrefab.name} → {target.GetEnemyName()} (Урон: {damage:F0})");
         }
         else

@@ -79,18 +79,8 @@ public class Nameplate : MonoBehaviour
         RectTransform containerRect = nameplateContainer.AddComponent<RectTransform>();
         containerRect.sizeDelta = new Vector2(200, 30);
 
-        // Фон для никнейма (полупрозрачный)
-        GameObject bgObj = new GameObject("Background");
-        bgObj.transform.SetParent(nameplateContainer.transform, false);
-
-        RectTransform bgRect = bgObj.AddComponent<RectTransform>();
-        bgRect.anchorMin = Vector2.zero;
-        bgRect.anchorMax = Vector2.one;
-        bgRect.offsetMin = new Vector2(-10, -5);
-        bgRect.offsetMax = new Vector2(10, 5);
-
-        Image bgImage = bgObj.AddComponent<Image>();
-        bgImage.color = new Color(0, 0, 0, 0.6f);
+        // Фон УБРАН - никнейм без фона (только текст с outline)
+        // Background удалён по запросу пользователя
 
         // Текст никнейма
         GameObject textObj = new GameObject("Username");

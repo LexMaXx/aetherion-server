@@ -496,7 +496,8 @@ public class NetworkPlayer : MonoBehaviour
         {
             // Для NetworkPlayer снаряд чисто визуальный (урон обрабатывает сервер)
             // Цель = null, урон = 0, просто летит вперёд
-            projectile.Initialize(null, 0f, direction);
+            // owner = this.gameObject чтобы снаряд не попадал в своего владельца
+            projectile.Initialize(null, 0f, direction, this.gameObject);
             Debug.Log($"[NetworkPlayer] ✅ Снаряд создан: {projectileName} для {username}");
         }
     }
@@ -566,8 +567,8 @@ public class NetworkPlayer : MonoBehaviour
         // ЭФФЕКТ 1: Мигание красным
         StartCoroutine(FlashRed());
 
-        // ЭФФЕКТ 2: Эффект попадания (взрыв/искры)
-        SpawnHitEffect();
+        // ЭФФЕКТ 2: ОТКЛЮЧЁН - вызывал лаги из-за большого количества частиц
+        // SpawnHitEffect();
 
         // TODO: Всплывающие цифры урона (DamagePopup)
     }

@@ -33,6 +33,7 @@ public class FogOfWar : MonoBehaviour
     private Transform player;
     private List<Enemy> allEnemies = new List<Enemy>();
     private List<BuildingRenderer> allBuildings = new List<BuildingRenderer>();
+    private List<Projectile> activeProjectiles = new List<Projectile>(); // Активные снаряды для скрытия
     private float updateTimer = 0f;
 
     // CharacterStats integration (Perception влияет на радиус)
@@ -171,6 +172,9 @@ public class FogOfWar : MonoBehaviour
             {
                 UpdateBuildingDarkening();
             }
+
+            // Обновляем видимость снарядов
+            UpdateProjectileVisibility();
         }
 
         // Синхронизируем настройки с canvas (только если изменились)
@@ -670,6 +674,42 @@ public class FogOfWar : MonoBehaviour
         }
 
         rend.materials = materials;
+    }
+
+    /// <summary>
+    /// Обновить видимость снарядов (скрывать снаряды за пределами FoW)
+    /// </summary>
+    private void UpdateProjectileVisibility()
+    {
+        // Находим все активные снаряды
+        activeProjectiles.Clear();
+        Projectile[] projectiles = FindObjectsByType<Projectile>(FindObjectsSortMode.None);
+        activeProjectiles.AddRange(projectiles);
+
+        foreach (Projectile projectile in activeProjectiles)
+        {
+            if (projectile == null) continue;
+
+            // Проверяем расстояние снаряда до игрока
+            float distance = Vector3.Distance(player.position, projectile.transform.position);
+
+            // Снаряд виден только если он в радиусе видимости
+            bool shouldBeVisible = distance <= visibilityRadius;
+
+            // Скрываем/показываем снаряд
+            Renderer[] renderers = projectile.GetComponentsInChildren<Renderer>();
+            foreach (Renderer rend in renderers)
+            {
+                rend.enabled = shouldBeVisible;
+            }
+
+            // Также скрываем TrailRenderer если есть
+            TrailRenderer trail = projectile.GetComponent<TrailRenderer>();
+            if (trail != null)
+            {
+                trail.enabled = shouldBeVisible;
+            }
+        }
     }
 
     /// <summary>

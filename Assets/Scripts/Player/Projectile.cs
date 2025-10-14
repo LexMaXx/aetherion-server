@@ -21,16 +21,18 @@ public class Projectile : MonoBehaviour
     private Vector3 direction; // Направление полета
     private float spawnTime; // Время создания
     private Transform visualTransform; // Трансформ визуальной части (для вращения)
+    private GameObject owner; // Владелец снаряда (кто его выпустил) - для игнорирования коллизий
 
     /// <summary>
     /// Инициализация снаряда
     /// </summary>
-    public void Initialize(Transform targetTransform, float projectileDamage, Vector3 initialDirection)
+    public void Initialize(Transform targetTransform, float projectileDamage, Vector3 initialDirection, GameObject projectileOwner = null)
     {
         target = targetTransform;
         damage = projectileDamage;
         direction = initialDirection.normalized;
         spawnTime = Time.time;
+        owner = projectileOwner;
 
         // Ищем дочерний объект для вращения (если есть)
         if (transform.childCount > 0)
@@ -126,34 +128,56 @@ public class Projectile : MonoBehaviour
     /// </summary>
     private void OnTriggerEnter(Collider other)
     {
-        // Попадание во врага
-        if (other.CompareTag("Enemy"))
+        // Игнорируем владельца снаряда (не попадаем в себя)
+        if (owner != null && other.gameObject == owner)
         {
-            Enemy enemy = other.GetComponent<Enemy>();
-            if (enemy != null && enemy.IsAlive())
+            return;
+        }
+
+        // Игнорируем коллизии с землёй и другими не-целевыми объектами
+        if (other.CompareTag("Ground") || other.CompareTag("Terrain"))
+        {
+            return;
+        }
+
+        // Попадание во врага (Enemy tag) или NetworkPlayer
+        NetworkPlayer networkTarget = other.GetComponent<NetworkPlayer>();
+        Enemy enemy = other.GetComponent<Enemy>();
+
+        if (networkTarget != null || enemy != null)
+        {
+            // Проверяем живой ли враг
+            bool isAlive = true;
+            if (enemy != null)
             {
-                // ВАЖНО: В мультиплеере НЕ наносим урон NetworkPlayer локально!
-                NetworkPlayer networkTarget = other.GetComponent<NetworkPlayer>();
-                if (networkTarget == null)
+                isAlive = enemy.IsAlive();
+            }
+            else if (networkTarget != null)
+            {
+                isAlive = networkTarget.IsAlive;
+            }
+
+            if (isAlive)
+            {
+                // Наносим урон только NPC врагам (NetworkPlayer получает урон через сервер)
+                if (networkTarget == null && enemy != null)
                 {
-                    // Это обычный NPC враг - наносим урон локально
                     enemy.TakeDamage(damage);
-                    Debug.Log($"[Projectile] Collision попадание в NPC! Урон: {damage}");
+                    Debug.Log($"[Projectile] Попадание в NPC! Урон: {damage}");
                 }
-                else
+                else if (networkTarget != null)
                 {
-                    // Это NetworkPlayer - урон уже отправлен на сервер через PlayerAttack
-                    Debug.Log($"[Projectile] Collision попадание в NetworkPlayer {networkTarget.username}! Урон применит сервер");
+                    Debug.Log($"[Projectile] Попадание в NetworkPlayer {networkTarget.username}! Урон применит сервер");
                 }
-            }
 
-            // Эффект попадания
-            if (hitEffect != null)
-            {
-                Instantiate(hitEffect, transform.position, Quaternion.identity);
-            }
+                // Эффект попадания
+                if (hitEffect != null)
+                {
+                    Instantiate(hitEffect, transform.position, Quaternion.identity);
+                }
 
-            DestroySelf();
+                DestroySelf();
+            }
         }
     }
 
