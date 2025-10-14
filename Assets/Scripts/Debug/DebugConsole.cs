@@ -164,12 +164,8 @@ public class DebugConsole : MonoBehaviour
         isVisible = visible;
         Debug.Log($"[DebugConsole] SetVisibility called: {visible}, consolePanel = {(consolePanel != null ? "exists" : "NULL")}");
 
-        // Отключаем весь Canvas когда консоль закрыта, чтобы не блокировать UI
-        if (consoleCanvas != null)
-        {
-            consoleCanvas.enabled = visible;
-            Debug.Log($"[DebugConsole] Canvas.enabled = {visible}");
-        }
+        // ИСПРАВЛЕНО: НЕ отключаем Canvas! Только скрываем панель.
+        // Canvas должен быть всегда включен, иначе он блокирует другие UI элементы
 
         if (consolePanel != null)
         {
@@ -255,8 +251,8 @@ public class DebugConsole : MonoBehaviour
         canvasObj.transform.SetParent(transform);
         consoleCanvas = canvasObj.AddComponent<Canvas>();
         consoleCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        consoleCanvas.sortingOrder = 1000; // High, but not blocking everything
-        consoleCanvas.enabled = false; // Start disabled to not block UI
+        consoleCanvas.sortingOrder = 500; // ИСПРАВЛЕНО: Ниже чем было (было 1000), но все еще поверх игрового UI
+        // НЕ отключаем Canvas.enabled - вместо этого скрываем только панель!
 
         CanvasScaler scaler = canvasObj.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;

@@ -29,6 +29,12 @@ public class ActionPointsUI : MonoBehaviour
         apSystem = system;
         maxPoints = apSystem.GetMaxPoints();
 
+        // Создаем контейнер если его нет
+        if (pointsContainer == null)
+        {
+            CreateContainer();
+        }
+
         // Подписываемся на события изменения очков
         apSystem.OnActionPointsChanged += UpdateUI;
 
@@ -36,6 +42,42 @@ public class ActionPointsUI : MonoBehaviour
         CreateActionPointVisuals();
 
         Debug.Log($"[ActionPointsUI] UI инициализирован для {maxPoints} очков");
+    }
+
+    /// <summary>
+    /// Создать контейнер для шариков если его нет
+    /// </summary>
+    private void CreateContainer()
+    {
+        // Находим или создаём Canvas
+        Canvas canvas = FindFirstObjectByType<Canvas>();
+        if (canvas == null)
+        {
+            GameObject canvasObj = new GameObject("ActionPoints_Canvas");
+            canvas = canvasObj.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = 100; // Как у PlayerHUD
+
+            CanvasScaler scaler = canvasObj.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920, 1080);
+
+            canvasObj.AddComponent<GraphicRaycaster>();
+        }
+
+        // Создаем контейнер внизу по центру
+        GameObject containerObj = new GameObject("ActionPoints_Container");
+        containerObj.transform.SetParent(canvas.transform, false);
+        pointsContainer = containerObj.transform;
+
+        RectTransform containerRect = containerObj.AddComponent<RectTransform>();
+        containerRect.anchorMin = new Vector2(0.5f, 0);
+        containerRect.anchorMax = new Vector2(0.5f, 0);
+        containerRect.pivot = new Vector2(0.5f, 0);
+        containerRect.anchoredPosition = new Vector2(0, 50); // 50px от низа
+        containerRect.sizeDelta = new Vector2(500, 50);
+
+        Debug.Log("[ActionPointsUI] ✅ Контейнер создан программно");
     }
 
     /// <summary>
