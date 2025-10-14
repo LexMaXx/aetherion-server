@@ -103,15 +103,34 @@ public class SkillBarUI : MonoBehaviour
     /// </summary>
     private void LoadTestSkills()
     {
-        Debug.Log("[SkillBarUI] Загружаю тестовые скиллы для Warrior...");
+        // Получаем класс локального игрока
+        PlayerController player = FindObjectOfType<PlayerController>();
+        CharacterClass playerClass = CharacterClass.Warrior; // По умолчанию
 
-        // Получаем первые 3 скилла воина
-        List<SkillData> warriorSkills = skillDatabase.GetSkillsForClass(CharacterClass.Warrior);
-
-        for (int i = 0; i < skillSlots.Length && i < warriorSkills.Count; i++)
+        if (player != null)
         {
-            skillSlots[i].SetSkill(warriorSkills[i]);
-            Debug.Log($"[SkillBarUI] Тестовый слот {i + 1}: {warriorSkills[i].skillName}");
+            CharacterStats stats = player.GetComponent<CharacterStats>();
+            if (stats != null)
+            {
+                playerClass = stats.characterClass;
+            }
+        }
+
+        Debug.Log($"[SkillBarUI] 🧪 Загружаю тестовые скиллы для {playerClass}...");
+
+        // Получаем первые 3 скилла класса игрока
+        List<SkillData> classSkills = skillDatabase.GetSkillsForClass(playerClass);
+
+        if (classSkills == null || classSkills.Count == 0)
+        {
+            Debug.LogError($"[SkillBarUI] ❌ Нет скиллов для класса {playerClass}!");
+            return;
+        }
+
+        for (int i = 0; i < skillSlots.Length && i < classSkills.Count; i++)
+        {
+            skillSlots[i].SetSkill(classSkills[i]);
+            Debug.Log($"[SkillBarUI] ✅ Тестовый слот {i + 1}: {classSkills[i].skillName} (ID: {classSkills[i].skillId})");
         }
     }
 

@@ -100,7 +100,15 @@ public class SkillManager : MonoBehaviour
     /// </summary>
     public bool UseSkill(SkillData skill, Transform target = null)
     {
-        if (skill == null) return false;
+        Debug.Log($"[SkillManager] 🔍 UseSkill вызван: skill={skill?.skillName ?? "NULL"}");
+
+        if (skill == null)
+        {
+            Debug.LogError("[SkillManager] ❌ Skill is NULL!");
+            return false;
+        }
+
+        Debug.Log($"[SkillManager] 🔍 Скилл: {skill.skillName}, Тип: {skill.skillType}, Мана: {skill.manaCost}");
 
         // Проверка контроля (стан, молчание и т.д.)
         if (IsUnderCrowdControl())
@@ -111,8 +119,14 @@ public class SkillManager : MonoBehaviour
 
         // Проверка возможности использования
         float currentCooldown = GetCooldown(skill.skillId);
+        Debug.Log($"[SkillManager] 🔍 Кулдаун скилла {skill.skillId}: {currentCooldown:F1}с");
+
         if (!skill.CanUse(characterStats, manaSystem, currentCooldown))
         {
+            if (manaSystem != null)
+            {
+                Debug.Log($"[SkillManager] 🔍 Текущая мана: {manaSystem.CurrentMana}/{manaSystem.MaxMana}, Требуется: {skill.manaCost}");
+            }
             Debug.Log($"[SkillManager] ❌ Скилл {skill.skillName} недоступен (кулдаун: {currentCooldown:F1}с)");
             return false;
         }
@@ -345,42 +359,62 @@ public class SkillManager : MonoBehaviour
     /// </summary>
     private void ExecuteTransformationSkill(SkillData skill)
     {
+        Debug.Log($"[SkillManager] 🔍 ExecuteTransformationSkill вызван для {skill.skillName}");
+        Debug.Log($"[SkillManager] 🔍 transformationModel = {(skill.transformationModel != null ? skill.transformationModel.name : "NULL")}");
+
         if (skill.transformationModel == null)
         {
-            Debug.LogWarning("[SkillManager] Нет модели для трансформации!");
+            Debug.LogError("[SkillManager] ❌ НЕТ МОДЕЛИ ДЛЯ ТРАНСФОРМАЦИИ! Проверь Paladin_BearForm.asset в инспекторе!");
             return;
         }
 
         if (isTransformed)
         {
-            Debug.Log("[SkillManager] Уже трансформирован!");
+            Debug.Log("[SkillManager] ⚠️ Уже трансформирован!");
             return;
         }
+
+        Debug.Log("[SkillManager] 🔍 Ищу SkinnedMeshRenderer для скрытия оригинальной модели...");
 
         // Скрываем оригинальную модель
         originalModel = GetComponentInChildren<SkinnedMeshRenderer>()?.gameObject;
         if (originalModel != null)
         {
             originalModel.SetActive(false);
+            Debug.Log($"[SkillManager] ✅ Оригинальная модель скрыта: {originalModel.name}");
         }
+        else
+        {
+            Debug.LogWarning("[SkillManager] ⚠️ SkinnedMeshRenderer не найден - оригинальная модель не скрыта");
+        }
+
+        Debug.Log($"[SkillManager] 🔍 Создаю трансформацию на позиции {transform.position}...");
 
         // Создаём модель трансформации
         transformationInstance = Instantiate(skill.transformationModel, transform.position, transform.rotation, transform);
         isTransformed = true;
+
+        Debug.Log($"[SkillManager] ✅ Трансформация создана: {transformationInstance.name}");
 
         // Применяем бонусы
         if (healthSystem != null && skill.hpBonusPercent > 0f)
         {
             transformationHPBonus = healthSystem.MaxHealth * (skill.hpBonusPercent / 100f);
             healthSystem.AddTemporaryMaxHealth(transformationHPBonus);
+            Debug.Log($"[SkillManager] ✅ Бонус HP: +{transformationHPBonus:F0} ({skill.hpBonusPercent}%)");
+        }
+        else
+        {
+            Debug.LogWarning($"[SkillManager] ⚠️ HealthSystem={healthSystem != null}, HPBonus={skill.hpBonusPercent}%");
         }
 
         // TODO: Бонус к атаке (сохраняем в переменную для PlayerAttack)
+        Debug.Log($"[SkillManager] 🔍 Бонус физ. урона: {skill.physicalDamageBonusPercent}%");
 
         // Автоматически отключаем через время
         Invoke(nameof(EndTransformation), skill.transformationDuration);
 
-        Debug.Log($"[SkillManager] 🐻 Трансформация активирована на {skill.transformationDuration}с!");
+        Debug.Log($"[SkillManager] 🐻 ✅ ТРАНСФОРМАЦИЯ АКТИВИРОВАНА на {skill.transformationDuration}с!");
     }
 
     /// <summary>
