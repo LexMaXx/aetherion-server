@@ -313,7 +313,7 @@ public class SkillBarUI : MonoBehaviour
         if (skill.impactSound != null)
         {
             float delay = skill.projectilePrefab != null ? 0.5f : 0f;
-            StartCoroutine(PlayImpactSoundDelayed(skill.impactSound, target.transform.position, delay));
+            StartCoroutine(PlayImpactSoundDelayed(skill.impactSound, target2.transform.position, delay));
         }
     }
 
