@@ -24,6 +24,7 @@ public class ActionPointsSystem : MonoBehaviour
     private MixamoPlayerController playerController;
     private ActionPointsUI actionPointsUI;
     private CharacterStats characterStats; // Интеграция с SPECIAL (Agility)
+    private Animator animator; // Для проверки состояния анимации
 
     // Событие изменения очков (для UI)
     public delegate void ActionPointsChangedHandler(int current, int max);
@@ -52,6 +53,13 @@ public class ActionPointsSystem : MonoBehaviour
         if (playerController == null)
         {
             Debug.LogWarning("[ActionPoints] MixamoPlayerController не найден!");
+        }
+
+        // Получаем Animator для проверки анимаций
+        animator = GetComponent<Animator>();
+        if (animator == null)
+        {
+            Debug.LogWarning("[ActionPoints] Animator не найден!");
         }
 
         // Находим UI
@@ -106,7 +114,7 @@ public class ActionPointsSystem : MonoBehaviour
             {
                 isRegenerating = true;
                 regenerationTimer = 0f;
-                Debug.Log("[ActionPoints] 🔄 Начало восстановления AP (персонаж стоит)");
+                Debug.Log("[ActionPoints] 🔄 Начало восстановления AP (персонаж стоит на месте - не двигается и не атакует)");
             }
 
             regenerationTimer += Time.deltaTime;
@@ -122,7 +130,7 @@ public class ActionPointsSystem : MonoBehaviour
             // Обновляем UI только если изменилось целое число очков
             if (currentActionPoints != oldPoints)
             {
-                Debug.Log($"[ActionPoints] ⬆️ Восстановлено: {currentActionPoints}/{maxActionPoints} AP (float: {currentActionPointsFloat:F2})");
+                Debug.Log($"[ActionPoints] ⬆️ Восстановлено: {currentActionPoints}/{maxActionPoints} AP (float: {currentActionPointsFloat:F2}, timer: {regenerationTimer:F1}s)");
                 OnActionPointsChanged?.Invoke(currentActionPoints, maxActionPoints);
             }
 
@@ -132,38 +140,78 @@ public class ActionPointsSystem : MonoBehaviour
                 currentActionPoints = maxActionPoints;
                 currentActionPointsFloat = maxActionPoints;
                 isRegenerating = false;
-                Debug.Log("[ActionPoints] ✅ AP полностью восстановлены!");
+                Debug.Log($"[ActionPoints] ✅ AP полностью восстановлены за {regenerationTimer:F1} секунд!");
             }
         }
         else if (!isStanding && isRegenerating)
         {
-            // Персонаж начал бегать - останавливаем восстановление
+            // Персонаж начал двигаться/атаковать - останавливаем восстановление
             isRegenerating = false;
-            Debug.Log("[ActionPoints] ⏸️ Восстановление остановлено (персонаж бегает)");
+            Debug.Log("[ActionPoints] ⏸️ Восстановление остановлено (персонаж двигается или атакует)");
         }
     }
 
     /// <summary>
-    /// Проверяет, стоит ли персонаж на месте
+    /// Проверяет, стоит ли персонаж на месте (НЕ бегает, НЕ ходит, НЕ атакует)
     /// </summary>
     private bool IsPlayerStanding()
     {
-        if (playerController == null)
-            return true; // Если нет контроллера, считаем что стоит
-
-        // ПРОВЕРКА ВВОДА: Самый надёжный метод
-        // Если игрок не нажимает клавиши движения - он стоит
+        // ПРОВЕРКА 1: Проверяем ввод клавиш движения
         float horizontal = Input.GetAxis("Horizontal");
         float vertical = Input.GetAxis("Vertical");
         bool hasMovementInput = Mathf.Abs(horizontal) > 0.01f || Mathf.Abs(vertical) > 0.01f;
 
-        // Если есть ввод - персонаж бежит
         if (hasMovementInput)
         {
-            return false;
+            return false; // Игрок нажимает клавиши движения
         }
 
-        // Нет ввода - персонаж стоит
+        // ПРОВЕРКА 2: Проверяем состояние аниматора
+        if (animator != null)
+        {
+            // Проверяем параметр isMoving (используется в MixamoPlayerController)
+            bool isMoving = animator.GetBool("isMoving");
+            if (isMoving)
+            {
+                return false; // Персонаж двигается
+            }
+
+            // Проверяем параметр moveY (скорость движения)
+            float moveY = animator.GetFloat("moveY");
+            if (Mathf.Abs(moveY) > 0.01f)
+            {
+                return false; // Персонаж движется
+            }
+
+            // КРИТИЧЕСКОЕ: Проверяем, проигрывается ли анимация атаки
+            AnimatorStateInfo stateInfo = animator.GetCurrentAnimatorStateInfo(0);
+            bool isAttacking = stateInfo.IsTag("Attack") ||
+                              stateInfo.IsName("Attack") ||
+                              stateInfo.IsName("attack") ||
+                              stateInfo.normalizedTime < 1.0f && (
+                                  stateInfo.IsName("Sword And Shield Slash") ||
+                                  stateInfo.IsName("Standing Melee Attack Horizontal") ||
+                                  stateInfo.IsName("Unarmed Melee Attack")
+                              );
+
+            if (isAttacking)
+            {
+                return false; // Персонаж атакует
+            }
+        }
+
+        // ПРОВЕРКА 3: Проверяем скорость через CharacterController
+        if (playerController != null)
+        {
+            // MixamoPlayerController использует CharacterController
+            CharacterController charController = GetComponent<CharacterController>();
+            if (charController != null && charController.velocity.magnitude > 0.1f)
+            {
+                return false; // Персонаж физически движется
+            }
+        }
+
+        // ВСЕ ПРОВЕРКИ ПРОЙДЕНЫ: персонаж стоит на месте
         return true;
     }
 
