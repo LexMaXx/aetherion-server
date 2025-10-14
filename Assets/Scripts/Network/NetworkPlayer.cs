@@ -137,8 +137,15 @@ public class NetworkPlayer : MonoBehaviour
         {
             nameplateInstance = Instantiate(nameplatePrefab, transform.position + Vector3.up * 2.5f, Quaternion.identity);
 
+            Debug.Log($"[NetworkPlayer] 🔍 ДИАГНОСТИКА: Nameplate создан для {username}");
+            Debug.Log($"[NetworkPlayer] 🔍 Nameplate.activeSelf ДО SetActive(false) = {nameplateInstance.activeSelf}");
+            Debug.Log($"[NetworkPlayer] 🔍 Nameplate.activeInHierarchy ДО SetActive(false) = {nameplateInstance.activeInHierarchy}");
+
             // КРИТИЧЕСКИ ВАЖНО: Скрываем СРАЗУ после создания!
             nameplateInstance.SetActive(false);
+
+            Debug.Log($"[NetworkPlayer] 🔍 Nameplate.activeSelf ПОСЛЕ SetActive(false) = {nameplateInstance.activeSelf}");
+            Debug.Log($"[NetworkPlayer] 🔍 Nameplate.activeInHierarchy ПОСЛЕ SetActive(false) = {nameplateInstance.activeInHierarchy}");
 
             nameplateInstance.transform.SetParent(null); // Don't parent to player
 
@@ -149,11 +156,12 @@ public class NetworkPlayer : MonoBehaviour
             if (usernameText != null)
             {
                 usernameText.text = username;
+                Debug.Log($"[NetworkPlayer] ✅ Username text установлен: {username}");
             }
 
             UpdateHealthBar();
 
-            Debug.Log($"[NetworkPlayer] 👻 Nameplate для {username} создан и СКРЫТ");
+            Debug.Log($"[NetworkPlayer] 👻 Nameplate для {username} создан и ДОЛЖЕН БЫТЬ СКРЫТ (activeSelf={nameplateInstance.activeSelf})");
         }
         else
         {
@@ -609,16 +617,23 @@ public class NetworkPlayer : MonoBehaviour
 
     /// <summary>
     /// Мигание красным при получении урона
+    /// ИСПРАВЛЕНО: Сохраняем ссылку на material instance чтобы избежать утечки памяти
     /// </summary>
     private System.Collections.IEnumerator FlashRed()
     {
         var renderer = GetComponentInChildren<SkinnedMeshRenderer>();
         if (renderer != null)
         {
-            Color originalColor = renderer.material.color;
-            renderer.material.color = Color.red;
+            // ВАЖНО: Сохраняем ссылку на material instance (не создаём новый каждый раз)
+            Material materialInstance = renderer.material; // Создаётся один раз
+            Color originalColor = materialInstance.color;
+
+            // Красим в красный
+            materialInstance.color = Color.red;
             yield return new WaitForSeconds(0.1f);
-            renderer.material.color = originalColor;
+
+            // Возвращаем оригинальный цвет
+            materialInstance.color = originalColor;
         }
     }
 
