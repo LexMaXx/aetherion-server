@@ -112,7 +112,17 @@ public class SkillBarUI : MonoBehaviour
             CharacterStats stats = player.GetComponent<CharacterStats>();
             if (stats != null)
             {
-                playerClass = stats.characterClass;
+                // Парсим className (string) в CharacterClass (enum)
+                string className = stats.ClassName;
+                if (System.Enum.TryParse(className, out CharacterClass parsedClass))
+                {
+                    playerClass = parsedClass;
+                    Debug.Log($"[SkillBarUI] 🔍 Определён класс игрока: {className} → {playerClass}");
+                }
+                else
+                {
+                    Debug.LogWarning($"[SkillBarUI] ⚠️ Не удалось распарсить класс '{className}', используется Warrior");
+                }
             }
         }
 
