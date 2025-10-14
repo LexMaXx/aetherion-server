@@ -56,10 +56,17 @@ public class Nameplate : MonoBehaviour
             // Для союзников показываем всегда (когда видим)
             bool shouldShow = isVisible && !isBehindCamera && (isFriendly || isTargeted);
 
+            // ДИАГНОСТИКА: Логируем состояние каждую секунду для врагов
+            if (!isFriendly && Time.frameCount % 60 == 0)
+            {
+                Debug.Log($"[Nameplate] {username}: isVisible={isVisible}, isBehindCamera={isBehindCamera}, isTargeted={isTargeted}, shouldShow={shouldShow}, active={nameplateContainer.activeSelf}");
+            }
+
             if (shouldShow)
             {
                 if (!nameplateContainer.activeSelf)
                 {
+                    Debug.Log($"[Nameplate] Показываем никнейм для {username}");
                     nameplateContainer.SetActive(true);
                 }
                 nameplateContainer.transform.position = screenPosition;
@@ -68,6 +75,7 @@ public class Nameplate : MonoBehaviour
             {
                 if (nameplateContainer.activeSelf)
                 {
+                    Debug.Log($"[Nameplate] Скрываем никнейм для {username}: isVisible={isVisible}, isTargeted={isTargeted}");
                     nameplateContainer.SetActive(false);
                 }
             }
