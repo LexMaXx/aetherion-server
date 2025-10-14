@@ -567,8 +567,8 @@ public class NetworkPlayer : MonoBehaviour
         // ЭФФЕКТ 1: Мигание красным
         StartCoroutine(FlashRed());
 
-        // ЭФФЕКТ 2: ОТКЛЮЧЁН - вызывал лаги из-за большого количества частиц
-        // SpawnHitEffect();
+        // ЭФФЕКТ 2: Hit effect (включён обратно с оптимизацией - не зацикленный)
+        SpawnHitEffect();
 
         // TODO: Всплывающие цифры урона (DamagePopup)
     }
@@ -612,6 +612,14 @@ public class NetworkPlayer : MonoBehaviour
             yield return new WaitForSeconds(0.1f);
             renderer.material.color = originalColor;
         }
+    }
+
+    /// <summary>
+    /// Получить ссылку на nameplate GameObject (для Fog of War)
+    /// </summary>
+    public GameObject GetNameplate()
+    {
+        return nameplateInstance;
     }
 
     void OnDestroy()

@@ -311,10 +311,16 @@ public class FogOfWar : MonoBehaviour
             }
 
             // ВАЖНО: Также скрываем/показываем nameplate
-            var nameplate = networkPlayer.GetComponentInChildren<Canvas>();
+            // ИСПРАВЛЕНО: Используем GetNameplate() для получения ссылки
+            GameObject nameplate = networkPlayer.GetNameplate();
             if (nameplate != null)
             {
-                nameplate.gameObject.SetActive(visible);
+                nameplate.SetActive(visible);
+                Debug.Log($"[FogOfWar] Nameplate для {networkPlayer.username}: visible={visible}");
+            }
+            else
+            {
+                Debug.LogWarning($"[FogOfWar] Nameplate не найден для {networkPlayer.username}");
             }
 
             // ВАЖНО: НЕ отключаем коллайдер NetworkPlayer!
@@ -708,6 +714,13 @@ public class FogOfWar : MonoBehaviour
             if (trail != null)
             {
                 trail.enabled = shouldBeVisible;
+            }
+
+            // КРИТИЧЕСКИ ВАЖНО: Скрываем СВЕТ от снаряда (свет виден за пределами FoW!)
+            Light[] lights = projectile.GetComponentsInChildren<Light>();
+            foreach (Light light in lights)
+            {
+                light.enabled = shouldBeVisible;
             }
         }
     }

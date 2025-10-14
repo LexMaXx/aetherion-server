@@ -19,6 +19,9 @@ public class NetworkCombatSync : MonoBehaviour
     private float lastHealthSync = 0f;
     private float healthSyncInterval = 0.5f; // Раз в 0.5 секунды
 
+    // Отслеживание предыдущего HP для определения урона/регенерации
+    private float previousHP = 0f;
+
     void Start()
     {
         // Проверяем мультиплеер режим
@@ -45,6 +48,12 @@ public class NetworkCombatSync : MonoBehaviour
         if (manaSystem != null)
         {
             manaSystem.OnManaChanged += OnManaChanged;
+        }
+
+        // Сохраняем начальное HP
+        if (healthSystem != null)
+        {
+            previousHP = healthSystem.CurrentHealth;
         }
 
         Debug.Log("[NetworkCombatSync] ✅ Боевая синхронизация активирована");
@@ -167,12 +176,16 @@ public class NetworkCombatSync : MonoBehaviour
         // Определяем кто атаковал (пока не знаем, отправим пустую строку)
         string lastAttackerId = "";
 
-        // Если HP изменилось - отправляем информацию о получении урона
-        if (currentHP < maxHP)
+        // ИСПРАВЛЕНО: Отправляем ТОЛЬКО если HP УМЕНЬШИЛОСЬ (урон), НЕ отправляем при регенерации!
+        if (currentHP < previousHP)
         {
-            float damage = maxHP - currentHP;
+            float damage = previousHP - currentHP;
             SocketIOManager.Instance.SendPlayerDamaged(damage, currentHP, maxHP, lastAttackerId);
+            Debug.Log($"[NetworkCombatSync] 💔 Урон: -{damage:F1} HP, осталось {currentHP:F1}/{maxHP:F1}");
         }
+
+        // Обновляем previousHP для следующей проверки
+        previousHP = currentHP;
     }
 
     /// <summary>
