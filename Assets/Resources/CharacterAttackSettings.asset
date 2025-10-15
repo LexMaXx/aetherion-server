@@ -51,7 +51,7 @@ MonoBehaviour:
     isRangedAttack: 1
     projectileSpeed: 15
     projectilePrefabName: SoulShardProjectile
-    attackRotationOffset: -30
+    attackRotationOffset: 0
   paladin:
     attackAnimationSpeed: 1
     attackHitTiming: 0.7

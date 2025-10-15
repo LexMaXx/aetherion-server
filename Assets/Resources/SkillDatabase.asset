@@ -41,7 +41,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 00b3e34e29f3aed41ba874bbc1bd1f98, type: 2}
   - {fileID: 11400000, guid: 849ce2c380e3d6a43bf43d085efa4fea, type: 2}
   paladinSkills:
-  - {fileID: 11400000, guid: 86caec2b905a39f4cbb8b9b0951d176c, type: 2}
+  - {fileID: 11400000, guid: 225389d4bb026444886762d8ddb01d56, type: 2}
   - {fileID: 11400000, guid: 4c40053310bd2fb4cb0126114a254b50, type: 2}
   - {fileID: 11400000, guid: 5bed6d2446b33124ba000f06bc7790ab, type: 2}
   - {fileID: 11400000, guid: 5d8522f92abfa9743a73f4940c4d7916, type: 2}
