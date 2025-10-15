@@ -353,6 +353,14 @@ public class ArenaManager : MonoBehaviour
             Debug.Log("✓ Добавлен ActionPointsSystem");
         }
 
+        // Добавляем систему скиллов (КРИТИЧЕСКОЕ!)
+        SkillManager skillManager = modelTransform.GetComponent<SkillManager>();
+        if (skillManager == null)
+        {
+            skillManager = modelTransform.gameObject.AddComponent<SkillManager>();
+            Debug.Log("✓ Добавлен SkillManager");
+        }
+
         // Добавляем туман войны (Fog of War)
         FogOfWar fogOfWar = modelTransform.GetComponent<FogOfWar>();
         if (fogOfWar == null)
