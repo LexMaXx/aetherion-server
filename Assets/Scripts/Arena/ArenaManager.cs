@@ -1012,23 +1012,43 @@ public class ArenaManager : MonoBehaviour
 
     /// <summary>
     /// Корутина для обновления таймера лобби
-    /// ИЗМЕНЕНО: Показывает таймер только когда остаётся 3 секунды или меньше
+    /// КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Использует Time.deltaTime для точного отсчета
     /// </summary>
     private System.Collections.IEnumerator LobbyTimerCoroutine(float totalSeconds)
     {
         float timeRemaining = totalSeconds;
+        float startTime = Time.time; // КРИТИЧЕСКОЕ: Запоминаем время старта
 
         while (timeRemaining > 0)
         {
+            // КРИТИЧЕСКОЕ: Рассчитываем оставшееся время на основе реального времени
+            // Это устраняет накопление погрешности от WaitForSeconds
+            float elapsedTime = Time.time - startTime;
+            timeRemaining = totalSeconds - elapsedTime;
+
             int seconds = Mathf.CeilToInt(timeRemaining);
+
+            // КРИТИЧЕСКОЕ: Проверяем что корутина не остановлена
+            if (lobbyTimerCoroutine == null)
+            {
+                Debug.Log("[ArenaManager] ⚠️ Корутина таймера была остановлена, выходим");
+                yield break;
+            }
 
             if (lobbyText != null)
             {
                 // Показываем текст только если осталось 3 секунды или меньше
-                if (seconds <= 3)
+                if (seconds <= 3 && seconds > 0)
                 {
                     lobbyText.gameObject.SetActive(true);
                     lobbyText.text = $"Старт через... {seconds} сек";
+                }
+                else if (seconds <= 0)
+                {
+                    // КРИТИЧЕСКОЕ: Таймер истёк - скрываем текст и выходим
+                    lobbyText.gameObject.SetActive(false);
+                    Debug.Log("[ArenaManager] ⏱️ Таймер истёк!");
+                    yield break;
                 }
                 else
                 {
@@ -1036,8 +1056,15 @@ public class ArenaManager : MonoBehaviour
                 }
             }
 
-            yield return new WaitForSeconds(0.1f);
-            timeRemaining -= 0.1f;
+            // КРИТИЧЕСКОЕ: Используем null вместо фиксированного времени
+            // Корутина будет обновляться каждый кадр, что точнее
+            yield return null;
+        }
+
+        // На всякий случай скрываем текст когда корутина завершается
+        if (lobbyText != null)
+        {
+            lobbyText.gameObject.SetActive(false);
         }
     }
 
