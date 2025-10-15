@@ -1037,22 +1037,25 @@ public class ArenaManager : MonoBehaviour
 
             if (lobbyText != null)
             {
-                // Показываем текст только если осталось 3 секунды или меньше
-                if (seconds <= 3 && seconds > 0)
+                // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Текст "Ожидание игроков..." виден только пока больше 3 секунд!
+                // Когда осталось 3 секунды или меньше - СКРЫВАЕМ текст (показывается большой countdown от сервера)
+                if (seconds > 3)
                 {
+                    // Показываем "Ожидание игроков..." только когда больше 3 секунд
                     lobbyText.gameObject.SetActive(true);
-                    lobbyText.text = $"Старт через... {seconds} сек";
-                }
-                else if (seconds <= 0)
-                {
-                    // КРИТИЧЕСКОЕ: Таймер истёк - скрываем текст и выходим
-                    lobbyText.gameObject.SetActive(false);
-                    Debug.Log("[ArenaManager] ⏱️ Таймер истёк!");
-                    yield break;
+                    lobbyText.text = "Ожидание игроков...";
                 }
                 else
                 {
+                    // Осталось 3 секунды или меньше - СКРЫВАЕМ текст!
+                    // Сервер отправит game_countdown и покажет большой countdown (3, 2, 1)
                     lobbyText.gameObject.SetActive(false);
+
+                    if (seconds <= 0)
+                    {
+                        Debug.Log("[ArenaManager] ⏱️ Таймер истёк! Ждем countdown от сервера...");
+                        yield break;
+                    }
                 }
             }
 
