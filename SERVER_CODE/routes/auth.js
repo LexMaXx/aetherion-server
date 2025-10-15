@@ -73,22 +73,22 @@ router.post('/register', async (req, res) => {
  */
 router.post('/login', async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const { username, password } = req.body;
 
         // Валидация
-        if (!email || !password) {
+        if (!username || !password) {
             return res.status(400).json({
                 success: false,
-                message: 'Email и пароль обязательны'
+                message: 'Username и пароль обязательны'
             });
         }
 
-        // Поиск пользователя
-        const user = await User.findOne({ email });
+        // Поиск пользователя по username
+        const user = await User.findOne({ username });
         if (!user) {
             return res.status(401).json({
                 success: false,
-                message: 'Неверный email или пароль'
+                message: 'Неверный username или пароль'
             });
         }
 
@@ -97,7 +97,7 @@ router.post('/login', async (req, res) => {
         if (!isPasswordValid) {
             return res.status(401).json({
                 success: false,
-                message: 'Неверный email или пароль'
+                message: 'Неверный username или пароль'
             });
         }
 
