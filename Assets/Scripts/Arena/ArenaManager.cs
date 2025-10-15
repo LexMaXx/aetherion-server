@@ -1076,15 +1076,28 @@ public class ArenaManager : MonoBehaviour
         Debug.Log($"[ArenaManager] 🎮 GAME START! Спавним персонажа...");
         gameStarted = true;
 
-        // КРИТИЧЕСКОЕ: Останавливаем корутину таймера лобби!
+        // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: СНАЧАЛА останавливаем корутину!!!
+        // Иначе корутина продолжит работать и покажет текст снова
         if (lobbyTimerCoroutine != null)
         {
             StopCoroutine(lobbyTimerCoroutine);
             lobbyTimerCoroutine = null;
-            Debug.Log("[ArenaManager] ✅ Корутина таймера лобби остановлена");
+            Debug.Log("[ArenaManager] ✅ Корутина таймера ОСТАНОВЛЕНА первым делом!");
         }
 
-        // КРИТИЧЕСКОЕ: Скрываем ВСЕ тексты перед удалением UI!
+        // Ждем один кадр чтобы корутина точно завершилась
+        StartCoroutine(DestroyLobbyUINextFrame());
+    }
+
+    /// <summary>
+    /// Уничтожить Lobby UI на следующем кадре (после остановки корутины)
+    /// </summary>
+    private System.Collections.IEnumerator DestroyLobbyUINextFrame()
+    {
+        // Ждем один кадр чтобы корутина точно завершилась
+        yield return null;
+
+        // ТЕПЕРЬ безопасно скрывать и удалять UI
         if (lobbyText != null)
         {
             lobbyText.gameObject.SetActive(false);
