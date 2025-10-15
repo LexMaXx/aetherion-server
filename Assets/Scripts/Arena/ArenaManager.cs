@@ -894,22 +894,17 @@ public class ArenaManager : MonoBehaviour
     // ===== LOBBY SYSTEM CALLBACKS =====
 
     private GameObject lobbyUI;
-    private UnityEngine.UI.Text lobbyText;
     private UnityEngine.UI.Text countdownText;
-    private Coroutine lobbyTimerCoroutine; // КРИТИЧЕСКОЕ: Ссылка на корутину для остановки
 
     /// <summary>
     /// Callback: Лобби создано, начинается 20-секундное ожидание
     /// </summary>
     public void OnLobbyStarted(int waitTimeMs)
     {
-        Debug.Log($"[ArenaManager] 🏁 LOBBY STARTED! Ожидание {waitTimeMs}ms");
+        Debug.Log($"[ArenaManager] 🏁 LOBBY STARTED! Ожидание {waitTimeMs}ms (только countdown 3-2-1)");
 
-        // Создаем UI для лобби
+        // Создаем UI для лобби (только countdown, без текста ожидания)
         CreateLobbyUI();
-
-        // Запускаем таймер и СОХРАНЯЕМ ссылку на корутину
-        lobbyTimerCoroutine = StartCoroutine(LobbyTimerCoroutine(waitTimeMs / 1000f));
     }
 
     /// <summary>
@@ -919,29 +914,16 @@ public class ArenaManager : MonoBehaviour
     {
         Debug.Log($"[ArenaManager] ⏱️ COUNTDOWN: {countdown}");
 
-        // КРИТИЧЕСКОЕ: Останавливаем корутину таймера ДО скрытия текста!
-        // Иначе корутина продолжит обновлять lobbyText и делать его видимым
-        if (lobbyTimerCoroutine != null)
-        {
-            StopCoroutine(lobbyTimerCoroutine);
-            lobbyTimerCoroutine = null;
-            Debug.Log("[ArenaManager] ✅ Корутина таймера остановлена при countdown");
-        }
-
-        // Скрываем таймер лобби, показываем большой countdown
-        if (lobbyText != null)
-            lobbyText.gameObject.SetActive(false);
-
+        // Показываем большой countdown
         if (countdownText != null)
         {
             countdownText.gameObject.SetActive(true);
             countdownText.text = countdown.ToString();
-            countdownText.fontSize = 120;
         }
     }
 
     /// <summary>
-    /// Создать UI для лобби
+    /// Создать UI для лобби (только countdown 3-2-1, без текста ожидания)
     /// </summary>
     private void CreateLobbyUI()
     {
@@ -960,30 +942,7 @@ public class ArenaManager : MonoBehaviour
         lobbyUI = new GameObject("LobbyUI");
         lobbyUI.transform.SetParent(canvas.transform, false);
 
-        // Lobby Timer Text (по центру вверху)
-        GameObject lobbyTimerObj = new GameObject("LobbyTimer");
-        lobbyTimerObj.transform.SetParent(lobbyUI.transform, false);
-
-        RectTransform lobbyRect = lobbyTimerObj.AddComponent<RectTransform>();
-        lobbyRect.anchorMin = new Vector2(0.5f, 1f);
-        lobbyRect.anchorMax = new Vector2(0.5f, 1f);
-        lobbyRect.pivot = new Vector2(0.5f, 1f);
-        lobbyRect.anchoredPosition = new Vector2(0, -100); // Опустили ниже для большого текста
-        lobbyRect.sizeDelta = new Vector2(800, 120); // Увеличили контейнер под большой текст
-
-        lobbyText = lobbyTimerObj.AddComponent<UnityEngine.UI.Text>();
-        lobbyText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        lobbyText.fontSize = 64; // БОЛЬШОЙ размер текста
-        lobbyText.alignment = TextAnchor.MiddleCenter;
-        lobbyText.color = new Color(0.83f, 0.68f, 0.21f); // ЗОЛОТОЙ цвет (RGB: 212, 175, 55)
-        lobbyText.text = "Ожидание игроков...";
-
-        // Добавляем тень для читаемости
-        UnityEngine.UI.Shadow shadow = lobbyTimerObj.AddComponent<UnityEngine.UI.Shadow>();
-        shadow.effectColor = Color.black;
-        shadow.effectDistance = new Vector2(2, -2);
-
-        // Countdown Text (по центру экрана)
+        // ТОЛЬКО Countdown Text (по центру экрана) - ЗОЛОТОЙ, БОЛЬШОЙ
         GameObject countdownObj = new GameObject("Countdown");
         countdownObj.transform.SetParent(lobbyUI.transform, false);
 
@@ -996,80 +955,20 @@ public class ArenaManager : MonoBehaviour
 
         countdownText = countdownObj.AddComponent<UnityEngine.UI.Text>();
         countdownText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        countdownText.fontSize = 120;
+        countdownText.fontSize = 150; // ОГРОМНЫЙ текст
         countdownText.alignment = TextAnchor.MiddleCenter;
         countdownText.color = new Color(0.83f, 0.68f, 0.21f); // ЗОЛОТОЙ цвет (RGB: 212, 175, 55)
         countdownText.text = "3";
         countdownText.gameObject.SetActive(false);
 
-        // Добавляем тень
+        // Добавляем большую тень
         UnityEngine.UI.Shadow countdownShadow = countdownObj.AddComponent<UnityEngine.UI.Shadow>();
         countdownShadow.effectColor = Color.black;
-        countdownShadow.effectDistance = new Vector2(4, -4);
+        countdownShadow.effectDistance = new Vector2(5, -5);
 
-        Debug.Log("[ArenaManager] ✅ Lobby UI создан");
+        Debug.Log("[ArenaManager] ✅ Lobby UI создан (только countdown 3-2-1)");
     }
 
-    /// <summary>
-    /// Корутина для обновления таймера лобби
-    /// КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Использует Time.deltaTime для точного отсчета
-    /// </summary>
-    private System.Collections.IEnumerator LobbyTimerCoroutine(float totalSeconds)
-    {
-        float timeRemaining = totalSeconds;
-        float startTime = Time.time; // КРИТИЧЕСКОЕ: Запоминаем время старта
-
-        while (timeRemaining > 0)
-        {
-            // КРИТИЧЕСКОЕ: Рассчитываем оставшееся время на основе реального времени
-            // Это устраняет накопление погрешности от WaitForSeconds
-            float elapsedTime = Time.time - startTime;
-            timeRemaining = totalSeconds - elapsedTime;
-
-            int seconds = Mathf.CeilToInt(timeRemaining);
-
-            // КРИТИЧЕСКОЕ: Проверяем что корутина не остановлена
-            if (lobbyTimerCoroutine == null)
-            {
-                Debug.Log("[ArenaManager] ⚠️ Корутина таймера была остановлена, выходим");
-                yield break;
-            }
-
-            if (lobbyText != null)
-            {
-                // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Текст "Ожидание игроков..." виден только пока больше 3 секунд!
-                // Когда осталось 3 секунды или меньше - СКРЫВАЕМ текст (показывается большой countdown от сервера)
-                if (seconds > 3)
-                {
-                    // Показываем "Ожидание игроков..." только когда больше 3 секунд
-                    lobbyText.gameObject.SetActive(true);
-                    lobbyText.text = "Ожидание игроков...";
-                }
-                else
-                {
-                    // Осталось 3 секунды или меньше - СКРЫВАЕМ текст!
-                    // Сервер отправит game_countdown и покажет большой countdown (3, 2, 1)
-                    lobbyText.gameObject.SetActive(false);
-
-                    if (seconds <= 0)
-                    {
-                        Debug.Log("[ArenaManager] ⏱️ Таймер истёк! Ждем countdown от сервера...");
-                        yield break;
-                    }
-                }
-            }
-
-            // КРИТИЧЕСКОЕ: Используем null вместо фиксированного времени
-            // Корутина будет обновляться каждый кадр, что точнее
-            yield return null;
-        }
-
-        // На всякий случай скрываем текст когда корутина завершается
-        if (lobbyText != null)
-        {
-            lobbyText.gameObject.SetActive(false);
-        }
-    }
 
     /// <summary>
     /// Callback: Игра началась - СПАВНИМ ВСЕХ ОДНОВРЕМЕННО!
@@ -1079,51 +978,22 @@ public class ArenaManager : MonoBehaviour
         Debug.Log($"[ArenaManager] 🎮 GAME START! Спавним персонажа...");
         gameStarted = true;
 
-        // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: СНАЧАЛА останавливаем корутину!!!
-        // Иначе корутина продолжит работать и покажет текст снова
-        if (lobbyTimerCoroutine != null)
-        {
-            StopCoroutine(lobbyTimerCoroutine);
-            lobbyTimerCoroutine = null;
-            Debug.Log("[ArenaManager] ✅ Корутина таймера ОСТАНОВЛЕНА первым делом!");
-        }
-
-        // Ждем один кадр чтобы корутина точно завершилась
-        StartCoroutine(DestroyLobbyUINextFrame());
-    }
-
-    /// <summary>
-    /// Уничтожить Lobby UI на следующем кадре (после остановки корутины)
-    /// </summary>
-    private System.Collections.IEnumerator DestroyLobbyUINextFrame()
-    {
-        // Ждем один кадр чтобы корутина точно завершилась
-        yield return null;
-
-        // ТЕПЕРЬ безопасно скрывать и удалять UI
-        if (lobbyText != null)
-        {
-            lobbyText.gameObject.SetActive(false);
-            Debug.Log("[ArenaManager] ✅ Lobby text скрыт");
-        }
-
+        // Скрываем countdown и удаляем Lobby UI
         if (countdownText != null)
         {
             countdownText.gameObject.SetActive(false);
             Debug.Log("[ArenaManager] ✅ Countdown text скрыт");
         }
 
-        // Скрываем Lobby UI
         if (lobbyUI != null)
         {
             Destroy(lobbyUI);
             lobbyUI = null;
-            lobbyText = null;
             countdownText = null;
             Debug.Log("[ArenaManager] ✅ Lobby UI удален");
         }
 
-        // КРИТИЧЕСКОЕ: Теперь можно спавнить!
+        // Спавним персонажа
         if (isMultiplayer && spawnedCharacter == null && spawnIndexReceived)
         {
             Debug.Log("[ArenaManager] ✅ Спавним персонажа при game_start");
