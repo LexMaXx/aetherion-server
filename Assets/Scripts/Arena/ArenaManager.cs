@@ -968,14 +968,14 @@ public class ArenaManager : MonoBehaviour
         lobbyRect.anchorMin = new Vector2(0.5f, 1f);
         lobbyRect.anchorMax = new Vector2(0.5f, 1f);
         lobbyRect.pivot = new Vector2(0.5f, 1f);
-        lobbyRect.anchoredPosition = new Vector2(0, -50);
-        lobbyRect.sizeDelta = new Vector2(600, 80);
+        lobbyRect.anchoredPosition = new Vector2(0, -100); // Опустили ниже для большого текста
+        lobbyRect.sizeDelta = new Vector2(800, 120); // Увеличили контейнер под большой текст
 
         lobbyText = lobbyTimerObj.AddComponent<UnityEngine.UI.Text>();
         lobbyText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        lobbyText.fontSize = 32;
+        lobbyText.fontSize = 64; // БОЛЬШОЙ размер текста
         lobbyText.alignment = TextAnchor.MiddleCenter;
-        lobbyText.color = Color.white;
+        lobbyText.color = new Color(0.83f, 0.68f, 0.21f); // ЗОЛОТОЙ цвет (RGB: 212, 175, 55)
         lobbyText.text = "Ожидание игроков...";
 
         // Добавляем тень для читаемости
@@ -998,7 +998,7 @@ public class ArenaManager : MonoBehaviour
         countdownText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         countdownText.fontSize = 120;
         countdownText.alignment = TextAnchor.MiddleCenter;
-        countdownText.color = Color.yellow;
+        countdownText.color = new Color(0.83f, 0.68f, 0.21f); // ЗОЛОТОЙ цвет (RGB: 212, 175, 55)
         countdownText.text = "3";
         countdownText.gameObject.SetActive(false);
 

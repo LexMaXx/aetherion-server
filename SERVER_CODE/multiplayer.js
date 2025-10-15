@@ -323,6 +323,37 @@ module.exports = (io) => {
           console.log(`[Lobby] ⏳ Игрок 1 ждет... Таймер начнется когда зайдет 2й игрок`);
         } else {
           console.log(`[Lobby] 👥 Игрок ${playersInRoom.length} присоединился к лобби`);
+
+          // НОВОЕ: Отправляем новому игроку текущее состояние лобби!
+          const roomState = roomStates.get(roomId);
+          if (roomState) {
+            if (roomState.state === 'LOBBY') {
+              // Лобби еще в состоянии ожидания - отправляем оставшееся время
+              const elapsedTime = Date.now() - roomState.startTime;
+              const remainingTime = Math.max(0, LOBBY_WAIT_TIME - elapsedTime);
+
+              console.log(`[Lobby] 📤 Отправляем новому игроку lobby_created с оставшимся временем: ${remainingTime}ms`);
+              socket.emit('lobby_created', {
+                waitTime: remainingTime,
+                timestamp: Date.now()
+              });
+            } else if (roomState.state === 'COUNTDOWN') {
+              // Лобби уже в режиме countdown - отправляем текущий countdown
+              // NOTE: Точное значение countdown неизвестно, отправим 3 (сервер переотправит через секунду)
+              console.log(`[Lobby] 📤 Отправляем новому игроку game_countdown`);
+              socket.emit('game_countdown', {
+                countdown: 3,
+                timestamp: Date.now()
+              });
+            } else if (roomState.state === 'GAME') {
+              // Игра уже идёт - отправляем game_start
+              console.log(`[Lobby] 📤 Отправляем новому игроку game_start (игра уже началась)`);
+              socket.emit('game_start', {
+                players: playersInRoom,
+                timestamp: Date.now()
+              });
+            }
+          }
         }
       } catch (error) {
         console.error('[Join Room] Error:', error);
