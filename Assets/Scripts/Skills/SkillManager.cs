@@ -117,6 +117,13 @@ public class SkillManager : MonoBehaviour
             return false;
         }
 
+        // КРИТИЧЕСКОЕ: Проверка трансформации ДО траты маны
+        if (skill.skillType == SkillType.Transformation && isTransformed)
+        {
+            Debug.Log("[SkillManager] ❌ Уже трансформирован! Нельзя использовать скилл трансформации.");
+            return false;
+        }
+
         // Проверка возможности использования
         float currentCooldown = GetCooldown(skill.skillId);
         Debug.Log($"[SkillManager] 🔍 Кулдаун скилла {skill.skillId}: {currentCooldown:F1}с");
@@ -368,11 +375,7 @@ public class SkillManager : MonoBehaviour
             return;
         }
 
-        if (isTransformed)
-        {
-            Debug.Log("[SkillManager] ⚠️ Уже трансформирован!");
-            return;
-        }
+        // Проверка isTransformed теперь в UseSkill() ДО траты маны
 
         Debug.Log("[SkillManager] 🔍 Ищу SkinnedMeshRenderer для скрытия оригинальной модели...");
 
@@ -493,17 +496,22 @@ public class SkillManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Обновить кулдауны
+    /// Обновить кулдауны (ОПТИМИЗИРОВАНО: без allocation)
     /// </summary>
     private void UpdateCooldowns()
     {
-        List<int> keys = new List<int>(skillCooldowns.Keys);
-        foreach (int skillId in keys)
+        // ОПТИМИЗАЦИЯ: Используем временный список вместо создания нового каждый кадр
+        // Dictionary.Keys возвращает коллекцию которую нельзя модифицировать во время итерации
+        // но мы только читаем значения и обновляем их, не добавляем/удаляем ключи
+        // Поэтому можем итерироваться напрямую без копирования
+        foreach (var pair in skillCooldowns)
         {
-            skillCooldowns[skillId] -= Time.deltaTime;
-            if (skillCooldowns[skillId] <= 0f)
+            int skillId = pair.Key;
+            float cooldown = pair.Value;
+
+            if (cooldown > 0f)
             {
-                skillCooldowns[skillId] = 0f;
+                skillCooldowns[skillId] = Mathf.Max(0f, cooldown - Time.deltaTime);
             }
         }
     }
@@ -623,6 +631,9 @@ public class SkillManager : MonoBehaviour
 
     void OnDestroy()
     {
+        // КРИТИЧЕСКОЕ: Отменяем все Invoke (EndTransformation и другие)
+        CancelInvoke();
+
         ClearSummons();
         if (transformationInstance != null)
         {
