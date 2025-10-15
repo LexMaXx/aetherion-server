@@ -45,8 +45,22 @@ public class AuthenticationManager : MonoBehaviour
         switchToLoginButton?.onClick.AddListener(() => SwitchPanel(false));
         switchToRegisterButton?.onClick.AddListener(() => SwitchPanel(true));
 
-        // Показываем панель регистрации по умолчанию
-        SwitchPanel(true);
+        // НОВОЕ: Проверяем есть ли сохранённые данные
+        bool hasSavedCredentials = PlayerPrefs.HasKey("SavedUsername") && PlayerPrefs.HasKey("SavedPassword");
+
+        if (hasSavedCredentials)
+        {
+            // Если есть сохранённые данные - показываем форму логина с автозаполнением
+            Debug.Log("[Auth] ✅ Найдены сохранённые учётные данные, автозаполнение...");
+            SwitchPanel(false); // Показываем панель логина
+            LoadSavedCredentials(); // Загружаем сохранённые данные
+        }
+        else
+        {
+            // Если нет - показываем панель регистрации по умолчанию
+            Debug.Log("[Auth] Сохранённые данные не найдены, показываем регистрацию");
+            SwitchPanel(true);
+        }
 
         // Скрываем индикатор загрузки
         if (loadingIndicator != null)
@@ -70,6 +84,12 @@ public class AuthenticationManager : MonoBehaviour
         // Очищаем поля и feedback
         ClearFields();
         SetFeedback("", Color.white);
+
+        // НОВОЕ: Если переключаемся на форму логина - автозаполняем сохранённые данные
+        if (!showRegister)
+        {
+            LoadSavedCredentials();
+        }
     }
 
     /// <summary>
@@ -136,6 +156,7 @@ public class AuthenticationManager : MonoBehaviour
                 {
                     SetFeedback("Регистрация успешна! Вход в игру...", Color.green);
                     SaveUserData(response.token, username); // Сохраняем токен И username
+                    SaveCredentials(username, password); // НОВОЕ: Сохраняем логин/пароль для автозаполнения
                     LoadGameScene();
                 }
                 else
@@ -168,6 +189,7 @@ public class AuthenticationManager : MonoBehaviour
                 {
                     SetFeedback("Вход успешен! Загрузка...", Color.green);
                     SaveUserData(response.token, username); // Сохраняем токен И username
+                    SaveCredentials(username, password); // НОВОЕ: Сохраняем логин/пароль для автозаполнения
                     LoadGameScene();
                 }
                 else
@@ -192,6 +214,37 @@ public class AuthenticationManager : MonoBehaviour
         PlayerPrefs.SetString("Username", username); // ВАЖНО: Сохраняем username!
         PlayerPrefs.Save();
         Debug.Log($"[Auth] ✅ Данные сохранены: Username={username}, Token={token.Substring(0, 10)}...");
+    }
+
+    /// <summary>
+    /// НОВОЕ: Сохранить логин и пароль для автозаполнения
+    /// </summary>
+    private void SaveCredentials(string username, string password)
+    {
+        PlayerPrefs.SetString("SavedUsername", username);
+        PlayerPrefs.SetString("SavedPassword", password); // Сохраняем пароль (в реальном приложении лучше хешировать)
+        PlayerPrefs.Save();
+        Debug.Log($"[Auth] ✅ Учётные данные сохранены для автозаполнения: {username}");
+    }
+
+    /// <summary>
+    /// НОВОЕ: Загрузить сохранённые логин и пароль
+    /// </summary>
+    private void LoadSavedCredentials()
+    {
+        if (PlayerPrefs.HasKey("SavedUsername") && PlayerPrefs.HasKey("SavedPassword"))
+        {
+            string savedUsername = PlayerPrefs.GetString("SavedUsername");
+            string savedPassword = PlayerPrefs.GetString("SavedPassword");
+
+            if (loginUsernameField != null)
+                loginUsernameField.text = savedUsername;
+
+            if (loginPasswordField != null)
+                loginPasswordField.text = savedPassword;
+
+            Debug.Log($"[Auth] ✅ Автозаполнение: {savedUsername} / {'*'.ToString().PadLeft(savedPassword.Length, '*')}");
+        }
     }
 
     /// <summary>
