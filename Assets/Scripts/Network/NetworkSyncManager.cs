@@ -179,10 +179,17 @@ public class NetworkSyncManager : MonoBehaviour
             }
         }
 
-        // ДИАГНОСТИКА: Логируем каждую 60-ю отправку (1 раз в секунду при 20Hz)
+        // ДИАГНОСТИКА: Логируем каждую 60-ю отправку (1 раз в секунду при 60Hz)
         if (Time.frameCount % 60 == 0)
         {
             Debug.Log($"[NetworkSync] 📤 Отправка позиции: pos=({position.x:F1}, {position.y:F1}, {position.z:F1}), vel=({velocity.x:F1}, {velocity.y:F1}, {velocity.z:F1}), rot={rotation.eulerAngles.y:F0}°");
+        }
+
+        // КРИТИЧЕСКОЕ: Проверяем что трансформированный игрок отправляет позиции
+        SkillManager skillMgr = localPlayer.GetComponent<SkillManager>();
+        if (skillMgr != null && skillMgr.isTransformed && Time.frameCount % 60 == 0)
+        {
+            Debug.Log($"[NetworkSync] 🐻 TRANSFORMED PLAYER отправляет позицию: {position}");
         }
 
         // Send to server
@@ -424,6 +431,9 @@ public class NetworkSyncManager : MonoBehaviour
     {
         try
         {
+            // ДИАГНОСТИКА: Логируем ВСЕ player_moved события
+            Debug.Log($"[NetworkSync] 📥 RAW position data: {jsonData}");
+
             var data = JsonConvert.DeserializeObject<PlayerMovedEvent>(jsonData);
 
             if (data == null || string.IsNullOrEmpty(data.socketId))

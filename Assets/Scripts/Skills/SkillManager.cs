@@ -38,7 +38,7 @@ public class SkillManager : MonoBehaviour
     // Трансформация (для Paladin)
     private GameObject transformationInstance;
     private GameObject originalModel;
-    private bool isTransformed = false;
+    public bool isTransformed = false; // PUBLIC для NetworkSyncManager
     private float transformationHPBonus = 0f; // Сохраняем бонус HP для удаления
 
     void Start()
