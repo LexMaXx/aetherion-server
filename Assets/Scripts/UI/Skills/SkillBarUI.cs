@@ -146,19 +146,15 @@ public class SkillBarUI : MonoBehaviour
 
     void Update()
     {
-        // Обработка хоткеев (клавиши 1, 2, 3)
-        if (Input.GetKeyDown(KeyCode.Alpha1))
-        {
-            UseSkill(0);
-        }
-        else if (Input.GetKeyDown(KeyCode.Alpha2))
-        {
-            UseSkill(1);
-        }
-        else if (Input.GetKeyDown(KeyCode.Alpha3))
-        {
-            UseSkill(2);
-        }
+        // ОТКЛЮЧЕНО: Обработка хоткеев теперь в PlayerAttack.cs
+        // Клавиши 1/2/3 теперь ТОЛЬКО выбирают скилл
+        // ПКМ использует выбранный скилл
+        // Это избегает двойного срабатывания
+
+        // Старый код (закомментирован):
+        // if (Input.GetKeyDown(KeyCode.Alpha1)) { UseSkill(0); }
+        // else if (Input.GetKeyDown(KeyCode.Alpha2)) { UseSkill(1); }
+        // else if (Input.GetKeyDown(KeyCode.Alpha3)) { UseSkill(2); }
     }
 
     /// <summary>
