@@ -20,7 +20,7 @@ MonoBehaviour:
   icon: {fileID: 21300000, guid: ee5e92f7cfff5e546992e1fc39ed4948, type: 3}
   characterClass: 4
   cooldown: 40
-  manaCost: 70
+  manaCost: 50
   castRange: 0
   castTime: 1
   canUseWhileMoving: 1
