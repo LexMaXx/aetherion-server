@@ -377,14 +377,19 @@ public class SkillManager : MonoBehaviour
 
         // Проверка isTransformed теперь в UseSkill() ДО траты маны
 
-        Debug.Log("[SkillManager] 🔍 Ищу SkinnedMeshRenderer для скрытия оригинальной модели...");
+        Debug.Log("[SkillManager] 🔍 Отключаю SkinnedMeshRenderer для скрытия оригинальной модели...");
 
-        // Скрываем оригинальную модель
-        originalModel = GetComponentInChildren<SkinnedMeshRenderer>()?.gameObject;
-        if (originalModel != null)
+        // КРИТИЧЕСКОЕ: Отключаем ВСЕ SkinnedMeshRenderer (модель + одежда), но НЕ GameObject
+        SkinnedMeshRenderer[] originalRenderers = GetComponentsInChildren<SkinnedMeshRenderer>();
+        foreach (SkinnedMeshRenderer smr in originalRenderers)
         {
-            originalModel.SetActive(false);
-            Debug.Log($"[SkillManager] ✅ Оригинальная модель скрыта: {originalModel.name}");
+            smr.enabled = false; // Отключаем только рендерер, GameObject остаётся active (оружие остаётся)
+            Debug.Log($"[SkillManager] ✅ Отключён рендерер: {smr.gameObject.name}");
+        }
+
+        if (originalRenderers.Length > 0)
+        {
+            originalModel = originalRenderers[0].gameObject;
         }
         else
         {
@@ -445,9 +450,12 @@ public class SkillManager : MonoBehaviour
             Destroy(transformationInstance);
         }
 
-        if (originalModel != null)
+        // Включаем все SkinnedMeshRenderer обратно
+        SkinnedMeshRenderer[] originalRenderers = GetComponentsInChildren<SkinnedMeshRenderer>(true); // includeInactive=true
+        foreach (SkinnedMeshRenderer smr in originalRenderers)
         {
-            originalModel.SetActive(true);
+            smr.enabled = true;
+            Debug.Log($"[SkillManager] ✅ Включён рендерер: {smr.gameObject.name}");
         }
 
         // Убираем бонус HP

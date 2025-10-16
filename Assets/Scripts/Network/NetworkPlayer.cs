@@ -635,12 +635,17 @@ public class NetworkPlayer : MonoBehaviour
 
         Debug.Log($"[NetworkPlayer] 🔍 Скилл найден: {skill.skillName}, модель: {skill.transformationModel.name}");
 
-        // Скрываем оригинальную модель
-        originalModel = GetComponentInChildren<SkinnedMeshRenderer>()?.gameObject;
-        if (originalModel != null)
+        // КРИТИЧЕСКОЕ: Находим ВСЕ SkinnedMeshRenderer и скрываем их (модель + одежда)
+        SkinnedMeshRenderer[] originalRenderers = GetComponentsInChildren<SkinnedMeshRenderer>();
+        foreach (SkinnedMeshRenderer smr in originalRenderers)
         {
-            originalModel.SetActive(false);
-            Debug.Log($"[NetworkPlayer] ✅ Оригинальная модель скрыта: {originalModel.name}");
+            smr.enabled = false; // Отключаем рендерер, но НЕ весь GameObject (чтобы оружие осталось!)
+            Debug.Log($"[NetworkPlayer] ✅ Отключён рендерер: {smr.gameObject.name}");
+        }
+
+        if (originalRenderers.Length > 0)
+        {
+            originalModel = originalRenderers[0].gameObject;
         }
         else
         {
@@ -699,13 +704,20 @@ public class NetworkPlayer : MonoBehaviour
             Debug.Log($"[NetworkPlayer] ✅ Модель трансформации удалена для {username}");
         }
 
+        // Включаем все SkinnedMeshRenderer обратно
+        SkinnedMeshRenderer[] originalRenderers = GetComponentsInChildren<SkinnedMeshRenderer>(true); // includeInactive=true
+        foreach (SkinnedMeshRenderer smr in originalRenderers)
+        {
+            smr.enabled = true;
+            Debug.Log($"[NetworkPlayer] ✅ Включён рендерер: {smr.gameObject.name}");
+        }
+
         if (originalModel != null)
         {
-            originalModel.SetActive(true);
             Debug.Log($"[NetworkPlayer] ✅ Оригинальная модель восстановлена для {username}");
 
             // ВАЖНО: Возвращаем ссылку на оригинальный Animator
-            Animator originalAnimator = originalModel.GetComponentInChildren<Animator>();
+            Animator originalAnimator = GetComponentInChildren<Animator>();
             if (originalAnimator != null)
             {
                 animator = originalAnimator;
