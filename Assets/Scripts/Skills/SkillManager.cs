@@ -409,6 +409,15 @@ public class SkillManager : MonoBehaviour
         Debug.Log($"[SkillManager] ✅ Трансформация создана: {transformationInstance.name} (localPos сброшен в zero)");
         Debug.Log($"[SkillManager] 🔍 ДИАГНОСТИКА: Parent worldPos={transform.position}, Bear localPos={transformationInstance.transform.localPosition}, Bear worldPos={transformationInstance.transform.position}");
 
+        // КРИТИЧЕСКОЕ: Отключаем ВСЕ коллайдеры медведя (они конфликтуют с CharacterController игрока)
+        // Медведь - это визуальная "шкура" (child GameObject), физика остаётся на родителе (игроке)
+        Collider[] bearColliders = transformationInstance.GetComponentsInChildren<Collider>();
+        foreach (Collider col in bearColliders)
+        {
+            col.enabled = false;
+            Debug.Log($"[SkillManager] 🔧 Отключён коллайдер медведя: {col.GetType().Name}");
+        }
+
         // КРИТИЧЕСКОЕ: Сбрасываем scale GameObject "input" (scale=100 создаёт offset)
         Transform inputTransform = transformationInstance.transform.Find("input");
         if (inputTransform != null)

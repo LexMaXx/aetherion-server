@@ -662,6 +662,15 @@ public class NetworkPlayer : MonoBehaviour
         Debug.Log($"[NetworkPlayer] ✅ Трансформация создана: {transformationInstance.name} для {username}");
         Debug.Log($"[NetworkPlayer] 🔍 ДИАГНОСТИКА: Parent worldPos={transform.position}, Bear localPos={transformationInstance.transform.localPosition}, Bear worldPos={transformationInstance.transform.position}");
 
+        // КРИТИЧЕСКОЕ: Отключаем ВСЕ коллайдеры медведя (они конфликтуют с CharacterController игрока)
+        // Медведь - это визуальная "шкура" (child GameObject), физика остаётся на родителе (игроке)
+        Collider[] bearColliders = transformationInstance.GetComponentsInChildren<Collider>();
+        foreach (Collider col in bearColliders)
+        {
+            col.enabled = false;
+            Debug.Log($"[NetworkPlayer] 🔧 Отключён коллайдер медведя: {col.GetType().Name}");
+        }
+
         // КРИТИЧЕСКОЕ: Сбрасываем scale GameObject "input" (scale=100 создаёт offset)
         Transform inputTransform = transformationInstance.transform.Find("input");
         if (inputTransform != null)
