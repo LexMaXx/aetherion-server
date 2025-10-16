@@ -670,6 +670,14 @@ public class NetworkPlayer : MonoBehaviour
             Debug.Log($"[NetworkPlayer] 🔧 Отключён коллайдер у медведя: {col.GetType().Name}");
         }
 
+        // КРИТИЧЕСКОЕ: Отключаем GameObject "input" (scale=100 создаёт offset)
+        Transform inputTransform = transformationInstance.transform.Find("input");
+        if (inputTransform != null)
+        {
+            inputTransform.gameObject.SetActive(false);
+            Debug.Log($"[NetworkPlayer] 🔧 Отключён 'input' GameObject у медведя (offset fix)");
+        }
+
         // ВАЖНО: Обновляем ссылку на Animator (теперь используем animator из модели трансформации)
         Animator newAnimator = transformationInstance.GetComponentInChildren<Animator>();
         if (newAnimator != null)

@@ -417,6 +417,14 @@ public class SkillManager : MonoBehaviour
             Debug.Log($"[SkillManager] 🔧 Отключён коллайдер у медведя: {col.GetType().Name}");
         }
 
+        // КРИТИЧЕСКОЕ: Отключаем GameObject "input" (scale=100 создаёт offset)
+        Transform inputTransform = transformationInstance.transform.Find("input");
+        if (inputTransform != null)
+        {
+            inputTransform.gameObject.SetActive(false);
+            Debug.Log($"[SkillManager] 🔧 Отключён 'input' GameObject у медведя (offset fix)");
+        }
+
         // Применяем бонусы
         if (healthSystem != null && skill.hpBonusPercent > 0f)
         {
