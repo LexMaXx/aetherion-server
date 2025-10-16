@@ -425,6 +425,17 @@ public class SkillManager : MonoBehaviour
             Debug.Log($"[SkillManager] 🔧 Scale 'input' GameObject сброшен в (1,1,1) (offset fix)");
         }
 
+        // КРИТИЧЕСКОЕ: ОТКЛЮЧАЕМ аниматор медведя (он от Война, несовместим с Паладином)
+        // Продолжаем использовать оригинальный аниматор игрока!
+        Animator bearAnimator = transformationInstance.GetComponentInChildren<Animator>();
+        if (bearAnimator != null)
+        {
+            bearAnimator.enabled = false;
+            CharacterStats stats = GetComponent<CharacterStats>();
+            string playerClass = stats != null ? stats.CharacterClass : "Unknown";
+            Debug.Log($"[SkillManager] 🔧 Аниматор медведя ОТКЛЮЧЁН (несовместим с классом {playerClass})");
+        }
+
         // Применяем бонусы
         if (healthSystem != null && skill.hpBonusPercent > 0f)
         {

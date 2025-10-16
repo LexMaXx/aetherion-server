@@ -678,23 +678,16 @@ public class NetworkPlayer : MonoBehaviour
             Debug.Log($"[NetworkPlayer] 🔧 Scale 'input' GameObject сброшен в (1,1,1) (offset fix)");
         }
 
-        // ВАЖНО: Обновляем ссылку на Animator (теперь используем animator из модели трансформации)
-        Animator newAnimator = transformationInstance.GetComponentInChildren<Animator>();
-        if (newAnimator != null)
+        // КРИТИЧЕСКОЕ: ОТКЛЮЧАЕМ аниматор медведя (он от Война, несовместим с Паладином)
+        // Продолжаем использовать оригинальный аниматор игрока!
+        Animator bearAnimator = transformationInstance.GetComponentInChildren<Animator>();
+        if (bearAnimator != null)
         {
-            animator = newAnimator;
-            Debug.Log($"[NetworkPlayer] ✅ Animator обновлён на трансформацию для {username}");
+            bearAnimator.enabled = false;
+            Debug.Log($"[NetworkPlayer] 🔧 Аниматор медведя ОТКЛЮЧЁН (несовместим с классом {characterClass})");
+        }
 
-            // Устанавливаем боевую стойку
-            if (HasAnimatorParameter(animator, "InBattle"))
-            {
-                animator.SetBool("InBattle", true);
-            }
-        }
-        else
-        {
-            Debug.LogWarning($"[NetworkPlayer] ⚠️ Animator не найден на модели трансформации для {username}");
-        }
+        // Оригинальный аниматор игрока продолжает работать (animator остаётся прежним)
 
         // КРИТИЧЕСКОЕ: Сбрасываем NetworkTransform чтобы остановить экстраполяцию (Dead Reckoning)
         // Иначе медведь будет "убегать" вперёд из-за предсказания на основе старой velocity
