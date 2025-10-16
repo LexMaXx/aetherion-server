@@ -35,13 +35,14 @@ public class SkillManager : MonoBehaviour
     // Призванные существа (для Rogue)
     private List<GameObject> summonedCreatures = new List<GameObject>();
 
-    // Трансформация (для Paladin)
-    private GameObject transformationInstance;
-    private GameObject originalModel;
+    // Трансформация (для Paladin) - MESH SWAPPING APPROACH
     public bool isTransformed = false; // PUBLIC для NetworkSyncManager
     private float transformationHPBonus = 0f; // Сохраняем бонус HP для удаления
-    private Animator bearAnimator; // Аниматор медведя (для синхронизации параметров)
-    private Animator originalAnimator; // Оригинальный аниматор игрока (для копирования параметров)
+
+    // Сохранение оригинального mesh и материалов для восстановления
+    private SkinnedMeshRenderer playerRenderer;
+    private Mesh originalMesh;
+    private Material[] originalMaterials;
 
     void Start()
     {
@@ -60,12 +61,6 @@ public class SkillManager : MonoBehaviour
 
         // Обновляем активные эффекты
         UpdateActiveEffects();
-
-        // КРИТИЧЕСКОЕ: Синхронизируем параметры аниматора медведя с оригинальным
-        if (isTransformed && bearAnimator != null && originalAnimator != null)
-        {
-            SyncBearAnimatorParameters();
-        }
     }
 
     /// <summary>
@@ -370,12 +365,12 @@ public class SkillManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Скилл трансформации (Paladin - медведь)
+    /// Скилл трансформации (Paladin - медведь) - MESH SWAPPING
+    /// Просто заменяем mesh персонажа на медведя вместо создания child GameObject
     /// </summary>
     private void ExecuteTransformationSkill(SkillData skill)
     {
-        Debug.Log($"[SkillManager] 🔍 ExecuteTransformationSkill вызван для {skill.skillName}");
-        Debug.Log($"[SkillManager] 🔍 transformationModel = {(skill.transformationModel != null ? skill.transformationModel.name : "NULL")}");
+        Debug.Log($"[SkillManager] 🔍 ExecuteTransformationSkill (MESH SWAPPING) вызван для {skill.skillName}");
 
         if (skill.transformationModel == null)
         {
@@ -383,81 +378,42 @@ public class SkillManager : MonoBehaviour
             return;
         }
 
-        // Проверка isTransformed теперь в UseSkill() ДО траты маны
-
-        Debug.Log("[SkillManager] 🔍 Отключаю SkinnedMeshRenderer для скрытия оригинальной модели...");
-
-        // КРИТИЧЕСКОЕ: Отключаем ВСЕ SkinnedMeshRenderer (модель + одежда), но НЕ GameObject
-        SkinnedMeshRenderer[] originalRenderers = GetComponentsInChildren<SkinnedMeshRenderer>();
-        foreach (SkinnedMeshRenderer smr in originalRenderers)
+        // Находим SkinnedMeshRenderer игрока
+        playerRenderer = GetComponentInChildren<SkinnedMeshRenderer>();
+        if (playerRenderer == null)
         {
-            smr.enabled = false; // Отключаем только рендерер, GameObject остаётся active (оружие остаётся)
-            Debug.Log($"[SkillManager] ✅ Отключён рендерер: {smr.gameObject.name}");
+            Debug.LogError("[SkillManager] ❌ SkinnedMeshRenderer не найден!");
+            return;
         }
 
-        if (originalRenderers.Length > 0)
+        // Сохраняем оригинальный mesh и материалы
+        originalMesh = playerRenderer.sharedMesh;
+        originalMaterials = playerRenderer.sharedMaterials;
+
+        Debug.Log($"[SkillManager] 💾 Оригинальный mesh сохранён: {originalMesh.name}");
+
+        // Получаем mesh медведя из prefab'а
+        SkinnedMeshRenderer bearRenderer = skill.transformationModel.GetComponentInChildren<SkinnedMeshRenderer>();
+        if (bearRenderer == null)
         {
-            originalModel = originalRenderers[0].gameObject;
-        }
-        else
-        {
-            Debug.LogWarning("[SkillManager] ⚠️ SkinnedMeshRenderer не найден - оригинальная модель не скрыта");
+            Debug.LogError("[SkillManager] ❌ Bear mesh не найден в transformationModel!");
+            return;
         }
 
-        Debug.Log($"[SkillManager] 🔍 Создаю трансформацию на позиции {transform.position}...");
+        // ЗАМЕНЯЕМ mesh на медведя!
+        playerRenderer.sharedMesh = bearRenderer.sharedMesh;
+        playerRenderer.sharedMaterials = bearRenderer.sharedMaterials;
 
-        // Создаём модель трансформации
-        transformationInstance = Instantiate(skill.transformationModel, transform.position, transform.rotation, transform);
         isTransformed = true;
 
-        // КРИТИЧЕСКОЕ: Сбрасываем локальную позицию/поворот в zero (чтобы модель была ровно в центре родителя)
-        transformationInstance.transform.localPosition = Vector3.zero;
-        transformationInstance.transform.localRotation = Quaternion.identity;
+        Debug.Log($"[SkillManager] 🐻 ✅ Mesh заменён на медведя: {bearRenderer.sharedMesh.name}");
 
-        Debug.Log($"[SkillManager] ✅ Трансформация создана: {transformationInstance.name} (localPos сброшен в zero)");
-        Debug.Log($"[SkillManager] 🔍 ДИАГНОСТИКА: Parent worldPos={transform.position}, Bear localPos={transformationInstance.transform.localPosition}, Bear worldPos={transformationInstance.transform.position}");
-
-        // КРИТИЧЕСКОЕ: Отключаем ВСЕ коллайдеры медведя (они конфликтуют с CharacterController игрока)
-        // Медведь - это визуальная "шкура" (child GameObject), физика остаётся на родителе (игроке)
-        Collider[] bearColliders = transformationInstance.GetComponentsInChildren<Collider>();
-        foreach (Collider col in bearColliders)
-        {
-            col.enabled = false;
-            Debug.Log($"[SkillManager] 🔧 Отключён коллайдер медведя: {col.GetType().Name}");
-        }
-
-        // КРИТИЧЕСКОЕ: Сбрасываем scale GameObject "input" (scale=100 создаёт offset)
-        Transform inputTransform = transformationInstance.transform.Find("input");
-        if (inputTransform != null)
-        {
-            inputTransform.localScale = Vector3.one; // Сбрасываем scale в (1, 1, 1)
-            Debug.Log($"[SkillManager] 🔧 Scale 'input' GameObject сброшен в (1,1,1) (offset fix)");
-        }
-
-        // КРИТИЧЕСКОЕ: Сохраняем ссылки на оба аниматора для синхронизации
-        originalAnimator = animator; // Сохраняем оригинальный аниматор игрока
-        bearAnimator = transformationInstance.GetComponentInChildren<Animator>();
-
-        if (bearAnimator != null && originalAnimator != null)
-        {
-            Debug.Log($"[SkillManager] 🔧 Настроена синхронизация: originalAnimator → bearAnimator");
-            Debug.Log($"[SkillManager] 🔧 Original Animator: {originalAnimator.gameObject.name}, Bear Animator: {bearAnimator.gameObject.name}");
-        }
-        else
-        {
-            Debug.LogWarning($"[SkillManager] ⚠️ Не удалось найти аниматоры! Original: {originalAnimator != null}, Bear: {bearAnimator != null}");
-        }
-
-        // КРИТИЧЕСКОЕ: Скрываем оружие во время трансформации (медведь безоружный)
+        // Скрываем оружие (медведь безоружный)
         WeaponAttachment weaponAttachment = GetComponent<WeaponAttachment>();
         if (weaponAttachment != null)
         {
             weaponAttachment.DetachWeapon();
             Debug.Log($"[SkillManager] 🔧 Оружие удалено (медведь безоружный)");
-        }
-        else
-        {
-            Debug.LogWarning($"[SkillManager] ⚠️ WeaponAttachment не найден!");
         }
 
         // Применяем бонусы
@@ -467,38 +423,27 @@ public class SkillManager : MonoBehaviour
             healthSystem.AddTemporaryMaxHealth(transformationHPBonus);
             Debug.Log($"[SkillManager] ✅ Бонус HP: +{transformationHPBonus:F0} ({skill.hpBonusPercent}%)");
         }
-        else
-        {
-            Debug.LogWarning($"[SkillManager] ⚠️ HealthSystem={healthSystem != null}, HPBonus={skill.hpBonusPercent}%");
-        }
-
-        // TODO: Бонус к атаке (сохраняем в переменную для PlayerAttack)
-        Debug.Log($"[SkillManager] 🔍 Бонус физ. урона: {skill.physicalDamageBonusPercent}%");
 
         // Автоматически отключаем через время
         Invoke(nameof(EndTransformation), skill.transformationDuration);
 
-        Debug.Log($"[SkillManager] 🐻 ✅ ТРАНСФОРМАЦИЯ АКТИВИРОВАНА на {skill.transformationDuration}с!");
+        Debug.Log($"[SkillManager] 🐻 ✅ ТРАНСФОРМАЦИЯ АКТИВИРОВАНА (MESH SWAPPING) на {skill.transformationDuration}с!");
     }
 
     /// <summary>
-    /// Завершить трансформацию
+    /// Завершить трансформацию - MESH SWAPPING
     /// </summary>
     private void EndTransformation()
     {
         if (!isTransformed) return;
 
-        if (transformationInstance != null)
+        // Восстанавливаем оригинальный mesh и материалы
+        if (playerRenderer != null && originalMesh != null && originalMaterials != null)
         {
-            Destroy(transformationInstance);
-        }
+            playerRenderer.sharedMesh = originalMesh;
+            playerRenderer.sharedMaterials = originalMaterials;
 
-        // Включаем все SkinnedMeshRenderer обратно
-        SkinnedMeshRenderer[] originalRenderers = GetComponentsInChildren<SkinnedMeshRenderer>(true); // includeInactive=true
-        foreach (SkinnedMeshRenderer smr in originalRenderers)
-        {
-            smr.enabled = true;
-            Debug.Log($"[SkillManager] ✅ Включён рендерер: {smr.gameObject.name}");
+            Debug.Log($"[SkillManager] ✅ Оригинальный mesh восстановлен: {originalMesh.name}");
         }
 
         // Убираем бонус HP
@@ -508,7 +453,7 @@ public class SkillManager : MonoBehaviour
             transformationHPBonus = 0f;
         }
 
-        // КРИТИЧЕСКОЕ: Восстанавливаем оружие после трансформации
+        // Восстанавливаем оружие
         WeaponAttachment weaponAttachment = GetComponent<WeaponAttachment>();
         if (weaponAttachment != null)
         {
@@ -516,19 +461,20 @@ public class SkillManager : MonoBehaviour
             Debug.Log($"[SkillManager] ✅ Оружие восстановлено");
         }
 
-        // Очищаем ссылки на аниматоры
-        bearAnimator = null;
-        originalAnimator = null;
+        // Очищаем ссылки
+        playerRenderer = null;
+        originalMesh = null;
+        originalMaterials = null;
 
         isTransformed = false;
 
-        // НОВОЕ: Отправляем на сервер окончание трансформации
+        // Отправляем на сервер окончание трансформации
         if (SocketIOManager.Instance != null && SocketIOManager.Instance.IsConnected)
         {
             SocketIOManager.Instance.SendTransformationEnd();
         }
 
-        Debug.Log("[SkillManager] 🐻 Трансформация завершена");
+        Debug.Log("[SkillManager] 🐻 Трансформация завершена (MESH SWAPPING)");
     }
 
     /// <summary>
@@ -724,55 +670,5 @@ public class SkillManager : MonoBehaviour
         CancelInvoke();
 
         ClearSummons();
-        if (transformationInstance != null)
-        {
-            Destroy(transformationInstance);
-        }
-    }
-
-    /// <summary>
-    /// Проверить есть ли параметр в Animator
-    /// </summary>
-    private bool HasAnimatorParameter(Animator anim, string paramName)
-    {
-        if (anim == null) return false;
-
-        foreach (AnimatorControllerParameter param in anim.parameters)
-        {
-            if (param.name == paramName) return true;
-        }
-        return false;
-    }
-
-    /// <summary>
-    /// Синхронизировать параметры аниматора медведя с оригинальным аниматором игрока
-    /// Копируем параметры каждый кадр, чтобы медведь анимировался синхронно с движением игрока
-    /// </summary>
-    private void SyncBearAnimatorParameters()
-    {
-        if (bearAnimator == null || originalAnimator == null) return;
-
-        // Копируем общие параметры анимации
-        foreach (AnimatorControllerParameter param in originalAnimator.parameters)
-        {
-            if (!HasAnimatorParameter(bearAnimator, param.name)) continue;
-
-            switch (param.type)
-            {
-                case AnimatorControllerParameterType.Float:
-                    bearAnimator.SetFloat(param.name, originalAnimator.GetFloat(param.name));
-                    break;
-
-                case AnimatorControllerParameterType.Int:
-                    bearAnimator.SetInteger(param.name, originalAnimator.GetInteger(param.name));
-                    break;
-
-                case AnimatorControllerParameterType.Bool:
-                    bearAnimator.SetBool(param.name, originalAnimator.GetBool(param.name));
-                    break;
-
-                // Trigger не копируем (они одноразовые)
-            }
-        }
     }
 }
