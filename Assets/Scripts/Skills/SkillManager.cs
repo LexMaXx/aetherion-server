@@ -453,7 +453,11 @@ public class SkillManager : MonoBehaviour
         if (weaponAttachment != null)
         {
             weaponAttachment.DetachWeapon();
-            Debug.Log($"[SkillManager] 🔧 Оружие скрыто (медведь безоружный)");
+            Debug.Log($"[SkillManager] 🔧 Оружие удалено (медведь безоружный)");
+        }
+        else
+        {
+            Debug.LogWarning($"[SkillManager] ⚠️ WeaponAttachment не найден!");
         }
 
         // Применяем бонусы
