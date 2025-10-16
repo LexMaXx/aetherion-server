@@ -600,6 +600,117 @@ public class NetworkPlayer : MonoBehaviour
 
     // УДАЛЕНО: GetNameplate(), ShowNameplate(), HideNameplate(), OnDestroy() - заменено на EnemyNameplate.cs
 
+    // ===== ТРАНСФОРМАЦИЯ (НОВОЕ) =====
+
+    private GameObject transformationInstance; // Модель трансформации (медведь и т.д.)
+    private GameObject originalModel; // Оригинальная модель персонажа
+
+    /// <summary>
+    /// Применить трансформацию к сетевому игроку (НОВОЕ)
+    /// </summary>
+    public void ApplyTransformation(int skillId)
+    {
+        Debug.Log($"[NetworkPlayer] 🐻 ApplyTransformation вызван для {username}, skillId={skillId}");
+
+        // Получаем скилл из SkillDatabase
+        SkillDatabase db = SkillDatabase.Instance;
+        if (db == null)
+        {
+            Debug.LogError("[NetworkPlayer] ❌ SkillDatabase.Instance == null!");
+            return;
+        }
+
+        SkillData skill = db.GetSkillById(skillId);
+        if (skill == null)
+        {
+            Debug.LogError($"[NetworkPlayer] ❌ Скилл с ID {skillId} не найден!");
+            return;
+        }
+
+        if (skill.transformationModel == null)
+        {
+            Debug.LogError($"[NetworkPlayer] ❌ У скилла {skill.skillName} нет модели трансформации!");
+            return;
+        }
+
+        Debug.Log($"[NetworkPlayer] 🔍 Скилл найден: {skill.skillName}, модель: {skill.transformationModel.name}");
+
+        // Скрываем оригинальную модель
+        originalModel = GetComponentInChildren<SkinnedMeshRenderer>()?.gameObject;
+        if (originalModel != null)
+        {
+            originalModel.SetActive(false);
+            Debug.Log($"[NetworkPlayer] ✅ Оригинальная модель скрыта: {originalModel.name}");
+        }
+        else
+        {
+            Debug.LogWarning($"[NetworkPlayer] ⚠️ SkinnedMeshRenderer не найден для {username}");
+        }
+
+        // Создаём модель трансформации
+        transformationInstance = Instantiate(skill.transformationModel, transform.position, transform.rotation, transform);
+        Debug.Log($"[NetworkPlayer] ✅ Трансформация создана: {transformationInstance.name} для {username}");
+
+        // ВАЖНО: Обновляем ссылку на Animator (теперь используем animator из модели трансформации)
+        Animator newAnimator = transformationInstance.GetComponentInChildren<Animator>();
+        if (newAnimator != null)
+        {
+            animator = newAnimator;
+            Debug.Log($"[NetworkPlayer] ✅ Animator обновлён на трансформацию для {username}");
+
+            // Устанавливаем боевую стойку
+            if (HasAnimatorParameter(animator, "InBattle"))
+            {
+                animator.SetBool("InBattle", true);
+            }
+        }
+        else
+        {
+            Debug.LogWarning($"[NetworkPlayer] ⚠️ Animator не найден на модели трансформации для {username}");
+        }
+
+        Debug.Log($"[NetworkPlayer] 🐻 ✅ Трансформация применена к {username}!");
+    }
+
+    /// <summary>
+    /// Завершить трансформацию сетевого игрока (НОВОЕ)
+    /// </summary>
+    public void EndTransformation()
+    {
+        Debug.Log($"[NetworkPlayer] 🔄 EndTransformation вызван для {username}");
+
+        if (transformationInstance != null)
+        {
+            Destroy(transformationInstance);
+            Debug.Log($"[NetworkPlayer] ✅ Модель трансформации удалена для {username}");
+        }
+
+        if (originalModel != null)
+        {
+            originalModel.SetActive(true);
+            Debug.Log($"[NetworkPlayer] ✅ Оригинальная модель восстановлена для {username}");
+
+            // ВАЖНО: Возвращаем ссылку на оригинальный Animator
+            Animator originalAnimator = originalModel.GetComponentInChildren<Animator>();
+            if (originalAnimator != null)
+            {
+                animator = originalAnimator;
+                Debug.Log($"[NetworkPlayer] ✅ Animator восстановлён на оригинальный для {username}");
+
+                // Устанавливаем боевую стойку
+                if (HasAnimatorParameter(animator, "InBattle"))
+                {
+                    animator.SetBool("InBattle", true);
+                }
+            }
+        }
+
+        transformationInstance = null;
+        originalModel = null;
+
+        Debug.Log($"[NetworkPlayer] 🔄 ✅ Трансформация завершена для {username}!");
+    }
+
     // Public getters
     public int CurrentHP => currentHP;
     public int MaxHP => maxHP;

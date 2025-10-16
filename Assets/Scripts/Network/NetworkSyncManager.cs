@@ -116,6 +116,8 @@ public class NetworkSyncManager : MonoBehaviour
         SocketIOManager.Instance.On("player_animation_changed", OnAnimationChanged); // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: теперь совпадает с сервером!
         SocketIOManager.Instance.On("player_attacked", OnPlayerAttacked);
         SocketIOManager.Instance.On("player_skill_used", OnPlayerSkillUsed); // НОВОЕ: Синхронизация скиллов
+        SocketIOManager.Instance.On("player_transformed", OnPlayerTransformed); // НОВОЕ: Синхронизация трансформации
+        SocketIOManager.Instance.On("player_transformation_ended", OnPlayerTransformationEnded); // НОВОЕ: Окончание трансформации
         SocketIOManager.Instance.On("player_health_changed", OnHealthChanged);
         SocketIOManager.Instance.On("player_died", OnPlayerDied);
         SocketIOManager.Instance.On("player_respawned", OnPlayerRespawned);
@@ -630,6 +632,86 @@ public class NetworkSyncManager : MonoBehaviour
         catch (Exception ex)
         {
             Debug.LogError($"[NetworkSync] ❌ Ошибка в OnPlayerSkillUsed: {ex.Message}\nJSON: {jsonData}");
+        }
+    }
+
+    /// <summary>
+    /// Обработать трансформацию игрока (НОВОЕ)
+    /// </summary>
+    private void OnPlayerTransformed(string jsonData)
+    {
+        Debug.Log($"[NetworkSync] 🐻 RAW player_transformed JSON: {jsonData}");
+
+        try
+        {
+            var data = JsonUtility.FromJson<PlayerTransformedEvent>(jsonData);
+            Debug.Log($"[NetworkSync] 🐻 Трансформация получена: socketId={data.socketId}, skillId={data.skillId}");
+
+            // Skip if it's our own transformation (we already did it locally)
+            if (data.socketId == localPlayerSocketId)
+            {
+                Debug.Log($"[NetworkSync] ⏭️ Это наша собственная трансформация, пропускаем");
+                return;
+            }
+
+            // Find the network player who transformed
+            if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer player))
+            {
+                Debug.Log($"[NetworkSync] 🐻 Применяем трансформацию для {player.username}");
+
+                // Apply transformation визуально к сетевому игроку
+                player.ApplyTransformation(data.skillId);
+
+                Debug.Log($"[NetworkSync] ✅ Трансформация применена к {player.username}");
+            }
+            else
+            {
+                Debug.LogWarning($"[NetworkSync] ⚠️ Network player {data.socketId} не найден для трансформации");
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[NetworkSync] ❌ Ошибка в OnPlayerTransformed: {ex.Message}\nJSON: {jsonData}");
+        }
+    }
+
+    /// <summary>
+    /// Обработать окончание трансформации игрока (НОВОЕ)
+    /// </summary>
+    private void OnPlayerTransformationEnded(string jsonData)
+    {
+        Debug.Log($"[NetworkSync] 🔄 RAW player_transformation_ended JSON: {jsonData}");
+
+        try
+        {
+            var data = JsonUtility.FromJson<PlayerTransformationEndedEvent>(jsonData);
+            Debug.Log($"[NetworkSync] 🔄 Окончание трансформации: socketId={data.socketId}");
+
+            // Skip if it's our own transformation end
+            if (data.socketId == localPlayerSocketId)
+            {
+                Debug.Log($"[NetworkSync] ⏭️ Это наша собственная трансформация, пропускаем");
+                return;
+            }
+
+            // Find the network player
+            if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer player))
+            {
+                Debug.Log($"[NetworkSync] 🔄 Завершаем трансформацию для {player.username}");
+
+                // End transformation визуально
+                player.EndTransformation();
+
+                Debug.Log($"[NetworkSync] ✅ Трансформация завершена для {player.username}");
+            }
+            else
+            {
+                Debug.LogWarning($"[NetworkSync] ⚠️ Network player {data.socketId} не найден");
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[NetworkSync] ❌ Ошибка в OnPlayerTransformationEnded: {ex.Message}\nJSON: {jsonData}");
         }
     }
 
@@ -1444,4 +1526,27 @@ public class SpecialStatsData
     public int intelligence;
     public int agility;
     public int luck;
+}
+
+/// <summary>
+/// Player transformed event (НОВОЕ)
+/// </summary>
+[Serializable]
+public class PlayerTransformedEvent
+{
+    public string socketId;
+    public string username;
+    public int skillId; // ID скилла трансформации (301 = Bear Form)
+    public long timestamp;
+}
+
+/// <summary>
+/// Player transformation ended event (НОВОЕ)
+/// </summary>
+[Serializable]
+public class PlayerTransformationEndedEvent
+{
+    public string socketId;
+    public string username;
+    public long timestamp;
 }

@@ -414,8 +414,9 @@ public class SocketIOManager : MonoBehaviour
 
     /// <summary>
     /// Отправить использование скилла на сервер (для мультиплеера)
+    /// ОБНОВЛЕНО: Добавлен параметр skillType для корректной обработки трансформации
     /// </summary>
-    public void SendPlayerSkill(int skillId, string targetSocketId, Vector3 targetPosition)
+    public void SendPlayerSkill(int skillId, string targetSocketId, Vector3 targetPosition, string skillType = "")
     {
         if (!isConnected)
         {
@@ -427,12 +428,28 @@ public class SocketIOManager : MonoBehaviour
         {
             skillId = skillId,
             targetSocketId = targetSocketId,
-            targetPosition = new { x = targetPosition.x, y = targetPosition.y, z = targetPosition.z }
+            targetPosition = new { x = targetPosition.x, y = targetPosition.y, z = targetPosition.z },
+            skillType = skillType // ВАЖНО: "Transformation" для трансформации медведя
         };
 
         string json = JsonConvert.SerializeObject(data);
-        DebugLog($"⚡ Отправка скилла: ID={skillId}, target={targetSocketId}");
+        DebugLog($"⚡ Отправка скилла: ID={skillId}, тип={skillType}, target={targetSocketId}");
         Emit("player_skill", json);
+    }
+
+    /// <summary>
+    /// Отправить окончание трансформации на сервер
+    /// </summary>
+    public void SendTransformationEnd()
+    {
+        if (!isConnected)
+        {
+            DebugLog("⚠️ SendTransformationEnd: Не подключен к серверу");
+            return;
+        }
+
+        DebugLog("🔄 Отправка окончания трансформации");
+        Emit("player_transformation_end", "{}");
     }
 
     /// <summary>

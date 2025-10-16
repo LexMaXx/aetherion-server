@@ -445,6 +445,13 @@ public class SkillManager : MonoBehaviour
         }
 
         isTransformed = false;
+
+        // НОВОЕ: Отправляем на сервер окончание трансформации
+        if (SocketIOManager.Instance != null && SocketIOManager.Instance.IsConnected)
+        {
+            SocketIOManager.Instance.SendTransformationEnd();
+        }
+
         Debug.Log("[SkillManager] 🐻 Трансформация завершена");
     }
 
@@ -603,6 +610,7 @@ public class SkillManager : MonoBehaviour
 
     /// <summary>
     /// Отправить скилл на сервер для синхронизации
+    /// ОБНОВЛЕНО: Теперь передает skillType для корректной обработки трансформации
     /// </summary>
     private void SendSkillToServer(SkillData skill, Transform target)
     {
@@ -624,11 +632,14 @@ public class SkillManager : MonoBehaviour
             }
         }
 
+        // ВАЖНО: Передаем тип скилла для правильной обработки на сервере
+        string skillType = skill.skillType.ToString(); // "Transformation", "Damage", "Heal" и т.д.
+
         // Отправляем на сервер
         Vector3 targetPos = target != null ? target.position : transform.position;
-        SocketIOManager.Instance.SendPlayerSkill(skill.skillId, targetSocketId, targetPos);
+        SocketIOManager.Instance.SendPlayerSkill(skill.skillId, targetSocketId, targetPos, skillType);
 
-        Debug.Log($"[SkillManager] 📡 Скилл {skill.skillName} (ID:{skill.skillId}) отправлен на сервер");
+        Debug.Log($"[SkillManager] 📡 Скилл {skill.skillName} (ID:{skill.skillId}, тип:{skillType}) отправлен на сервер");
     }
 
     void OnDestroy()
