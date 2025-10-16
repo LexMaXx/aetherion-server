@@ -649,7 +649,12 @@ public class NetworkPlayer : MonoBehaviour
 
         // Создаём модель трансформации
         transformationInstance = Instantiate(skill.transformationModel, transform.position, transform.rotation, transform);
-        Debug.Log($"[NetworkPlayer] ✅ Трансформация создана: {transformationInstance.name} для {username}");
+
+        // КРИТИЧЕСКОЕ: Сбрасываем локальную позицию/поворот в zero (чтобы модель была ровно в центре родителя)
+        transformationInstance.transform.localPosition = Vector3.zero;
+        transformationInstance.transform.localRotation = Quaternion.identity;
+
+        Debug.Log($"[NetworkPlayer] ✅ Трансформация создана: {transformationInstance.name} для {username} (localPos сброшен в zero)");
 
         // ВАЖНО: Обновляем ссылку на Animator (теперь используем animator из модели трансформации)
         Animator newAnimator = transformationInstance.GetComponentInChildren<Animator>();

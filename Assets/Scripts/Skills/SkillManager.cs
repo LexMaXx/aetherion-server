@@ -397,7 +397,11 @@ public class SkillManager : MonoBehaviour
         transformationInstance = Instantiate(skill.transformationModel, transform.position, transform.rotation, transform);
         isTransformed = true;
 
-        Debug.Log($"[SkillManager] ✅ Трансформация создана: {transformationInstance.name}");
+        // КРИТИЧЕСКОЕ: Сбрасываем локальную позицию/поворот в zero (чтобы модель была ровно в центре родителя)
+        transformationInstance.transform.localPosition = Vector3.zero;
+        transformationInstance.transform.localRotation = Quaternion.identity;
+
+        Debug.Log($"[SkillManager] ✅ Трансформация создана: {transformationInstance.name} (localPos сброшен в zero)");
 
         // Применяем бонусы
         if (healthSystem != null && skill.hpBonusPercent > 0f)
