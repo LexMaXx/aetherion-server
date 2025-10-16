@@ -36,10 +36,14 @@ public class PlayerAttack : MonoBehaviour
     private ClassWeaponManager weaponManager;
     private CharacterStats characterStats; // Интеграция с SPECIAL (Strength/Intelligence/Luck)
     private ManaSystem manaSystem; // Система маны для дальних атак
+    private SkillManager skillManager; // Менеджер скиллов
     private float lastAttackTime = 0f;
     private bool isAttacking = false;
     private Vector3 positionBeforeAttack;
     private Quaternion rotationBeforeAttack;
+
+    // Система использования скиллов
+    private int selectedSkillIndex = -1; // -1 = не выбран, 0-2 = индекс скилла
 
     // Текущая цель атаки (для Animation Event)
     private Enemy currentAttackTarget = null;
@@ -64,6 +68,7 @@ public class PlayerAttack : MonoBehaviour
         weaponManager = GetComponent<ClassWeaponManager>();
         characterStats = GetComponent<CharacterStats>();
         manaSystem = GetComponent<ManaSystem>();
+        skillManager = GetComponent<SkillManager>();
 
         if (characterStats != null)
         {
@@ -380,7 +385,29 @@ public class PlayerAttack : MonoBehaviour
         // Проверяем состояние анимации атаки
         CheckAttackState();
 
-        // Проверяем клик левой кнопки мыши
+        // === СИСТЕМА УПРАВЛЕНИЯ СКИЛЛАМИ ===
+
+        // Клавиши 1/2/3 - выбор скилла
+        if (Input.GetKeyDown(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Keypad1))
+        {
+            SelectSkill(0);
+        }
+        else if (Input.GetKeyDown(KeyCode.Alpha2) || Input.GetKeyDown(KeyCode.Keypad2))
+        {
+            SelectSkill(1);
+        }
+        else if (Input.GetKeyDown(KeyCode.Alpha3) || Input.GetKeyDown(KeyCode.Keypad3))
+        {
+            SelectSkill(2);
+        }
+
+        // ПКМ - использовать выбранный скилл
+        if (Input.GetMouseButtonDown(1))
+        {
+            TryUseSelectedSkill();
+        }
+
+        // ЛКМ - обычная атака
         if (Input.GetMouseButtonDown(0))
         {
             TryAttack();
@@ -857,5 +884,115 @@ public class PlayerAttack : MonoBehaviour
     {
         Debug.Log("[PlayerAttack] Animation Event: OnAttackEnd вызван!");
         // Можно использовать для эффектов окончания атаки
+    }
+
+    // ============================================================
+    // СИСТЕМА ИСПОЛЬЗОВАНИЯ СКИЛЛОВ
+    // ============================================================
+
+    /// <summary>
+    /// Выбрать скилл по индексу (0-2)
+    /// </summary>
+    private void SelectSkill(int skillIndex)
+    {
+        if (skillManager == null)
+        {
+            Debug.LogWarning("[PlayerAttack] ❌ SkillManager не найден! Не могу выбрать скилл.");
+            return;
+        }
+
+        if (skillIndex < 0 || skillIndex >= skillManager.equippedSkills.Count)
+        {
+            Debug.LogWarning($"[PlayerAttack] ❌ Некорректный индекс скилла: {skillIndex}");
+            return;
+        }
+
+        // Если скилл уже выбран - снимаем выбор
+        if (selectedSkillIndex == skillIndex)
+        {
+            selectedSkillIndex = -1;
+            Debug.Log($"[PlayerAttack] 🔘 Скилл {skillIndex + 1} ОТМЕНЁН");
+        }
+        else
+        {
+            selectedSkillIndex = skillIndex;
+            SkillData skill = skillManager.equippedSkills[skillIndex];
+            Debug.Log($"[PlayerAttack] ✅ ВЫБРАН скилл {skillIndex + 1}: {skill.skillName}");
+            Debug.Log($"[PlayerAttack] 💡 Теперь нажмите ПКМ для использования или 1/2/3 для отмены");
+        }
+    }
+
+    /// <summary>
+    /// Попытка использовать выбранный скилл
+    /// </summary>
+    private void TryUseSelectedSkill()
+    {
+        if (skillManager == null)
+        {
+            Debug.LogWarning("[PlayerAttack] ❌ SkillManager не найден!");
+            return;
+        }
+
+        if (selectedSkillIndex < 0)
+        {
+            Debug.Log("[PlayerAttack] 💡 Сначала выберите скилл клавишами 1/2/3, затем нажмите ПКМ");
+            return;
+        }
+
+        if (selectedSkillIndex >= skillManager.equippedSkills.Count)
+        {
+            Debug.LogWarning($"[PlayerAttack] ❌ Некорректный индекс выбранного скилла: {selectedSkillIndex}");
+            selectedSkillIndex = -1;
+            return;
+        }
+
+        SkillData skill = skillManager.equippedSkills[selectedSkillIndex];
+        Debug.Log($"[PlayerAttack] 🎯 Попытка использовать скилл: {skill.skillName}");
+
+        // Определяем цель в зависимости от типа скилла
+        Transform target = null;
+
+        // Для скиллов требующих цель - используем текущую цель из TargetSystem
+        if (skill.targetType == SkillTargetType.SingleTarget)
+        {
+            if (targetSystem != null && targetSystem.HasTarget())
+            {
+                target = targetSystem.GetCurrentTarget()?.transform;
+            }
+            else
+            {
+                Debug.LogWarning($"[PlayerAttack] ❌ Скилл {skill.skillName} требует цель, но цель не выбрана!");
+                return;
+            }
+        }
+        // Для скиллов на себя - цель = сам персонаж
+        else if (skill.targetType == SkillTargetType.Self)
+        {
+            target = transform;
+        }
+        // Для остальных типов (NoTarget, GroundTarget, Directional) - null (обработается в SkillManager)
+
+        // Используем скилл
+        bool success = skillManager.UseSkill(selectedSkillIndex, target);
+
+        if (success)
+        {
+            Debug.Log($"[PlayerAttack] ⚡ Скилл {skill.skillName} УСПЕШНО использован!");
+            // Снимаем выбор после использования
+            selectedSkillIndex = -1;
+        }
+        else
+        {
+            Debug.LogWarning($"[PlayerAttack] ❌ Не удалось использовать скилл {skill.skillName} (проверьте кулдаун/ману/дистанцию)");
+            // Оставляем скилл выбранным для повторной попытки
+        }
+    }
+
+    /// <summary>
+    /// Получить индекс выбранного скилла (-1 если не выбран)
+    /// </summary>
+    public int GetSelectedSkillIndex()
+    {
+        return selectedSkillIndex;
     }
 }

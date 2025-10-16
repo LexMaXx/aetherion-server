@@ -361,6 +361,12 @@ public class ArenaManager : MonoBehaviour
             Debug.Log("✓ Добавлен SkillManager");
         }
 
+        // КРИТИЧЕСКОЕ: Загружаем скиллы из SkillDatabase для класса
+        LoadSkillsForClass(skillManager);
+
+        // КРИТИЧЕСКОЕ: Загружаем экипированные скиллы из PlayerPrefs
+        LoadEquippedSkillsFromPlayerPrefs(skillManager);
+
         // Добавляем туман войны (Fog of War)
         FogOfWar fogOfWar = modelTransform.GetComponent<FogOfWar>();
         if (fogOfWar == null)
@@ -1133,5 +1139,109 @@ public class ArenaManager : MonoBehaviour
         {
             Destroy(gameObject);
         }
+    }
+
+    /// <summary>
+    /// Загрузить все доступные скиллы класса из SkillDatabase
+    /// </summary>
+    private void LoadSkillsForClass(SkillManager skillManager)
+    {
+        if (skillManager == null)
+        {
+            Debug.LogError("[ArenaManager] ❌ SkillManager is NULL!");
+            return;
+        }
+
+        // Получаем класс персонажа
+        string selectedClass = PlayerPrefs.GetString("SelectedCharacterClass", "");
+        if (string.IsNullOrEmpty(selectedClass))
+        {
+            Debug.LogError("[ArenaManager] ❌ SelectedCharacterClass пуст!");
+            return;
+        }
+
+        // Загружаем SkillDatabase
+        SkillDatabase skillDatabase = SkillDatabase.Instance;
+        if (skillDatabase == null)
+        {
+            Debug.LogError("[ArenaManager] ❌ SkillDatabase не найдена! Создайте через Assets → Create → Skill Database");
+            return;
+        }
+
+        // Конвертируем string класса в CharacterClass enum
+        CharacterClass characterClass;
+        if (!System.Enum.TryParse(selectedClass, out characterClass))
+        {
+            Debug.LogError($"[ArenaManager] ❌ Неизвестный класс: {selectedClass}");
+            return;
+        }
+
+        // Получаем все скиллы класса
+        var classSkills = skillDatabase.GetSkillsForClass(characterClass);
+        if (classSkills == null || classSkills.Count == 0)
+        {
+            Debug.LogWarning($"[ArenaManager] ⚠️ Нет скиллов для класса {selectedClass} в SkillDatabase!");
+            return;
+        }
+
+        // Загружаем в allAvailableSkills
+        skillManager.allAvailableSkills.Clear();
+        skillManager.allAvailableSkills.AddRange(classSkills);
+
+        Debug.Log($"[ArenaManager] ✅ Загружено {classSkills.Count} скиллов для класса {selectedClass}:");
+        foreach (var skill in classSkills)
+        {
+            Debug.Log($"  - {skill.skillName} (ID: {skill.skillId})");
+        }
+    }
+
+    /// <summary>
+    /// Загрузить экипированные скиллы из PlayerPrefs
+    /// </summary>
+    private void LoadEquippedSkillsFromPlayerPrefs(SkillManager skillManager)
+    {
+        if (skillManager == null)
+        {
+            Debug.LogError("[ArenaManager] ❌ SkillManager is NULL!");
+            return;
+        }
+
+        // Загружаем из PlayerPrefs
+        string equipJson = PlayerPrefs.GetString("EquippedSkills", "");
+        if (string.IsNullOrEmpty(equipJson))
+        {
+            Debug.LogWarning("[ArenaManager] ⚠️ EquippedSkills пуст в PlayerPrefs! Используем первые 3 скилла по умолчанию.");
+
+            // Автоэкипировка первых 3 скиллов
+            List<int> defaultSkillIds = new List<int>();
+            for (int i = 0; i < System.Math.Min(3, skillManager.allAvailableSkills.Count); i++)
+            {
+                defaultSkillIds.Add(skillManager.allAvailableSkills[i].skillId);
+            }
+            skillManager.LoadEquippedSkills(defaultSkillIds);
+            return;
+        }
+
+        // Парсим JSON
+        EquippedSkillsData data = JsonUtility.FromJson<EquippedSkillsData>(equipJson);
+        if (data == null || data.skillIds == null || data.skillIds.Count == 0)
+        {
+            Debug.LogWarning("[ArenaManager] ⚠️ Не удалось распарсить EquippedSkills JSON!");
+            return;
+        }
+
+        // Загружаем скиллы в SkillManager
+        skillManager.LoadEquippedSkills(data.skillIds);
+
+        Debug.Log($"[ArenaManager] ✅ Экипировано скиллов из PlayerPrefs: {data.skillIds.Count}");
+    }
+
+    /// <summary>
+    /// Вспомогательный класс для сериализации экипированных скиллов
+    /// </summary>
+    [System.Serializable]
+    private class EquippedSkillsData
+    {
+        public List<int> skillIds;
     }
 }
