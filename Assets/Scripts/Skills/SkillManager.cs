@@ -40,6 +40,8 @@ public class SkillManager : MonoBehaviour
     private GameObject originalModel;
     public bool isTransformed = false; // PUBLIC для NetworkSyncManager
     private float transformationHPBonus = 0f; // Сохраняем бонус HP для удаления
+    private Animator bearAnimator; // Аниматор медведя (для синхронизации параметров)
+    private Animator originalAnimator; // Оригинальный аниматор игрока (для копирования параметров)
 
     void Start()
     {
@@ -58,6 +60,12 @@ public class SkillManager : MonoBehaviour
 
         // Обновляем активные эффекты
         UpdateActiveEffects();
+
+        // КРИТИЧЕСКОЕ: Синхронизируем параметры аниматора медведя с оригинальным
+        if (isTransformed && bearAnimator != null && originalAnimator != null)
+        {
+            SyncBearAnimatorParameters();
+        }
     }
 
     /// <summary>
@@ -426,21 +434,18 @@ public class SkillManager : MonoBehaviour
             Debug.Log($"[SkillManager] 🔧 Scale 'input' GameObject сброшен в (1,1,1) (offset fix)");
         }
 
-        // КРИТИЧЕСКОЕ: Используем РОДНОЙ аниматор медведя (совместим с его скелетом)
-        Animator bearAnimator = transformationInstance.GetComponentInChildren<Animator>();
-        if (bearAnimator != null)
+        // КРИТИЧЕСКОЕ: Сохраняем ссылки на оба аниматора для синхронизации
+        originalAnimator = animator; // Сохраняем оригинальный аниматор игрока
+        bearAnimator = transformationInstance.GetComponentInChildren<Animator>();
+
+        if (bearAnimator != null && originalAnimator != null)
         {
-            // Оставляем аниматор медведя как есть (не заменяем!)
-            // Переключаемся на его использование
-            animator = bearAnimator;
-
-            // Устанавливаем боевую стойку
-            if (HasAnimatorParameter(animator, "InBattle"))
-            {
-                animator.SetBool("InBattle", true);
-            }
-
-            Debug.Log($"[SkillManager] 🔧 Используем родной аниматор медведя");
+            Debug.Log($"[SkillManager] 🔧 Настроена синхронизация: originalAnimator → bearAnimator");
+            Debug.Log($"[SkillManager] 🔧 Original Animator: {originalAnimator.gameObject.name}, Bear Animator: {bearAnimator.gameObject.name}");
+        }
+        else
+        {
+            Debug.LogWarning($"[SkillManager] ⚠️ Не удалось найти аниматоры! Original: {originalAnimator != null}, Bear: {bearAnimator != null}");
         }
 
         // КРИТИЧЕСКОЕ: Скрываем оружие во время трансформации (медведь безоружный)
@@ -506,6 +511,10 @@ public class SkillManager : MonoBehaviour
             weaponAttachment.AttachWeapon();
             Debug.Log($"[SkillManager] ✅ Оружие восстановлено");
         }
+
+        // Очищаем ссылки на аниматоры
+        bearAnimator = null;
+        originalAnimator = null;
 
         isTransformed = false;
 
@@ -729,5 +738,37 @@ public class SkillManager : MonoBehaviour
             if (param.name == paramName) return true;
         }
         return false;
+    }
+
+    /// <summary>
+    /// Синхронизировать параметры аниматора медведя с оригинальным аниматором игрока
+    /// Копируем параметры каждый кадр, чтобы медведь анимировался синхронно с движением игрока
+    /// </summary>
+    private void SyncBearAnimatorParameters()
+    {
+        if (bearAnimator == null || originalAnimator == null) return;
+
+        // Копируем общие параметры анимации
+        foreach (AnimatorControllerParameter param in originalAnimator.parameters)
+        {
+            if (!HasAnimatorParameter(bearAnimator, param.name)) continue;
+
+            switch (param.type)
+            {
+                case AnimatorControllerParameterType.Float:
+                    bearAnimator.SetFloat(param.name, originalAnimator.GetFloat(param.name));
+                    break;
+
+                case AnimatorControllerParameterType.Int:
+                    bearAnimator.SetInteger(param.name, originalAnimator.GetInteger(param.name));
+                    break;
+
+                case AnimatorControllerParameterType.Bool:
+                    bearAnimator.SetBool(param.name, originalAnimator.GetBool(param.name));
+                    break;
+
+                // Trigger не копируем (они одноразовые)
+            }
+        }
     }
 }
