@@ -43,6 +43,7 @@ public class SkillManager : MonoBehaviour
     private SkinnedMeshRenderer playerRenderer;
     private Mesh originalMesh;
     private Material[] originalMaterials;
+    private Transform[] originalBones; // КРИТИЧЕСКОЕ: Сохраняем bones игрока!
 
     void Start()
     {
@@ -386,9 +387,10 @@ public class SkillManager : MonoBehaviour
             return;
         }
 
-        // Сохраняем оригинальный mesh и материалы
+        // Сохраняем оригинальный mesh, материалы И BONES
         originalMesh = playerRenderer.sharedMesh;
         originalMaterials = playerRenderer.sharedMaterials;
+        originalBones = playerRenderer.bones; // КРИТИЧЕСКОЕ: Сохраняем bones игрока!
 
         Debug.Log($"[SkillManager] 💾 Оригинальный mesh сохранён: {originalMesh.name}");
 
@@ -400,9 +402,18 @@ public class SkillManager : MonoBehaviour
             return;
         }
 
-        // ЗАМЕНЯЕМ mesh на медведя!
+        Debug.Log($"[SkillManager] 🔍 ДИАГНОСТИКА:");
+        Debug.Log($"  Player mesh: {originalMesh.name}, vertices: {originalMesh.vertexCount}, bones: {playerRenderer.bones.Length}");
+        Debug.Log($"  Bear mesh: {bearRenderer.sharedMesh.name}, vertices: {bearRenderer.sharedMesh.vertexCount}, bones: {bearRenderer.bones.Length}");
+        Debug.Log($"  Player bones[0]: {(playerRenderer.bones.Length > 0 ? playerRenderer.bones[0].name : "NONE")}");
+        Debug.Log($"  Bear bones[0]: {(bearRenderer.bones.Length > 0 ? bearRenderer.bones[0].name : "NONE")}");
+
+        // КРИТИЧЕСКОЕ: Заменяем ТОЛЬКО mesh и материалы
+        // Bones оставляем ОРИГИНАЛЬНЫЕ (скелет игрока)!
+        // Это работает только если у медведя и игрока одинаковый Mixamo скелет!
         playerRenderer.sharedMesh = bearRenderer.sharedMesh;
         playerRenderer.sharedMaterials = bearRenderer.sharedMaterials;
+        // playerRenderer.bones = НЕ МЕНЯЕМ! Остаются bones игрока (originalBones)
 
         isTransformed = true;
 
@@ -437,11 +448,12 @@ public class SkillManager : MonoBehaviour
     {
         if (!isTransformed) return;
 
-        // Восстанавливаем оригинальный mesh и материалы
-        if (playerRenderer != null && originalMesh != null && originalMaterials != null)
+        // Восстанавливаем оригинальный mesh, материалы и bones
+        if (playerRenderer != null && originalMesh != null && originalMaterials != null && originalBones != null)
         {
             playerRenderer.sharedMesh = originalMesh;
             playerRenderer.sharedMaterials = originalMaterials;
+            playerRenderer.bones = originalBones; // Восстанавливаем оригинальные bones
 
             Debug.Log($"[SkillManager] ✅ Оригинальный mesh восстановлен: {originalMesh.name}");
         }
@@ -465,6 +477,7 @@ public class SkillManager : MonoBehaviour
         playerRenderer = null;
         originalMesh = null;
         originalMaterials = null;
+        originalBones = null;
 
         isTransformed = false;
 
