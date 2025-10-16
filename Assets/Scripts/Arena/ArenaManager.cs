@@ -910,6 +910,7 @@ public class ArenaManager : MonoBehaviour
 
     private GameObject lobbyUI;
     private UnityEngine.UI.Text countdownText;
+    private System.Collections.IEnumerator lobbyCountdownCoroutine;
 
     /// <summary>
     /// Callback: Лобби создано, начинается 20-секундное ожидание
@@ -920,6 +921,15 @@ public class ArenaManager : MonoBehaviour
 
         // Создаем UI для лобби (только countdown, без текста ожидания)
         CreateLobbyUI();
+
+        // КРИТИЧЕСКОЕ: Запускаем локальный таймер для FALLBACK случаев
+        // (когда сервер не отправляет game_countdown события)
+        if (lobbyCountdownCoroutine != null)
+        {
+            StopCoroutine(lobbyCountdownCoroutine);
+        }
+        lobbyCountdownCoroutine = LobbyCountdownTimer(waitTimeMs / 1000f);
+        StartCoroutine(lobbyCountdownCoroutine);
     }
 
     /// <summary>
@@ -986,12 +996,47 @@ public class ArenaManager : MonoBehaviour
 
 
     /// <summary>
+    /// Локальный таймер countdown (FALLBACK для случаев когда сервер не отправляет события)
+    /// </summary>
+    private System.Collections.IEnumerator LobbyCountdownTimer(float waitTimeSeconds)
+    {
+        Debug.Log($"[ArenaManager] ⏱️ Локальный countdown таймер запущен: {waitTimeSeconds}с");
+
+        // Ждем основное время (waitTimeSeconds - 3 секунды на countdown)
+        float countdownStartTime = Mathf.Max(0f, waitTimeSeconds - 3f);
+        if (countdownStartTime > 0f)
+        {
+            Debug.Log($"[ArenaManager] ⏳ Ожидание {countdownStartTime}с до начала countdown...");
+            yield return new WaitForSeconds(countdownStartTime);
+        }
+
+        // Countdown 3-2-1
+        for (int i = 3; i >= 1; i--)
+        {
+            Debug.Log($"[ArenaManager] ⏱️ COUNTDOWN: {i}");
+            OnCountdown(i);
+            yield return new WaitForSeconds(1f);
+        }
+
+        // GO!
+        Debug.Log("[ArenaManager] 🚀 GO! Запускаем игру...");
+        OnGameStarted();
+    }
+
+    /// <summary>
     /// Callback: Игра началась - СПАВНИМ ВСЕХ ОДНОВРЕМЕННО!
     /// </summary>
     public void OnGameStarted()
     {
         Debug.Log($"[ArenaManager] 🎮 GAME START! Спавним персонажа...");
         gameStarted = true;
+
+        // Останавливаем countdown таймер если он еще работает
+        if (lobbyCountdownCoroutine != null)
+        {
+            StopCoroutine(lobbyCountdownCoroutine);
+            lobbyCountdownCoroutine = null;
+        }
 
         // Скрываем countdown и удаляем Lobby UI
         if (countdownText != null)
