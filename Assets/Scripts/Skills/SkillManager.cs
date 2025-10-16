@@ -432,7 +432,7 @@ public class SkillManager : MonoBehaviour
         {
             bearAnimator.enabled = false;
             CharacterStats stats = GetComponent<CharacterStats>();
-            string playerClass = stats != null ? stats.CharacterClass : "Unknown";
+            string playerClass = stats != null ? stats.ClassName : "Unknown";
             Debug.Log($"[SkillManager] 🔧 Аниматор медведя ОТКЛЮЧЁН (несовместим с классом {playerClass})");
         }
 
