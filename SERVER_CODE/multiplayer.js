@@ -854,6 +854,86 @@ module.exports = (io) => {
     });
 
     // ═══════════════════════════════════════════
+    // СКИЛЛЫ (ТРАНСФОРМАЦИЯ И ДР.)
+    // ═══════════════════════════════════════════
+
+    socket.on('player_skill', (data) => {
+      const player = activePlayers.get(socket.id);
+      if (!player) {
+        console.warn(`[Skill] Player ${socket.id} not found in activePlayers`);
+        return;
+      }
+
+      // ВАЖНО: Unity может отправить как строку, так и как объект
+      let parsedData = data;
+      if (typeof data === 'string') {
+        try {
+          parsedData = JSON.parse(data);
+        } catch (e) {
+          console.error('[Skill] ❌ Failed to parse JSON:', e.message);
+          return;
+        }
+      }
+
+      const { skillId, targetSocketId, targetPosition, skillType } = parsedData;
+
+      console.log(`[Skill] ⚡ ${player.username} использует скилл ID=${skillId}, тип=${skillType || 'unknown'}`);
+
+      // СПЕЦИАЛЬНАЯ ОБРАБОТКА: Трансформация (например, Bear Form для Paladin)
+      if (skillType === 'Transformation' || skillId === 502) { // 502 = Bear Form
+        console.log(`[Skill] 🐻 ТРАНСФОРМАЦИЯ! ${player.username} превращается...`);
+
+        // Сохраняем состояние трансформации игрока
+        player.isTransformed = true;
+        player.transformationSkillId = skillId;
+        player.transformationStartTime = Date.now();
+
+        // Рассылаем всем игрокам в комнате (ВКЛЮЧАЯ самого игрока для подтверждения)
+        io.to(player.roomId).emit('player_transformed', {
+          socketId: socket.id,
+          username: player.username,
+          skillId: skillId,
+          timestamp: Date.now()
+        });
+
+        console.log(`[Skill] 📡 Broadcast player_transformed для ${player.username} в комнату ${player.roomId}`);
+      }
+      // Обычные скиллы (урон, хил и т.д.)
+      else {
+        // Broadcast использования скилла другим игрокам
+        socket.to(player.roomId).emit('player_skill_used', {
+          socketId: socket.id,
+          username: player.username,
+          characterClass: player.characterClass,
+          skillId: skillId,
+          targetSocketId: targetSocketId || '',
+          targetPosition: targetPosition || { x: 0, y: 0, z: 0 },
+          timestamp: Date.now()
+        });
+
+        console.log(`[Skill] 📡 Broadcast player_skill_used для ${player.username}`);
+      }
+    });
+
+    // Окончание трансформации (опционально - можно использовать таймер на клиенте)
+    socket.on('player_transformation_end', (data) => {
+      const player = activePlayers.get(socket.id);
+      if (!player) return;
+
+      console.log(`[Skill] 🔄 ${player.username} завершает трансформацию`);
+
+      player.isTransformed = false;
+      player.transformationSkillId = null;
+
+      // Broadcast окончания трансформации
+      io.to(player.roomId).emit('player_transformation_ended', {
+        socketId: socket.id,
+        username: player.username,
+        timestamp: Date.now()
+      });
+    });
+
+    // ═══════════════════════════════════════════
     // ОТКЛЮЧЕНИЕ
     // ═══════════════════════════════════════════
 
