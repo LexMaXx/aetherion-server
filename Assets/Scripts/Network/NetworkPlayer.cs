@@ -680,16 +680,28 @@ public class NetworkPlayer : MonoBehaviour
             Debug.Log($"[NetworkPlayer] 🔧 Scale 'input' GameObject сброшен в (1,1,1) (offset fix)");
         }
 
-        // КРИТИЧЕСКОЕ: ОТКЛЮЧАЕМ аниматор медведя (он от Война, несовместим с Паладином)
-        // Продолжаем использовать оригинальный аниматор игрока!
+        // КРИТИЧЕСКОЕ: Заменяем аниматор медведя на аниматор игрока + синхронизируем параметры
         Animator bearAnimator = transformationInstance.GetComponentInChildren<Animator>();
-        if (bearAnimator != null)
+        if (bearAnimator != null && animator != null)
         {
-            bearAnimator.enabled = false;
-            Debug.Log($"[NetworkPlayer] 🔧 Аниматор медведя ОТКЛЮЧЁН (несовместим с классом {characterClass})");
-        }
+            // Заменяем AnimatorController медведя на AnimatorController игрока
+            bearAnimator.runtimeAnimatorController = animator.runtimeAnimatorController;
 
-        // Оригинальный аниматор игрока продолжает работать (animator остаётся прежним)
+            // Копируем текущие параметры анимации от игрока к медведю
+            bearAnimator.SetBool("IsMoving", animator.GetBool("IsMoving"));
+            bearAnimator.SetFloat("MoveX", animator.GetFloat("MoveX"));
+            bearAnimator.SetFloat("MoveY", animator.GetFloat("MoveY"));
+            bearAnimator.SetFloat("Speed", animator.GetFloat("Speed"));
+            if (animator.GetBool("InBattle"))
+            {
+                bearAnimator.SetBool("InBattle", true);
+            }
+
+            // Теперь используем аниматор медведя вместо оригинального
+            animator = bearAnimator;
+
+            Debug.Log($"[NetworkPlayer] 🔧 Аниматор медведя заменён на AnimatorController игрока");
+        }
 
         // КРИТИЧЕСКОЕ: Сбрасываем NetworkTransform чтобы остановить экстраполяцию (Dead Reckoning)
         // Иначе медведь будет "убегать" вперёд из-за предсказания на основе старой velocity

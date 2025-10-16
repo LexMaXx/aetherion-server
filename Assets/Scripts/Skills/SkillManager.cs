@@ -427,15 +427,24 @@ public class SkillManager : MonoBehaviour
             Debug.Log($"[SkillManager] 🔧 Scale 'input' GameObject сброшен в (1,1,1) (offset fix)");
         }
 
-        // КРИТИЧЕСКОЕ: ОТКЛЮЧАЕМ аниматор медведя (он от Война, несовместим с Паладином)
-        // Продолжаем использовать оригинальный аниматор игрока!
+        // КРИТИЧЕСКОЕ: Заменяем аниматор медведя на аниматор игрока + синхронизируем параметры
         Animator bearAnimator = transformationInstance.GetComponentInChildren<Animator>();
-        if (bearAnimator != null)
+        if (bearAnimator != null && animator != null)
         {
-            bearAnimator.enabled = false;
-            CharacterStats stats = GetComponent<CharacterStats>();
-            string playerClass = stats != null ? stats.ClassName : "Unknown";
-            Debug.Log($"[SkillManager] 🔧 Аниматор медведя ОТКЛЮЧЁН (несовместим с классом {playerClass})");
+            // Заменяем AnimatorController медведя на AnimatorController игрока
+            bearAnimator.runtimeAnimatorController = animator.runtimeAnimatorController;
+
+            // Копируем текущие параметры анимации от игрока к медведю
+            bearAnimator.SetFloat("Speed", animator.GetFloat("Speed"));
+            if (animator.GetBool("InBattle"))
+            {
+                bearAnimator.SetBool("InBattle", true);
+            }
+
+            // Теперь используем аниматор медведя вместо оригинального
+            animator = bearAnimator;
+
+            Debug.Log($"[SkillManager] 🔧 Аниматор медведя заменён на AnimatorController игрока");
         }
 
         // Применяем бонусы
