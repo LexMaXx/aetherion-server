@@ -654,7 +654,16 @@ public class NetworkPlayer : MonoBehaviour
         transformationInstance.transform.localPosition = Vector3.zero;
         transformationInstance.transform.localRotation = Quaternion.identity;
 
-        Debug.Log($"[NetworkPlayer] ✅ Трансформация создана: {transformationInstance.name} для {username} (localPos сброшен в zero)");
+        Debug.Log($"[NetworkPlayer] ✅ Трансформация создана: {transformationInstance.name} для {username}");
+        Debug.Log($"[NetworkPlayer] 🔍 ДИАГНОСТИКА: Parent worldPos={transform.position}, Bear localPos={transformationInstance.transform.localPosition}, Bear worldPos={transformationInstance.transform.position}");
+
+        // КРИТИЧЕСКОЕ: Отключаем все коллайдеры у медведя (могут вызывать рассинхрон)
+        Collider[] bearColliders = transformationInstance.GetComponentsInChildren<Collider>();
+        foreach (Collider col in bearColliders)
+        {
+            col.enabled = false;
+            Debug.Log($"[NetworkPlayer] 🔧 Отключён коллайдер у медведя: {col.GetType().Name}");
+        }
 
         // ВАЖНО: Обновляем ссылку на Animator (теперь используем animator из модели трансформации)
         Animator newAnimator = transformationInstance.GetComponentInChildren<Animator>();
