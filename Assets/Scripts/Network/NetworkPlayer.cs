@@ -656,7 +656,8 @@ public class NetworkPlayer : MonoBehaviour
         transformationInstance = Instantiate(skill.transformationModel, transform.position, transform.rotation, transform);
 
         // КРИТИЧЕСКОЕ: Сбрасываем локальную позицию/поворот в zero (чтобы модель была ровно в центре родителя)
-        transformationInstance.transform.localPosition = Vector3.zero;
+        // НО сдвигаем вниз на -0.9 чтобы ноги медведя были на земле (не в воздухе)
+        transformationInstance.transform.localPosition = new Vector3(0f, -0.9f, 0f);
         transformationInstance.transform.localRotation = Quaternion.identity;
 
         Debug.Log($"[NetworkPlayer] ✅ Трансформация создана: {transformationInstance.name} для {username}");
