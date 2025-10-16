@@ -496,18 +496,20 @@ public class SkillManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Обновить кулдауны (ОПТИМИЗИРОВАНО: без allocation)
+    /// Обновить кулдауны (ИСПРАВЛЕНО: используем список ключей)
     /// </summary>
     private void UpdateCooldowns()
     {
-        // ОПТИМИЗАЦИЯ: Используем временный список вместо создания нового каждый кадр
-        // Dictionary.Keys возвращает коллекцию которую нельзя модифицировать во время итерации
-        // но мы только читаем значения и обновляем их, не добавляем/удаляем ключи
-        // Поэтому можем итерироваться напрямую без копирования
-        foreach (var pair in skillCooldowns)
+        // ИСПРАВЛЕНИЕ: Создаём временный список ключей для безопасной итерации
+        // Нужно потому что UseSkill() может добавлять новые ключи во время Update()
+        if (skillCooldowns.Count == 0) return;
+
+        // Копируем ключи в список (это безопасно)
+        var keys = new List<int>(skillCooldowns.Keys);
+
+        foreach (int skillId in keys)
         {
-            int skillId = pair.Key;
-            float cooldown = pair.Value;
+            float cooldown = skillCooldowns[skillId];
 
             if (cooldown > 0f)
             {
