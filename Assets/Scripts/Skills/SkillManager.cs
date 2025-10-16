@@ -717,4 +717,18 @@ public class SkillManager : MonoBehaviour
             Destroy(transformationInstance);
         }
     }
+
+    /// <summary>
+    /// Проверить есть ли параметр в Animator
+    /// </summary>
+    private bool HasAnimatorParameter(Animator anim, string paramName)
+    {
+        if (anim == null) return false;
+
+        foreach (AnimatorControllerParameter param in anim.parameters)
+        {
+            if (param.name == paramName) return true;
+        }
+        return false;
+    }
 }
