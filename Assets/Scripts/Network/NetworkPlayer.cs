@@ -688,6 +688,14 @@ public class NetworkPlayer : MonoBehaviour
             Debug.LogWarning($"[NetworkPlayer] ⚠️ Animator не найден на модели трансформации для {username}");
         }
 
+        // КРИТИЧЕСКОЕ: Сбрасываем NetworkTransform чтобы остановить экстраполяцию (Dead Reckoning)
+        // Иначе медведь будет "убегать" вперёд из-за предсказания на основе старой velocity
+        if (networkTransform != null)
+        {
+            networkTransform.ResetState();
+            Debug.Log($"[NetworkPlayer] 🔄 NetworkTransform сброшен для {username} (остановка экстраполяции)");
+        }
+
         Debug.Log($"[NetworkPlayer] 🐻 ✅ Трансформация применена к {username}!");
     }
 
