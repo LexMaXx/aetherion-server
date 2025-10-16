@@ -670,12 +670,12 @@ public class NetworkPlayer : MonoBehaviour
             Debug.Log($"[NetworkPlayer] 🔧 Отключён коллайдер у медведя: {col.GetType().Name}");
         }
 
-        // КРИТИЧЕСКОЕ: Отключаем GameObject "input" (scale=100 создаёт offset)
+        // КРИТИЧЕСКОЕ: Сбрасываем scale GameObject "input" (scale=100 создаёт offset)
         Transform inputTransform = transformationInstance.transform.Find("input");
         if (inputTransform != null)
         {
-            inputTransform.gameObject.SetActive(false);
-            Debug.Log($"[NetworkPlayer] 🔧 Отключён 'input' GameObject у медведя (offset fix)");
+            inputTransform.localScale = Vector3.one; // Сбрасываем scale в (1, 1, 1)
+            Debug.Log($"[NetworkPlayer] 🔧 Scale 'input' GameObject сброшен в (1,1,1) (offset fix)");
         }
 
         // ВАЖНО: Обновляем ссылку на Animator (теперь используем animator из модели трансформации)
