@@ -777,12 +777,12 @@ public class NetworkSyncManager : MonoBehaviour
     private void OnGameCountdown(string jsonData)
     {
         var data = JsonUtility.FromJson<GameCountdownEvent>(jsonData);
-        Debug.Log($"[NetworkSync] ⏱️ COUNTDOWN: {data.countdown}");
+        Debug.Log($"[NetworkSync] ⏱️ COUNTDOWN: {data.count}");
 
         // Показываем countdown UI
         if (ArenaManager.Instance != null)
         {
-            ArenaManager.Instance.OnCountdown(data.countdown);
+            ArenaManager.Instance.OnCountdown(data.count);
         }
     }
 
@@ -1405,7 +1405,7 @@ public class LobbyCreatedEvent
 [Serializable]
 public class GameCountdownEvent
 {
-    public int countdown; // 3, 2, 1
+    public int count; // 3, 2, 1 (сервер отправляет count, а не countdown)
     public long timestamp;
 }
 
