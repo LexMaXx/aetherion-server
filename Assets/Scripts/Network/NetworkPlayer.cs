@@ -656,8 +656,8 @@ public class NetworkPlayer : MonoBehaviour
         transformationInstance = Instantiate(skill.transformationModel, transform.position, transform.rotation, transform);
 
         // КРИТИЧЕСКОЕ: Сбрасываем локальную позицию/поворот в zero (чтобы модель была ровно в центре родителя)
-        // НО сдвигаем вниз на -0.9 чтобы ноги медведя были на земле (не в воздухе)
-        transformationInstance.transform.localPosition = new Vector3(0f, -0.9f, 0f);
+        // НО сдвигаем вниз на -1.1 чтобы ноги медведя были на земле (не в воздухе)
+        transformationInstance.transform.localPosition = new Vector3(0f, -1.1f, 0f);
         transformationInstance.transform.localRotation = Quaternion.identity;
 
         Debug.Log($"[NetworkPlayer] ✅ Трансформация создана: {transformationInstance.name} для {username}");
@@ -680,27 +680,29 @@ public class NetworkPlayer : MonoBehaviour
             Debug.Log($"[NetworkPlayer] 🔧 Scale 'input' GameObject сброшен в (1,1,1) (offset fix)");
         }
 
-        // КРИТИЧЕСКОЕ: Заменяем аниматор медведя на аниматор игрока + синхронизируем параметры
+        // КРИТИЧЕСКОЕ: Используем РОДНОЙ аниматор медведя (совместим с его скелетом)
         Animator bearAnimator = transformationInstance.GetComponentInChildren<Animator>();
-        if (bearAnimator != null && animator != null)
+        if (bearAnimator != null)
         {
-            // Заменяем AnimatorController медведя на AnimatorController игрока
-            bearAnimator.runtimeAnimatorController = animator.runtimeAnimatorController;
-
-            // Копируем текущие параметры анимации от игрока к медведю
-            bearAnimator.SetBool("IsMoving", animator.GetBool("IsMoving"));
-            bearAnimator.SetFloat("MoveX", animator.GetFloat("MoveX"));
-            bearAnimator.SetFloat("MoveY", animator.GetFloat("MoveY"));
-            bearAnimator.SetFloat("Speed", animator.GetFloat("Speed"));
-            if (animator.GetBool("InBattle"))
-            {
-                bearAnimator.SetBool("InBattle", true);
-            }
-
-            // Теперь используем аниматор медведя вместо оригинального
+            // Оставляем аниматор медведя как есть (не заменяем!)
+            // Переключаемся на его использование
             animator = bearAnimator;
 
-            Debug.Log($"[NetworkPlayer] 🔧 Аниматор медведя заменён на AnimatorController игрока");
+            // Устанавливаем боевую стойку
+            if (HasAnimatorParameter(animator, "InBattle"))
+            {
+                animator.SetBool("InBattle", true);
+            }
+
+            Debug.Log($"[NetworkPlayer] 🔧 Используем родной аниматор медведя");
+        }
+
+        // КРИТИЧЕСКОЕ: Скрываем оружие во время трансформации (медведь безоружный)
+        WeaponAttachment weaponAttachment = GetComponent<WeaponAttachment>();
+        if (weaponAttachment != null)
+        {
+            weaponAttachment.DetachWeapon();
+            Debug.Log($"[NetworkPlayer] 🔧 Оружие скрыто (медведь безоружный)");
         }
 
         // КРИТИЧЕСКОЕ: Сбрасываем NetworkTransform чтобы остановить экстраполяцию (Dead Reckoning)
@@ -733,6 +735,14 @@ public class NetworkPlayer : MonoBehaviour
         {
             smr.enabled = true;
             Debug.Log($"[NetworkPlayer] ✅ Включён рендерер: {smr.gameObject.name}");
+        }
+
+        // КРИТИЧЕСКОЕ: Восстанавливаем оружие после трансформации
+        WeaponAttachment weaponAttachment = GetComponent<WeaponAttachment>();
+        if (weaponAttachment != null)
+        {
+            weaponAttachment.AttachWeapon();
+            Debug.Log($"[NetworkPlayer] ✅ Оружие восстановлено");
         }
 
         if (originalModel != null)

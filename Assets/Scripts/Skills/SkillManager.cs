@@ -403,8 +403,8 @@ public class SkillManager : MonoBehaviour
         isTransformed = true;
 
         // КРИТИЧЕСКОЕ: Сбрасываем локальную позицию/поворот в zero (чтобы модель была ровно в центре родителя)
-        // НО сдвигаем вниз на -0.9 чтобы ноги медведя были на земле (не в воздухе)
-        transformationInstance.transform.localPosition = new Vector3(0f, -0.9f, 0f);
+        // НО сдвигаем вниз на -1.1 чтобы ноги медведя были на земле (не в воздухе)
+        transformationInstance.transform.localPosition = new Vector3(0f, -1.1f, 0f);
         transformationInstance.transform.localRotation = Quaternion.identity;
 
         Debug.Log($"[SkillManager] ✅ Трансформация создана: {transformationInstance.name} (localPos сброшен в zero)");
@@ -427,24 +427,29 @@ public class SkillManager : MonoBehaviour
             Debug.Log($"[SkillManager] 🔧 Scale 'input' GameObject сброшен в (1,1,1) (offset fix)");
         }
 
-        // КРИТИЧЕСКОЕ: Заменяем аниматор медведя на аниматор игрока + синхронизируем параметры
+        // КРИТИЧЕСКОЕ: Используем РОДНОЙ аниматор медведя (совместим с его скелетом)
         Animator bearAnimator = transformationInstance.GetComponentInChildren<Animator>();
-        if (bearAnimator != null && animator != null)
+        if (bearAnimator != null)
         {
-            // Заменяем AnimatorController медведя на AnimatorController игрока
-            bearAnimator.runtimeAnimatorController = animator.runtimeAnimatorController;
-
-            // Копируем текущие параметры анимации от игрока к медведю
-            bearAnimator.SetFloat("Speed", animator.GetFloat("Speed"));
-            if (animator.GetBool("InBattle"))
-            {
-                bearAnimator.SetBool("InBattle", true);
-            }
-
-            // Теперь используем аниматор медведя вместо оригинального
+            // Оставляем аниматор медведя как есть (не заменяем!)
+            // Переключаемся на его использование
             animator = bearAnimator;
 
-            Debug.Log($"[SkillManager] 🔧 Аниматор медведя заменён на AnimatorController игрока");
+            // Устанавливаем боевую стойку
+            if (HasAnimatorParameter(animator, "InBattle"))
+            {
+                animator.SetBool("InBattle", true);
+            }
+
+            Debug.Log($"[SkillManager] 🔧 Используем родной аниматор медведя");
+        }
+
+        // КРИТИЧЕСКОЕ: Скрываем оружие во время трансформации (медведь безоружный)
+        WeaponAttachment weaponAttachment = GetComponent<WeaponAttachment>();
+        if (weaponAttachment != null)
+        {
+            weaponAttachment.DetachWeapon();
+            Debug.Log($"[SkillManager] 🔧 Оружие скрыто (медведь безоружный)");
         }
 
         // Применяем бонусы
@@ -493,6 +498,14 @@ public class SkillManager : MonoBehaviour
         {
             healthSystem.RemoveTemporaryMaxHealth(transformationHPBonus);
             transformationHPBonus = 0f;
+        }
+
+        // КРИТИЧЕСКОЕ: Восстанавливаем оружие после трансформации
+        WeaponAttachment weaponAttachment = GetComponent<WeaponAttachment>();
+        if (weaponAttachment != null)
+        {
+            weaponAttachment.AttachWeapon();
+            Debug.Log($"[SkillManager] ✅ Оружие восстановлено");
         }
 
         isTransformed = false;
