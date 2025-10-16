@@ -403,8 +403,7 @@ public class SkillManager : MonoBehaviour
         isTransformed = true;
 
         // КРИТИЧЕСКОЕ: Сбрасываем локальную позицию/поворот в zero (чтобы модель была ровно в центре родителя)
-        // НО сдвигаем вниз на -1.1 чтобы ноги медведя были на земле (не в воздухе)
-        transformationInstance.transform.localPosition = new Vector3(0f, -1.1f, 0f);
+        transformationInstance.transform.localPosition = Vector3.zero;
         transformationInstance.transform.localRotation = Quaternion.identity;
 
         Debug.Log($"[SkillManager] ✅ Трансформация создана: {transformationInstance.name} (localPos сброшен в zero)");
