@@ -464,6 +464,11 @@ module.exports = (io) => {
       if (parsedData.velocity) player.velocity = parsedData.velocity;
       if (parsedData.isGrounded !== undefined) player.isGrounded = parsedData.isGrounded;
 
+      // ДИАГНОСТИКА: Логируем трансформированных игроков
+      if (player.isTransformed) {
+        console.log(`[Player Update] 🐻 TRANSFORMED ${player.username} pos=(${authorityPosition.x.toFixed(1)}, ${authorityPosition.y.toFixed(1)}, ${authorityPosition.z.toFixed(1)})`);
+      }
+
       // КРИТИЧЕСКОЕ: Используем серверную позицию для broadcast
       const movementUpdate = {
         socketId: socket.id,
@@ -476,6 +481,11 @@ module.exports = (io) => {
 
       // Отправляем обновление другим игрокам в комнате
       socket.to(player.roomId).emit('player_moved', movementUpdate);
+
+      // ДИАГНОСТИКА: Подтверждаем broadcast для трансформированных
+      if (player.isTransformed) {
+        console.log(`[Player Update] 📡 Broadcasted player_moved для трансформированного ${player.username}`);
+      }
 
       // Если была коррекция - отправляем клиенту его ИСТИННУЮ позицию
       if (validation.corrected) {
