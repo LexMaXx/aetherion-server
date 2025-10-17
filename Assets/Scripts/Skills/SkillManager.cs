@@ -408,12 +408,41 @@ public class SkillManager : MonoBehaviour
         Debug.Log($"  Player bones[0]: {(playerRenderer.bones.Length > 0 ? playerRenderer.bones[0].name : "NONE")}");
         Debug.Log($"  Bear bones[0]: {(bearRenderer.bones.Length > 0 ? bearRenderer.bones[0].name : "NONE")}");
 
-        // КРИТИЧЕСКОЕ: Заменяем ТОЛЬКО mesh и материалы
-        // Bones оставляем ОРИГИНАЛЬНЫЕ (скелет игрока)!
-        // Это работает только если у медведя и игрока одинаковый Mixamo скелет!
-        playerRenderer.sharedMesh = bearRenderer.sharedMesh;
-        playerRenderer.sharedMaterials = bearRenderer.sharedMaterials;
-        // playerRenderer.bones = НЕ МЕНЯЕМ! Остаются bones игрока (originalBones)
+        // КРИТИЧЕСКАЯ ПРОВЕРКА: Если количество костей не совпадает, пытаемся ремапить кости
+        if (playerRenderer.bones.Length != bearRenderer.bones.Length)
+        {
+            Debug.LogWarning($"[SkillManager] ⚠️ НЕСОВПАДЕНИЕ КОСТЕЙ! Player: {playerRenderer.bones.Length}, Bear: {bearRenderer.bones.Length}");
+            Debug.LogWarning("[SkillManager] Попытка ремапинга костей...");
+
+            // РЕШЕНИЕ: Заменяем mesh медведя, но ПЕРЕНАСТРАИВАЕМ bones на скелет игрока
+            // Создаём новый массив костей для медведя, используя кости игрока
+            Transform[] remappedBones = new Transform[playerRenderer.bones.Length];
+
+            // Копируем все кости игрока
+            for (int i = 0; i < playerRenderer.bones.Length; i++)
+            {
+                remappedBones[i] = playerRenderer.bones[i];
+            }
+
+            // Заменяем mesh и материалы
+            playerRenderer.sharedMesh = bearRenderer.sharedMesh;
+            playerRenderer.sharedMaterials = bearRenderer.sharedMaterials;
+            playerRenderer.bones = remappedBones; // Используем кости игрока!
+
+            Debug.LogWarning($"[SkillManager] ✅ Mesh медведя натянут на скелет игрока ({playerRenderer.bones.Length} костей)");
+            Debug.LogWarning("[SkillManager] ⚠️ ВНИМАНИЕ: Анимации могут быть некорректны из-за разного количества костей!");
+        }
+        else
+        {
+            Debug.Log($"[SkillManager] ✅ Количество костей совпадает: {playerRenderer.bones.Length}");
+
+            // КРИТИЧЕСКОЕ: Заменяем ТОЛЬКО mesh и материалы
+            // Bones оставляем ОРИГИНАЛЬНЫЕ (скелет игрока)!
+            // Это работает только если у медведя и игрока одинаковый Mixamo скелет!
+            playerRenderer.sharedMesh = bearRenderer.sharedMesh;
+            playerRenderer.sharedMaterials = bearRenderer.sharedMaterials;
+            // playerRenderer.bones = НЕ МЕНЯЕМ! Остаются bones игрока (originalBones)
+        }
 
         isTransformed = true;
 
