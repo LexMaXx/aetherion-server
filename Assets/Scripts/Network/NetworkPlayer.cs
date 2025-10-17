@@ -635,17 +635,22 @@ public class NetworkPlayer : MonoBehaviour
 
         Debug.Log($"[NetworkPlayer] 🔍 Скилл найден: {skill.skillName}, модель: {skill.transformationModel.name}");
 
-        // КРИТИЧЕСКОЕ: Скрываем родительский GameObject с моделью (где Animator), а не только SkinnedMeshRenderer
-        // Это скроет и модель, и все кости, и оружие привязанное к костям
-        if (animator != null && animator.transform != null)
+        // КРИТИЧЕСКОЕ: Скрываем ТОЛЬКО визуальные компоненты, НЕ GameObject!
+        // 1. Отключаем SkinnedMeshRenderer (модель тела исчезает)
+        SkinnedMeshRenderer playerRenderer = GetComponentInChildren<SkinnedMeshRenderer>();
+        if (playerRenderer != null)
         {
-            originalModel = animator.gameObject; // Сохраняем ссылку для восстановления
-            animator.gameObject.SetActive(false);
-            Debug.Log($"[NetworkPlayer] 👻 Модель игрока полностью скрыта для {username}: {animator.gameObject.name}");
+            playerRenderer.enabled = false;
+            Debug.Log($"[NetworkPlayer] 👻 SkinnedMeshRenderer отключён для {username}: {playerRenderer.gameObject.name}");
         }
-        else
+
+        // 2. Отключаем ClassWeaponManager игрока (оружие паладина удаляется)
+        ClassWeaponManager playerWeaponManager = GetComponent<ClassWeaponManager>();
+        if (playerWeaponManager != null)
         {
-            Debug.LogWarning($"[NetworkPlayer] ⚠️ Animator не найден для {username}, не могу скрыть модель!");
+            playerWeaponManager.DetachWeapon(); // Удаляем оружие игрока
+            playerWeaponManager.enabled = false; // Отключаем компонент
+            Debug.Log($"[NetworkPlayer] 🔧 ClassWeaponManager игрока {username} отключён, оружие удалено");
         }
 
         // Создаём модель трансформации
@@ -740,31 +745,38 @@ public class NetworkPlayer : MonoBehaviour
         }
 
         // Показываем модель игрока обратно
-        if (originalModel != null)
+        // 1. Включаем SkinnedMeshRenderer
+        SkinnedMeshRenderer playerRenderer = GetComponentInChildren<SkinnedMeshRenderer>();
+        if (playerRenderer != null)
         {
-            originalModel.SetActive(true);
-            Debug.Log($"[NetworkPlayer] ✅ Модель игрока полностью восстановлена для {username}: {originalModel.name}");
+            playerRenderer.enabled = true;
+            Debug.Log($"[NetworkPlayer] ✅ SkinnedMeshRenderer восстановлён для {username}");
+        }
 
-            // ВАЖНО: Возвращаем ссылку на оригинальный Animator
-            Animator originalAnimator = originalModel.GetComponent<Animator>();
-            if (originalAnimator != null)
+        // 2. Включаем ClassWeaponManager игрока и восстанавливаем оружие
+        ClassWeaponManager playerWeaponManager = GetComponent<ClassWeaponManager>();
+        if (playerWeaponManager != null)
+        {
+            playerWeaponManager.enabled = true;
+            playerWeaponManager.AttachWeaponForClass(); // Восстанавливаем оружие игрока
+            Debug.Log($"[NetworkPlayer] ✅ ClassWeaponManager игрока {username} восстановлён, оружие привязано");
+        }
+
+        // ВАЖНО: Возвращаем ссылку на оригинальный Animator
+        Animator originalAnimator = GetComponentInChildren<Animator>();
+        if (originalAnimator != null)
+        {
+            animator = originalAnimator;
+            Debug.Log($"[NetworkPlayer] ✅ Animator восстановлён на оригинальный для {username}");
+
+            // Устанавливаем боевую стойку
+            if (HasAnimatorParameter(animator, "InBattle"))
             {
-                animator = originalAnimator;
-                Debug.Log($"[NetworkPlayer] ✅ Animator восстановлён на оригинальный для {username}");
-
-                // Устанавливаем боевую стойку
-                if (HasAnimatorParameter(animator, "InBattle"))
-                {
-                    animator.SetBool("InBattle", true);
-                }
+                animator.SetBool("InBattle", true);
             }
         }
-        else
-        {
-            Debug.LogWarning($"[NetworkPlayer] ⚠️ originalModel == null для {username}, не могу восстановить модель!");
-        }
 
-        // ОРУЖИЕ: Оружие игрока скрыто вместе с его моделью, при восстановлении модели оно автоматически появится
+        // ОРУЖИЕ: Оружие игрока восстановлено через ClassWeaponManager выше
         // ClassWeaponManager медведя удалится вместе с GameObject медведя (Destroy выше)
 
         transformationInstance = null;

@@ -387,19 +387,18 @@ public class SkillManager : MonoBehaviour
             return;
         }
 
-        // КРИТИЧЕСКОЕ: Скрываем родительский GameObject с моделью (где Animator), а не только SkinnedMeshRenderer
-        // Это скроет и модель, и все кости, и оружие привязанное к костям
-        Transform modelRoot = animator.transform; // Animator обычно на корне модели
-        if (modelRoot != null)
+        // КРИТИЧЕСКОЕ: Скрываем ТОЛЬКО визуальные компоненты, НЕ GameObject!
+        // 1. Отключаем SkinnedMeshRenderer (модель тела исчезает)
+        playerRenderer.enabled = false;
+        Debug.Log($"[SkillManager] 👻 SkinnedMeshRenderer отключён: {playerRenderer.gameObject.name}");
+
+        // 2. Отключаем ClassWeaponManager игрока (оружие паладина удаляется)
+        ClassWeaponManager playerWeaponManager = GetComponent<ClassWeaponManager>();
+        if (playerWeaponManager != null)
         {
-            modelRoot.gameObject.SetActive(false);
-            Debug.Log($"[SkillManager] 👻 Модель игрока полностью скрыта: {modelRoot.name}");
-        }
-        else
-        {
-            // Fallback: скрываем GameObject с SkinnedMeshRenderer
-            playerRenderer.gameObject.SetActive(false);
-            Debug.LogWarning($"[SkillManager] ⚠️ Animator не найден, скрыт только SkinnedMeshRenderer");
+            playerWeaponManager.DetachWeapon(); // Удаляем оружие игрока
+            playerWeaponManager.enabled = false; // Отключаем компонент
+            Debug.Log($"[SkillManager] 🔧 ClassWeaponManager игрока отключён, оружие удалено");
         }
 
         // Создаём медведя как child объект
@@ -492,17 +491,20 @@ public class SkillManager : MonoBehaviour
         }
 
         // Показываем модель игрока обратно
-        // Восстанавливаем через оригинальный Animator (который мы восстановили выше)
-        if (animator != null && animator.transform != null)
+        // 1. Включаем SkinnedMeshRenderer
+        if (playerRenderer != null)
         {
-            animator.transform.gameObject.SetActive(true);
-            Debug.Log($"[SkillManager] ✅ Модель игрока полностью восстановлена: {animator.transform.name}");
+            playerRenderer.enabled = true;
+            Debug.Log($"[SkillManager] ✅ SkinnedMeshRenderer восстановлён");
         }
-        else if (playerRenderer != null)
+
+        // 2. Включаем ClassWeaponManager игрока и восстанавливаем оружие
+        ClassWeaponManager playerWeaponManager = GetComponent<ClassWeaponManager>();
+        if (playerWeaponManager != null)
         {
-            // Fallback
-            playerRenderer.gameObject.SetActive(true);
-            Debug.LogWarning($"[SkillManager] ⚠️ Восстановлен только SkinnedMeshRenderer");
+            playerWeaponManager.enabled = true;
+            playerWeaponManager.AttachWeaponForClass(); // Восстанавливаем оружие игрока
+            Debug.Log($"[SkillManager] ✅ ClassWeaponManager игрока восстановлён, оружие привязано");
         }
 
         // Убираем бонус HP
