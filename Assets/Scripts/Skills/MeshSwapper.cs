@@ -78,29 +78,14 @@ public class MeshSwapper : MonoBehaviour
         Debug.Log($"[MeshSwapper] 📦 Префаб трансформации: {transformationPrefab.name}");
         Debug.Log($"[MeshSwapper] 📦 Mesh трансформации: {transformRenderer.sharedMesh?.name}");
         Debug.Log($"[MeshSwapper] 📦 Materials трансформации: {transformRenderer.sharedMaterials?.Length}");
-        Debug.Log($"[MeshSwapper] 📦 Bones трансформации: {transformRenderer.bones?.Length}");
 
-        // КРИТИЧЕСКОЕ: Меняем mesh и materials на модель трансформации
+        // ПРОСТАЯ ЗАМЕНА: Меняем ТОЛЬКО mesh и materials
+        // Bones оставляем от паладина! Медведь будет двигаться на скелете паладина
         playerRenderer.sharedMesh = transformRenderer.sharedMesh;
         playerRenderer.sharedMaterials = transformRenderer.sharedMaterials;
 
-        // Пытаемся адаптировать bones если они есть
-        if (transformRenderer.bones != null && transformRenderer.bones.Length > 0)
-        {
-            // ВАЖНО: Bones должны совпадать по структуре!
-            // Если они не совпадают, используем оригинальные bones паладина
-            if (transformRenderer.bones.Length == originalBones.Length)
-            {
-                playerRenderer.bones = transformRenderer.bones;
-                Debug.Log($"[MeshSwapper] ✅ Bones трансформации применены ({transformRenderer.bones.Length} костей)");
-            }
-            else
-            {
-                Debug.LogWarning($"[MeshSwapper] ⚠️ Bones не совпадают! Transform={transformRenderer.bones.Length}, Original={originalBones.Length}");
-                Debug.LogWarning($"[MeshSwapper] ⚠️ Используем оригинальные bones паладина");
-                // Оставляем originalBones - они уже установлены
-            }
-        }
+        Debug.Log($"[MeshSwapper] ✅ Заменены mesh и materials. Bones остались от паладина!");
+        Debug.Log($"[MeshSwapper] 📊 Оригинальные bones: {originalBones?.Length}, Root: {originalRootBone?.name}");
 
         // Сохраняем префаб для восстановления
         this.transformationPrefab = transformationPrefab;
@@ -129,11 +114,10 @@ public class MeshSwapper : MonoBehaviour
 
         Debug.Log($"[MeshSwapper] 🔄 Возврат к оригинальной модели...");
 
-        // Восстанавливаем оригинальные данные
+        // Восстанавливаем ТОЛЬКО mesh и materials
+        // Bones не трогаем - они и так оригинальные!
         playerRenderer.sharedMesh = originalMesh;
         playerRenderer.sharedMaterials = originalMaterials;
-        playerRenderer.bones = originalBones;
-        playerRenderer.rootBone = originalRootBone;
 
         transformationPrefab = null;
         isTransformed = false;
