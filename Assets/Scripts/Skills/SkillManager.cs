@@ -366,12 +366,12 @@ public class SkillManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Скилл трансформации (Paladin - медведь) - MESH SWAPPING
-    /// Просто заменяем mesh персонажа на медведя вместо создания child GameObject
+    /// Скилл трансформации (Paladin - медведь) - CHILD GAMEOBJECT APPROACH
+    /// Создаём медведя как child GameObject и прячем модель игрока
     /// </summary>
     private void ExecuteTransformationSkill(SkillData skill)
     {
-        Debug.Log($"[SkillManager] 🔍 ExecuteTransformationSkill (MESH SWAPPING) вызван для {skill.skillName}");
+        Debug.Log($"[SkillManager] 🔍 ExecuteTransformationSkill (CHILD GAMEOBJECT) вызван для {skill.skillName}");
 
         if (skill.transformationModel == null)
         {
@@ -379,7 +379,7 @@ public class SkillManager : MonoBehaviour
             return;
         }
 
-        // Находим SkinnedMeshRenderer игрока
+        // Находим SkinnedMeshRenderer игрока и прячем его
         playerRenderer = GetComponentInChildren<SkinnedMeshRenderer>();
         if (playerRenderer == null)
         {
@@ -387,66 +387,23 @@ public class SkillManager : MonoBehaviour
             return;
         }
 
-        // Сохраняем оригинальный mesh, материалы И BONES
-        originalMesh = playerRenderer.sharedMesh;
-        originalMaterials = playerRenderer.sharedMaterials;
-        originalBones = playerRenderer.bones; // КРИТИЧЕСКОЕ: Сохраняем bones игрока!
+        // НОВЫЙ ПОДХОД: Прячем модель игрока
+        playerRenderer.gameObject.SetActive(false);
+        Debug.Log($"[SkillManager] 👻 Модель игрока скрыта");
 
-        Debug.Log($"[SkillManager] 💾 Оригинальный mesh сохранён: {originalMesh.name}");
+        // Создаём медведя как child объект
+        GameObject bearInstance = Instantiate(skill.transformationModel, transform);
+        bearInstance.transform.localPosition = Vector3.zero;
+        bearInstance.transform.localRotation = Quaternion.identity;
 
-        // Получаем mesh медведя из prefab'а
-        SkinnedMeshRenderer bearRenderer = skill.transformationModel.GetComponentInChildren<SkinnedMeshRenderer>();
-        if (bearRenderer == null)
-        {
-            Debug.LogError("[SkillManager] ❌ Bear mesh не найден в transformationModel!");
-            return;
-        }
-
-        Debug.Log($"[SkillManager] 🔍 ДИАГНОСТИКА:");
-        Debug.Log($"  Player mesh: {originalMesh.name}, vertices: {originalMesh.vertexCount}, bones: {playerRenderer.bones.Length}");
-        Debug.Log($"  Bear mesh: {bearRenderer.sharedMesh.name}, vertices: {bearRenderer.sharedMesh.vertexCount}, bones: {bearRenderer.bones.Length}");
-        Debug.Log($"  Player bones[0]: {(playerRenderer.bones.Length > 0 ? playerRenderer.bones[0].name : "NONE")}");
-        Debug.Log($"  Bear bones[0]: {(bearRenderer.bones.Length > 0 ? bearRenderer.bones[0].name : "NONE")}");
-
-        // КРИТИЧЕСКАЯ ПРОВЕРКА: Если количество костей не совпадает, пытаемся ремапить кости
-        if (playerRenderer.bones.Length != bearRenderer.bones.Length)
-        {
-            Debug.LogWarning($"[SkillManager] ⚠️ НЕСОВПАДЕНИЕ КОСТЕЙ! Player: {playerRenderer.bones.Length}, Bear: {bearRenderer.bones.Length}");
-            Debug.LogWarning("[SkillManager] Попытка ремапинга костей...");
-
-            // РЕШЕНИЕ: Заменяем mesh медведя, но ПЕРЕНАСТРАИВАЕМ bones на скелет игрока
-            // Создаём новый массив костей для медведя, используя кости игрока
-            Transform[] remappedBones = new Transform[playerRenderer.bones.Length];
-
-            // Копируем все кости игрока
-            for (int i = 0; i < playerRenderer.bones.Length; i++)
-            {
-                remappedBones[i] = playerRenderer.bones[i];
-            }
-
-            // Заменяем mesh и материалы
-            playerRenderer.sharedMesh = bearRenderer.sharedMesh;
-            playerRenderer.sharedMaterials = bearRenderer.sharedMaterials;
-            playerRenderer.bones = remappedBones; // Используем кости игрока!
-
-            Debug.LogWarning($"[SkillManager] ✅ Mesh медведя натянут на скелет игрока ({playerRenderer.bones.Length} костей)");
-            Debug.LogWarning("[SkillManager] ⚠️ ВНИМАНИЕ: Анимации могут быть некорректны из-за разного количества костей!");
-        }
-        else
-        {
-            Debug.Log($"[SkillManager] ✅ Количество костей совпадает: {playerRenderer.bones.Length}");
-
-            // КРИТИЧЕСКОЕ: Заменяем ТОЛЬКО mesh и материалы
-            // Bones оставляем ОРИГИНАЛЬНЫЕ (скелет игрока)!
-            // Это работает только если у медведя и игрока одинаковый Mixamo скелет!
-            playerRenderer.sharedMesh = bearRenderer.sharedMesh;
-            playerRenderer.sharedMaterials = bearRenderer.sharedMaterials;
-            // playerRenderer.bones = НЕ МЕНЯЕМ! Остаются bones игрока (originalBones)
-        }
+        // Сохраняем ссылку для удаления позже
+        originalMesh = null; // Не используем mesh swapping
+        originalMaterials = null;
+        originalBones = new Transform[] { bearInstance.transform }; // Используем originalBones для хранения bearInstance
 
         isTransformed = true;
 
-        Debug.Log($"[SkillManager] 🐻 ✅ Mesh заменён на медведя: {bearRenderer.sharedMesh.name}");
+        Debug.Log($"[SkillManager] 🐻 ✅ Медведь создан как child GameObject");
 
         // Скрываем оружие (медведь безоружный)
         WeaponAttachment weaponAttachment = GetComponent<WeaponAttachment>();
@@ -467,24 +424,29 @@ public class SkillManager : MonoBehaviour
         // Автоматически отключаем через время
         Invoke(nameof(EndTransformation), skill.transformationDuration);
 
-        Debug.Log($"[SkillManager] 🐻 ✅ ТРАНСФОРМАЦИЯ АКТИВИРОВАНА (MESH SWAPPING) на {skill.transformationDuration}с!");
+        Debug.Log($"[SkillManager] 🐻 ✅ ТРАНСФОРМАЦИЯ АКТИВИРОВАНА (CHILD GAMEOBJECT) на {skill.transformationDuration}с!");
     }
 
     /// <summary>
-    /// Завершить трансформацию - MESH SWAPPING
+    /// Завершить трансформацию - CHILD GAMEOBJECT
     /// </summary>
     private void EndTransformation()
     {
         if (!isTransformed) return;
 
-        // Восстанавливаем оригинальный mesh, материалы и bones
-        if (playerRenderer != null && originalMesh != null && originalMaterials != null && originalBones != null)
+        // Удаляем медведя (child GameObject)
+        if (originalBones != null && originalBones.Length > 0 && originalBones[0] != null)
         {
-            playerRenderer.sharedMesh = originalMesh;
-            playerRenderer.sharedMaterials = originalMaterials;
-            playerRenderer.bones = originalBones; // Восстанавливаем оригинальные bones
+            GameObject bearInstance = originalBones[0].gameObject;
+            Destroy(bearInstance);
+            Debug.Log($"[SkillManager] ✅ Медведь удалён");
+        }
 
-            Debug.Log($"[SkillManager] ✅ Оригинальный mesh восстановлен: {originalMesh.name}");
+        // Показываем модель игрока обратно
+        if (playerRenderer != null)
+        {
+            playerRenderer.gameObject.SetActive(true);
+            Debug.Log($"[SkillManager] ✅ Модель игрока восстановлена");
         }
 
         // Убираем бонус HP
@@ -516,7 +478,7 @@ public class SkillManager : MonoBehaviour
             SocketIOManager.Instance.SendTransformationEnd();
         }
 
-        Debug.Log("[SkillManager] 🐻 Трансформация завершена (MESH SWAPPING)");
+        Debug.Log("[SkillManager] 🐻 Трансформация завершена (CHILD GAMEOBJECT)");
     }
 
     /// <summary>
