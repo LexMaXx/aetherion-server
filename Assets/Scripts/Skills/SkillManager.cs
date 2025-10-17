@@ -416,6 +416,21 @@ public class SkillManager : MonoBehaviour
             Debug.LogWarning($"[SkillManager] ⚠️ У медведя нет Animator компонента!");
         }
 
+        // КРИТИЧЕСКОЕ: Добавляем ClassWeaponManager к медведю и привязываем оружие паладина
+        ClassWeaponManager bearWeaponManager = bearInstance.GetComponent<ClassWeaponManager>();
+        if (bearWeaponManager == null)
+        {
+            bearWeaponManager = bearInstance.AddComponent<ClassWeaponManager>();
+            Debug.Log($"[SkillManager] 🔧 ClassWeaponManager добавлен к медведю");
+        }
+
+        // Устанавливаем класс вручную (медведь = паладин с оружием)
+        bearWeaponManager.SetCharacterClass(CharacterClass.Paladin);
+
+        // Привязываем оружие к костям медведя
+        bearWeaponManager.AttachWeaponForClass();
+        Debug.Log($"[SkillManager] ⚔️ Оружие паладина привязано к медведю");
+
         originalMesh = null; // Не используем mesh swapping
         originalMaterials = null;
 
@@ -423,13 +438,7 @@ public class SkillManager : MonoBehaviour
 
         Debug.Log($"[SkillManager] 🐻 ✅ Медведь создан как child GameObject");
 
-        // Скрываем оружие (медведь безоружный)
-        WeaponAttachment weaponAttachment = GetComponent<WeaponAttachment>();
-        if (weaponAttachment != null)
-        {
-            weaponAttachment.DetachWeapon();
-            Debug.Log($"[SkillManager] 🔧 Оружие удалено (медведь безоружный)");
-        }
+        // ОРУЖИЕ: Оружие игрока скрыто вместе с моделью, а у медведя своё оружие (через ClassWeaponManager выше)
 
         // Применяем бонусы
         if (healthSystem != null && skill.hpBonusPercent > 0f)
@@ -485,13 +494,8 @@ public class SkillManager : MonoBehaviour
             transformationHPBonus = 0f;
         }
 
-        // Восстанавливаем оружие
-        WeaponAttachment weaponAttachment = GetComponent<WeaponAttachment>();
-        if (weaponAttachment != null)
-        {
-            weaponAttachment.AttachWeapon();
-            Debug.Log($"[SkillManager] ✅ Оружие восстановлено");
-        }
+        // ОРУЖИЕ: Оружие игрока скрыто вместе с его моделью, при восстановлении модели оно автоматически появится
+        // ClassWeaponManager медведя удалится вместе с GameObject медведя (Destroy выше)
 
         // Очищаем ссылки
         playerRenderer = null;

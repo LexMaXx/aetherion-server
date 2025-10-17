@@ -696,13 +696,28 @@ public class NetworkPlayer : MonoBehaviour
             Debug.Log($"[NetworkPlayer] 🔧 Используем родной аниматор медведя");
         }
 
-        // КРИТИЧЕСКОЕ: Скрываем оружие во время трансформации (медведь безоружный)
-        WeaponAttachment weaponAttachment = GetComponent<WeaponAttachment>();
-        if (weaponAttachment != null)
+        // КРИТИЧЕСКОЕ: Добавляем ClassWeaponManager к медведю и привязываем оружие паладина
+        ClassWeaponManager bearWeaponManager = transformationInstance.GetComponent<ClassWeaponManager>();
+        if (bearWeaponManager == null)
         {
-            weaponAttachment.DetachWeapon();
-            Debug.Log($"[NetworkPlayer] 🔧 Оружие скрыто (медведь безоружный)");
+            bearWeaponManager = transformationInstance.AddComponent<ClassWeaponManager>();
+            Debug.Log($"[NetworkPlayer] 🔧 ClassWeaponManager добавлен к медведю {username}");
         }
+
+        // Устанавливаем класс вручную (медведь = паладин с оружием)
+        // Используем TryParse чтобы конвертировать string characterClass в CharacterClass enum
+        if (System.Enum.TryParse(characterClass, out CharacterClass classEnum))
+        {
+            bearWeaponManager.SetCharacterClass(classEnum);
+            bearWeaponManager.AttachWeaponForClass();
+            Debug.Log($"[NetworkPlayer] ⚔️ Оружие {characterClass} привязано к медведю {username}");
+        }
+        else
+        {
+            Debug.LogWarning($"[NetworkPlayer] ⚠️ Не удалось определить класс '{characterClass}' для медведя {username}");
+        }
+
+        // ОРУЖИЕ: Оружие игрока скрыто вместе с моделью, а у медведя своё оружие (через ClassWeaponManager выше)
 
         // КРИТИЧЕСКОЕ: Сбрасываем NetworkTransform чтобы остановить экстраполяцию (Dead Reckoning)
         // Иначе медведь будет "убегать" вперёд из-за предсказания на основе старой velocity
@@ -736,13 +751,8 @@ public class NetworkPlayer : MonoBehaviour
             Debug.Log($"[NetworkPlayer] ✅ Включён рендерер: {smr.gameObject.name}");
         }
 
-        // КРИТИЧЕСКОЕ: Восстанавливаем оружие после трансформации
-        WeaponAttachment weaponAttachment = GetComponent<WeaponAttachment>();
-        if (weaponAttachment != null)
-        {
-            weaponAttachment.AttachWeapon();
-            Debug.Log($"[NetworkPlayer] ✅ Оружие восстановлено");
-        }
+        // ОРУЖИЕ: Оружие игрока скрыто вместе с его моделью, при восстановлении модели оно автоматически появится
+        // ClassWeaponManager медведя удалится вместе с GameObject медведя (Destroy выше)
 
         if (originalModel != null)
         {
