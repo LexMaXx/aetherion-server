@@ -396,10 +396,28 @@ public class SkillManager : MonoBehaviour
         bearInstance.transform.localPosition = Vector3.zero;
         bearInstance.transform.localRotation = Quaternion.identity;
 
-        // Сохраняем ссылку для удаления позже
+        // КРИТИЧЕСКОЕ: Подключаем аниматор медведя к PlayerController
+        Animator bearAnimator = bearInstance.GetComponentInChildren<Animator>();
+        if (bearAnimator != null && animator != null)
+        {
+            // Заменяем animator игрока на animator медведя
+            Animator originalAnimator = animator; // Сохраняем оригинальный аниматор
+            animator = bearAnimator; // Теперь PlayerController будет управлять аниматором медведя!
+
+            // Сохраняем оригинальный аниматор для восстановления
+            originalBones = new Transform[] { bearInstance.transform, originalAnimator.transform };
+
+            Debug.Log($"[SkillManager] 🎬 Аниматор медведя подключен к PlayerController");
+        }
+        else
+        {
+            // Если нет аниматора, просто сохраняем ссылку
+            originalBones = new Transform[] { bearInstance.transform };
+            Debug.LogWarning($"[SkillManager] ⚠️ У медведя нет Animator компонента!");
+        }
+
         originalMesh = null; // Не используем mesh swapping
         originalMaterials = null;
-        originalBones = new Transform[] { bearInstance.transform }; // Используем originalBones для хранения bearInstance
 
         isTransformed = true;
 
@@ -433,6 +451,17 @@ public class SkillManager : MonoBehaviour
     private void EndTransformation()
     {
         if (!isTransformed) return;
+
+        // Восстанавливаем оригинальный аниматор
+        if (originalBones != null && originalBones.Length > 1 && originalBones[1] != null)
+        {
+            Animator originalAnimator = originalBones[1].GetComponent<Animator>();
+            if (originalAnimator != null)
+            {
+                animator = originalAnimator; // Восстанавливаем аниматор игрока
+                Debug.Log($"[SkillManager] 🎬 Аниматор игрока восстановлен");
+            }
+        }
 
         // Удаляем медведя (child GameObject)
         if (originalBones != null && originalBones.Length > 0 && originalBones[0] != null)
