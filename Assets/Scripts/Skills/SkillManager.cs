@@ -379,7 +379,7 @@ public class SkillManager : MonoBehaviour
             return;
         }
 
-        // Находим SkinnedMeshRenderer игрока и прячем его
+        // Находим SkinnedMeshRenderer игрока
         playerRenderer = GetComponentInChildren<SkinnedMeshRenderer>();
         if (playerRenderer == null)
         {
@@ -387,9 +387,20 @@ public class SkillManager : MonoBehaviour
             return;
         }
 
-        // НОВЫЙ ПОДХОД: Прячем модель игрока
-        playerRenderer.gameObject.SetActive(false);
-        Debug.Log($"[SkillManager] 👻 Модель игрока скрыта");
+        // КРИТИЧЕСКОЕ: Скрываем родительский GameObject с моделью (где Animator), а не только SkinnedMeshRenderer
+        // Это скроет и модель, и все кости, и оружие привязанное к костям
+        Transform modelRoot = animator.transform; // Animator обычно на корне модели
+        if (modelRoot != null)
+        {
+            modelRoot.gameObject.SetActive(false);
+            Debug.Log($"[SkillManager] 👻 Модель игрока полностью скрыта: {modelRoot.name}");
+        }
+        else
+        {
+            // Fallback: скрываем GameObject с SkinnedMeshRenderer
+            playerRenderer.gameObject.SetActive(false);
+            Debug.LogWarning($"[SkillManager] ⚠️ Animator не найден, скрыт только SkinnedMeshRenderer");
+        }
 
         // Создаём медведя как child объект
         GameObject bearInstance = Instantiate(skill.transformationModel, transform);
@@ -481,10 +492,17 @@ public class SkillManager : MonoBehaviour
         }
 
         // Показываем модель игрока обратно
-        if (playerRenderer != null)
+        // Восстанавливаем через оригинальный Animator (который мы восстановили выше)
+        if (animator != null && animator.transform != null)
         {
+            animator.transform.gameObject.SetActive(true);
+            Debug.Log($"[SkillManager] ✅ Модель игрока полностью восстановлена: {animator.transform.name}");
+        }
+        else if (playerRenderer != null)
+        {
+            // Fallback
             playerRenderer.gameObject.SetActive(true);
-            Debug.Log($"[SkillManager] ✅ Модель игрока восстановлена");
+            Debug.LogWarning($"[SkillManager] ⚠️ Восстановлен только SkinnedMeshRenderer");
         }
 
         // Убираем бонус HP

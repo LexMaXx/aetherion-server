@@ -635,21 +635,17 @@ public class NetworkPlayer : MonoBehaviour
 
         Debug.Log($"[NetworkPlayer] 🔍 Скилл найден: {skill.skillName}, модель: {skill.transformationModel.name}");
 
-        // КРИТИЧЕСКОЕ: Находим ВСЕ SkinnedMeshRenderer и скрываем их (модель + одежда)
-        SkinnedMeshRenderer[] originalRenderers = GetComponentsInChildren<SkinnedMeshRenderer>();
-        foreach (SkinnedMeshRenderer smr in originalRenderers)
+        // КРИТИЧЕСКОЕ: Скрываем родительский GameObject с моделью (где Animator), а не только SkinnedMeshRenderer
+        // Это скроет и модель, и все кости, и оружие привязанное к костям
+        if (animator != null && animator.transform != null)
         {
-            smr.enabled = false; // Отключаем рендерер, но НЕ весь GameObject (чтобы оружие осталось!)
-            Debug.Log($"[NetworkPlayer] ✅ Отключён рендерер: {smr.gameObject.name}");
-        }
-
-        if (originalRenderers.Length > 0)
-        {
-            originalModel = originalRenderers[0].gameObject;
+            originalModel = animator.gameObject; // Сохраняем ссылку для восстановления
+            animator.gameObject.SetActive(false);
+            Debug.Log($"[NetworkPlayer] 👻 Модель игрока полностью скрыта для {username}: {animator.gameObject.name}");
         }
         else
         {
-            Debug.LogWarning($"[NetworkPlayer] ⚠️ SkinnedMeshRenderer не найден для {username}");
+            Debug.LogWarning($"[NetworkPlayer] ⚠️ Animator не найден для {username}, не могу скрыть модель!");
         }
 
         // Создаём модель трансформации
@@ -743,23 +739,14 @@ public class NetworkPlayer : MonoBehaviour
             Debug.Log($"[NetworkPlayer] ✅ Модель трансформации удалена для {username}");
         }
 
-        // Включаем все SkinnedMeshRenderer обратно
-        SkinnedMeshRenderer[] originalRenderers = GetComponentsInChildren<SkinnedMeshRenderer>(true); // includeInactive=true
-        foreach (SkinnedMeshRenderer smr in originalRenderers)
-        {
-            smr.enabled = true;
-            Debug.Log($"[NetworkPlayer] ✅ Включён рендерер: {smr.gameObject.name}");
-        }
-
-        // ОРУЖИЕ: Оружие игрока скрыто вместе с его моделью, при восстановлении модели оно автоматически появится
-        // ClassWeaponManager медведя удалится вместе с GameObject медведя (Destroy выше)
-
+        // Показываем модель игрока обратно
         if (originalModel != null)
         {
-            Debug.Log($"[NetworkPlayer] ✅ Оригинальная модель восстановлена для {username}");
+            originalModel.SetActive(true);
+            Debug.Log($"[NetworkPlayer] ✅ Модель игрока полностью восстановлена для {username}: {originalModel.name}");
 
             // ВАЖНО: Возвращаем ссылку на оригинальный Animator
-            Animator originalAnimator = GetComponentInChildren<Animator>();
+            Animator originalAnimator = originalModel.GetComponent<Animator>();
             if (originalAnimator != null)
             {
                 animator = originalAnimator;
@@ -772,6 +759,13 @@ public class NetworkPlayer : MonoBehaviour
                 }
             }
         }
+        else
+        {
+            Debug.LogWarning($"[NetworkPlayer] ⚠️ originalModel == null для {username}, не могу восстановить модель!");
+        }
+
+        // ОРУЖИЕ: Оружие игрока скрыто вместе с его моделью, при восстановлении модели оно автоматически появится
+        // ClassWeaponManager медведя удалится вместе с GameObject медведя (Destroy выше)
 
         transformationInstance = null;
         originalModel = null;
