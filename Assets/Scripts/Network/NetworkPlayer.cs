@@ -600,17 +600,18 @@ public class NetworkPlayer : MonoBehaviour
 
     // УДАЛЕНО: GetNameplate(), ShowNameplate(), HideNameplate(), OnDestroy() - заменено на EnemyNameplate.cs
 
-    // ===== ТРАНСФОРМАЦИЯ (НОВОЕ) =====
+    // ===== ТРАНСФОРМАЦИЯ (MESH SWAPPING) =====
 
-    private GameObject transformationInstance; // Модель трансформации (медведь и т.д.)
-    private GameObject originalModel; // Оригинальная модель персонажа
+    private Mesh originalMesh;
+    private Material[] originalMaterials;
+    private Transform[] originalBones;
 
     /// <summary>
-    /// Применить трансформацию к сетевому игроку (НОВОЕ)
+    /// Применить трансформацию к сетевому игроку (MESH SWAPPING)
     /// </summary>
     public void ApplyTransformation(int skillId)
     {
-        Debug.Log($"[NetworkPlayer] 🐻 ApplyTransformation вызван для {username}, skillId={skillId}");
+        Debug.Log($"[NetworkPlayer] 🐻 ApplyTransformation (MESH SWAPPING) вызван для {username}, skillId={skillId}");
 
         // Получаем скилл из SkillDatabase
         SkillDatabase db = SkillDatabase.Instance;
@@ -635,152 +636,76 @@ public class NetworkPlayer : MonoBehaviour
 
         Debug.Log($"[NetworkPlayer] 🔍 Скилл найден: {skill.skillName}, модель: {skill.transformationModel.name}");
 
-        // КРИТИЧЕСКОЕ: Скрываем ТОЛЬКО визуальные компоненты, НЕ GameObject!
-        // 1. Отключаем SkinnedMeshRenderer (модель тела исчезает)
+        // Находим SkinnedMeshRenderer игрока
         SkinnedMeshRenderer playerRenderer = GetComponentInChildren<SkinnedMeshRenderer>();
-        if (playerRenderer != null)
+        if (playerRenderer == null)
         {
-            playerRenderer.enabled = false;
-            Debug.Log($"[NetworkPlayer] 👻 SkinnedMeshRenderer отключён для {username}: {playerRenderer.gameObject.name}");
+            Debug.LogError($"[NetworkPlayer] ❌ SkinnedMeshRenderer не найден для {username}!");
+            return;
         }
 
-        // 2. Отключаем ClassWeaponManager игрока (оружие паладина удаляется)
+        // Сохраняем оригинальные mesh и materials
+        originalMesh = playerRenderer.sharedMesh;
+        originalMaterials = playerRenderer.sharedMaterials;
+        originalBones = playerRenderer.bones;
+        Debug.Log($"[NetworkPlayer] 💾 Сохранены оригинальные: mesh, {originalMaterials.Length} материалов, {originalBones.Length} костей для {username}");
+
+        // Получаем SkinnedMeshRenderer медведя из prefab
+        SkinnedMeshRenderer bearRenderer = skill.transformationModel.GetComponentInChildren<SkinnedMeshRenderer>();
+        if (bearRenderer == null)
+        {
+            Debug.LogError($"[NetworkPlayer] ❌ У модели медведя нет SkinnedMeshRenderer!");
+            return;
+        }
+
+        // MESH SWAPPING - меняем только mesh и materials, НЕ трогая bones!
+        playerRenderer.sharedMesh = bearRenderer.sharedMesh;
+        playerRenderer.sharedMaterials = bearRenderer.sharedMaterials;
+        // НЕ МЕНЯЕМ bones! playerRenderer.bones остаются костями игрока!
+
+        Debug.Log($"[NetworkPlayer] 🔄 MESH SWAPPING: заменены mesh и {bearRenderer.sharedMaterials.Length} материалов для {username}");
+        Debug.Log($"[NetworkPlayer] 🦴 Кости: используем {playerRenderer.bones.Length} костей игрока (НЕ меняем!)");
+
+        // Скрываем оружие игрока
         ClassWeaponManager playerWeaponManager = GetComponent<ClassWeaponManager>();
         if (playerWeaponManager != null)
         {
-            playerWeaponManager.DetachWeapon(); // Удаляем оружие игрока
-            playerWeaponManager.enabled = false; // Отключаем компонент
-            Debug.Log($"[NetworkPlayer] 🔧 ClassWeaponManager игрока {username} отключён, оружие удалено");
+            playerWeaponManager.DetachWeapon();
+            Debug.Log($"[NetworkPlayer] 🔧 Оружие игрока {username} удалено");
         }
 
-        // Создаём модель трансформации
-        transformationInstance = Instantiate(skill.transformationModel, transform.position, transform.rotation, transform);
-
-        // КРИТИЧЕСКОЕ: Сбрасываем локальную позицию/поворот в zero (чтобы модель была ровно в центре родителя)
-        transformationInstance.transform.localPosition = Vector3.zero;
-        transformationInstance.transform.localRotation = Quaternion.identity;
-
-        Debug.Log($"[NetworkPlayer] ✅ Трансформация создана: {transformationInstance.name} для {username}");
-        Debug.Log($"[NetworkPlayer] 🔍 ДИАГНОСТИКА: Parent worldPos={transform.position}, Bear localPos={transformationInstance.transform.localPosition}, Bear worldPos={transformationInstance.transform.position}");
-
-        // КРИТИЧЕСКОЕ: Отключаем ВСЕ коллайдеры медведя (они конфликтуют с CharacterController игрока)
-        // Медведь - это визуальная "шкура" (child GameObject), физика остаётся на родителе (игроке)
-        Collider[] bearColliders = transformationInstance.GetComponentsInChildren<Collider>();
-        foreach (Collider col in bearColliders)
-        {
-            col.enabled = false;
-            Debug.Log($"[NetworkPlayer] 🔧 Отключён коллайдер медведя: {col.GetType().Name}");
-        }
-
-        // КРИТИЧЕСКОЕ: Сбрасываем scale GameObject "input" (scale=100 создаёт offset)
-        Transform inputTransform = transformationInstance.transform.Find("input");
-        if (inputTransform != null)
-        {
-            inputTransform.localScale = Vector3.one; // Сбрасываем scale в (1, 1, 1)
-            Debug.Log($"[NetworkPlayer] 🔧 Scale 'input' GameObject сброшен в (1,1,1) (offset fix)");
-        }
-
-        // КРИТИЧЕСКОЕ: Используем РОДНОЙ аниматор медведя (совместим с его скелетом)
-        Animator bearAnimator = transformationInstance.GetComponentInChildren<Animator>();
-        if (bearAnimator != null)
-        {
-            // Оставляем аниматор медведя как есть (не заменяем!)
-            // Переключаемся на его использование
-            animator = bearAnimator;
-
-            // Устанавливаем боевую стойку
-            if (HasAnimatorParameter(animator, "InBattle"))
-            {
-                animator.SetBool("InBattle", true);
-            }
-
-            Debug.Log($"[NetworkPlayer] 🔧 Используем родной аниматор медведя");
-        }
-
-        // КРИТИЧЕСКОЕ: Добавляем ClassWeaponManager к медведю и привязываем оружие паладина
-        ClassWeaponManager bearWeaponManager = transformationInstance.GetComponent<ClassWeaponManager>();
-        if (bearWeaponManager == null)
-        {
-            bearWeaponManager = transformationInstance.AddComponent<ClassWeaponManager>();
-            Debug.Log($"[NetworkPlayer] 🔧 ClassWeaponManager добавлен к медведю {username}");
-        }
-
-        // Устанавливаем класс вручную (медведь = паладин с оружием)
-        // Используем TryParse чтобы конвертировать string characterClass в CharacterClass enum
-        if (System.Enum.TryParse(characterClass, out CharacterClass classEnum))
-        {
-            bearWeaponManager.SetCharacterClass(classEnum);
-            bearWeaponManager.AttachWeaponForClass();
-            Debug.Log($"[NetworkPlayer] ⚔️ Оружие {characterClass} привязано к медведю {username}");
-        }
-        else
-        {
-            Debug.LogWarning($"[NetworkPlayer] ⚠️ Не удалось определить класс '{characterClass}' для медведя {username}");
-        }
-
-        // ОРУЖИЕ: Оружие игрока скрыто вместе с моделью, а у медведя своё оружие (через ClassWeaponManager выше)
-
-        // КРИТИЧЕСКОЕ: Сбрасываем NetworkTransform чтобы остановить экстраполяцию (Dead Reckoning)
-        // Иначе медведь будет "убегать" вперёд из-за предсказания на основе старой velocity
-        if (networkTransform != null)
-        {
-            networkTransform.ResetState();
-            Debug.Log($"[NetworkPlayer] 🔄 NetworkTransform сброшен для {username} (остановка экстраполяции)");
-        }
-
-        Debug.Log($"[NetworkPlayer] 🐻 ✅ Трансформация применена к {username}!");
+        Debug.Log($"[NetworkPlayer] 🐻 ✅ MESH SWAPPING завершён для {username}!");
     }
 
     /// <summary>
-    /// Завершить трансформацию сетевого игрока (НОВОЕ)
+    /// Завершить трансформацию сетевого игрока (MESH SWAPPING)
     /// </summary>
     public void EndTransformation()
     {
-        Debug.Log($"[NetworkPlayer] 🔄 EndTransformation вызван для {username}");
+        Debug.Log($"[NetworkPlayer] 🔄 EndTransformation (MESH SWAPPING) вызван для {username}");
 
-        if (transformationInstance != null)
-        {
-            Destroy(transformationInstance);
-            Debug.Log($"[NetworkPlayer] ✅ Модель трансформации удалена для {username}");
-        }
-
-        // Показываем модель игрока обратно
-        // 1. Включаем SkinnedMeshRenderer
+        // Восстанавливаем оригинальные mesh и materials
         SkinnedMeshRenderer playerRenderer = GetComponentInChildren<SkinnedMeshRenderer>();
-        if (playerRenderer != null)
+        if (playerRenderer != null && originalMesh != null && originalMaterials != null)
         {
-            playerRenderer.enabled = true;
-            Debug.Log($"[NetworkPlayer] ✅ SkinnedMeshRenderer восстановлён для {username}");
+            playerRenderer.sharedMesh = originalMesh;
+            playerRenderer.sharedMaterials = originalMaterials;
+            // bones не меняли, поэтому не восстанавливаем
+            Debug.Log($"[NetworkPlayer] 🔄 MESH SWAPPING отменён для {username}");
         }
 
-        // 2. Включаем ClassWeaponManager игрока и восстанавливаем оружие
+        // Восстанавливаем оружие игрока
         ClassWeaponManager playerWeaponManager = GetComponent<ClassWeaponManager>();
         if (playerWeaponManager != null)
         {
-            playerWeaponManager.enabled = true;
-            playerWeaponManager.AttachWeaponForClass(); // Восстанавливаем оружие игрока
-            Debug.Log($"[NetworkPlayer] ✅ ClassWeaponManager игрока {username} восстановлён, оружие привязано");
+            playerWeaponManager.AttachWeaponForClass();
+            Debug.Log($"[NetworkPlayer] ⚔️ Оружие игрока {username} восстановлено");
         }
 
-        // ВАЖНО: Возвращаем ссылку на оригинальный Animator
-        Animator originalAnimator = GetComponentInChildren<Animator>();
-        if (originalAnimator != null)
-        {
-            animator = originalAnimator;
-            Debug.Log($"[NetworkPlayer] ✅ Animator восстановлён на оригинальный для {username}");
-
-            // Устанавливаем боевую стойку
-            if (HasAnimatorParameter(animator, "InBattle"))
-            {
-                animator.SetBool("InBattle", true);
-            }
-        }
-
-        // ОРУЖИЕ: Оружие игрока восстановлено через ClassWeaponManager выше
-        // ClassWeaponManager медведя удалится вместе с GameObject медведя (Destroy выше)
-
-        transformationInstance = null;
-        originalModel = null;
+        // Очищаем ссылки
+        originalMesh = null;
+        originalMaterials = null;
+        originalBones = null;
 
         Debug.Log($"[NetworkPlayer] 🔄 ✅ Трансформация завершена для {username}!");
     }
