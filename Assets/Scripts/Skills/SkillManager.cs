@@ -39,12 +39,6 @@ public class SkillManager : MonoBehaviour
     public bool isTransformed = false; // PUBLIC для NetworkSyncManager
     private float transformationHPBonus = 0f; // Сохраняем бонус HP для удаления
 
-    // Сохранение оригинального mesh и материалов для восстановления
-    private SkinnedMeshRenderer playerRenderer;
-    private Mesh originalMesh;
-    private Material[] originalMaterials;
-    private Transform[] originalBones; // КРИТИЧЕСКОЕ: Сохраняем bones игрока!
-
     void Start()
     {
         characterStats = GetComponent<CharacterStats>();
@@ -366,12 +360,12 @@ public class SkillManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Скилл трансформации (Paladin - медведь) - CHILD GAMEOBJECT WITH PROPER SETUP
-    /// Создаём медведя как child, отключаем его коллайдер, CharacterController остаётся на родителе
+    /// Скилл трансформации (Paladin - медведь) - MESH SWAPPING
+    /// Меняем визуальную модель (mesh и materials) на медведя
     /// </summary>
     private void ExecuteTransformationSkill(SkillData skill)
     {
-        Debug.Log($"[SkillManager] 🔍 ExecuteTransformationSkill (CHILD GAMEOBJECT) вызван для {skill.skillName}");
+        Debug.Log($"[SkillManager] 🔍 ExecuteTransformationSkill (MESH SWAPPING) вызван для {skill.skillName}");
 
         if (skill.transformationModel == null)
         {
@@ -379,17 +373,13 @@ public class SkillManager : MonoBehaviour
             return;
         }
 
-        // Находим SkinnedMeshRenderer игрока
-        playerRenderer = GetComponentInChildren<SkinnedMeshRenderer>();
-        if (playerRenderer == null)
+        // Получаем или добавляем MeshSwapper компонент
+        MeshSwapper meshSwapper = GetComponent<MeshSwapper>();
+        if (meshSwapper == null)
         {
-            Debug.LogError("[SkillManager] ❌ SkinnedMeshRenderer не найден!");
-            return;
+            meshSwapper = gameObject.AddComponent<MeshSwapper>();
+            Debug.Log($"[SkillManager] ➕ Добавлен MeshSwapper компонент");
         }
-
-        // Скрываем модель игрока (отключаем только renderer)
-        playerRenderer.enabled = false;
-        Debug.Log($"[SkillManager] 👻 SkinnedMeshRenderer игрока отключён");
 
         // Скрываем оружие паладина
         ClassWeaponManager playerWeaponManager = GetComponent<ClassWeaponManager>();
@@ -399,28 +389,17 @@ public class SkillManager : MonoBehaviour
             Debug.Log($"[SkillManager] 🔧 Оружие паладина удалено");
         }
 
-        // Создаём медведя как child объект (на root transform где CharacterController)
-        GameObject bearInstance = Instantiate(skill.transformationModel, transform);
-        bearInstance.transform.localPosition = Vector3.zero;
-        bearInstance.transform.localRotation = Quaternion.identity;
-        Debug.Log($"[SkillManager] 🐻 Медведь создан как child GameObject");
-
-        // КРИТИЧЕСКОЕ: Отключаем коллайдеры медведя (CharacterController на родителе управляет физикой!)
-        Collider[] bearColliders = bearInstance.GetComponentsInChildren<Collider>();
-        foreach (Collider col in bearColliders)
+        // Выполняем mesh swap
+        bool success = meshSwapper.TransformTo(skill.transformationModel);
+        if (!success)
         {
-            col.enabled = false;
-            Debug.Log($"[SkillManager] 🔧 Отключён коллайдер медведя: {col.GetType().Name}");
+            Debug.LogError("[SkillManager] ❌ Mesh swap не удался!");
+            return;
         }
-
-        // Сохраняем ссылку на медведя для удаления позже
-        originalBones = new Transform[] { bearInstance.transform };
 
         isTransformed = true;
 
-        Debug.Log($"[SkillManager] 🐻 ✅ Трансформация завершена - медведь на месте паладина!");
-
-        // ОРУЖИЕ: Оружие игрока скрыто вместе с моделью, а у медведя своё оружие (через ClassWeaponManager выше)
+        Debug.Log($"[SkillManager] 🐻 ✅ Mesh swap завершён - паладин превратился в медведя!");
 
         // Применяем бонусы
         if (healthSystem != null && skill.hpBonusPercent > 0f)
@@ -433,28 +412,23 @@ public class SkillManager : MonoBehaviour
         // Автоматически отключаем через время
         Invoke(nameof(EndTransformation), skill.transformationDuration);
 
-        Debug.Log($"[SkillManager] 🐻 ✅ ТРАНСФОРМАЦИЯ АКТИВИРОВАНА (CHILD GAMEOBJECT) на {skill.transformationDuration}с!");
+        Debug.Log($"[SkillManager] 🐻 ✅ ТРАНСФОРМАЦИЯ АКТИВИРОВАНА (MESH SWAP) на {skill.transformationDuration}с!");
     }
 
     /// <summary>
-    /// Завершить трансформацию - CHILD GAMEOBJECT
+    /// Завершить трансформацию - MESH SWAPPING
     /// </summary>
     private void EndTransformation()
     {
         if (!isTransformed) return;
 
-        // Удаляем медведя (child GameObject)
-        if (originalBones != null && originalBones.Length > 0 && originalBones[0] != null)
+        // Получаем MeshSwapper компонент
+        MeshSwapper meshSwapper = GetComponent<MeshSwapper>();
+        if (meshSwapper != null)
         {
-            Destroy(originalBones[0].gameObject);
-            Debug.Log($"[SkillManager] ✅ Медведь удалён");
-        }
-
-        // Показываем модель игрока
-        if (playerRenderer != null)
-        {
-            playerRenderer.enabled = true;
-            Debug.Log($"[SkillManager] ✅ SkinnedMeshRenderer игрока восстановлён");
+            // Возвращаем оригинальный mesh
+            meshSwapper.RevertToOriginal();
+            Debug.Log($"[SkillManager] ✅ Mesh восстановлен");
         }
 
         // Восстанавливаем оружие паладина
@@ -472,12 +446,6 @@ public class SkillManager : MonoBehaviour
             transformationHPBonus = 0f;
         }
 
-        // Очищаем ссылки
-        playerRenderer = null;
-        originalMesh = null;
-        originalMaterials = null;
-        originalBones = null;
-
         isTransformed = false;
 
         // Отправляем на сервер окончание трансформации
@@ -486,7 +454,7 @@ public class SkillManager : MonoBehaviour
             SocketIOManager.Instance.SendTransformationEnd();
         }
 
-        Debug.Log("[SkillManager] 🐻 Трансформация завершена (CHILD GAMEOBJECT)");
+        Debug.Log("[SkillManager] 🐻 Трансформация завершена (MESH SWAP)");
     }
 
     /// <summary>
