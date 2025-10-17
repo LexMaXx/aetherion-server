@@ -441,6 +441,18 @@ public class SkillManager : MonoBehaviour
         bearWeaponManager.AttachWeaponForClass();
         Debug.Log($"[SkillManager] ⚔️ Оружие паладина привязано к медведю");
 
+        // КРИТИЧЕСКОЕ: Переключаем камеру на медведя
+        CameraFollow cameraFollow = Camera.main?.GetComponent<CameraFollow>();
+        if (cameraFollow != null)
+        {
+            cameraFollow.SetTarget(bearInstance.transform);
+            Debug.Log($"[SkillManager] 📹 Камера переключена на медведя");
+        }
+        else
+        {
+            Debug.LogWarning($"[SkillManager] ⚠️ CameraFollow не найден!");
+        }
+
         originalMesh = null; // Не используем mesh swapping
         originalMaterials = null;
 
@@ -505,6 +517,14 @@ public class SkillManager : MonoBehaviour
             playerWeaponManager.enabled = true;
             playerWeaponManager.AttachWeaponForClass(); // Восстанавливаем оружие игрока
             Debug.Log($"[SkillManager] ✅ ClassWeaponManager игрока восстановлён, оружие привязано");
+        }
+
+        // КРИТИЧЕСКОЕ: Возвращаем камеру на игрока
+        CameraFollow cameraFollow = Camera.main?.GetComponent<CameraFollow>();
+        if (cameraFollow != null)
+        {
+            cameraFollow.SetTarget(transform);
+            Debug.Log($"[SkillManager] 📹 Камера возвращена на игрока");
         }
 
         // Убираем бонус HP
