@@ -1181,21 +1181,33 @@ public class NetworkSyncManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Получить префаб персонажа по классу
+    /// Получить префаб персонажа по классу (АВТОЗАГРУЗКА из Resources/Characters/)
     /// </summary>
     private GameObject GetCharacterPrefab(string characterClass)
     {
-        switch (characterClass)
+        // КРИТИЧЕСКОЕ: Загружаем префабы из Resources/Characters/ автоматически
+        // Формат: Resources/Characters/{ClassName}Model.prefab
+        string prefabPath = $"Characters/{characterClass}Model";
+        GameObject prefab = Resources.Load<GameObject>(prefabPath);
+
+        if (prefab == null)
         {
-            case "Warrior": return warriorPrefab;
-            case "Mage": return magePrefab;
-            case "Archer": return archerPrefab;
-            case "Rogue": return roguePrefab;
-            case "Paladin": return paladinPrefab;
-            default:
-                Debug.LogWarning($"[NetworkSync] Неизвестный класс: {characterClass}");
-                return warriorPrefab; // Fallback
+            Debug.LogError($"[NetworkSync] ❌ Префаб не найден: Resources/{prefabPath}.prefab");
+            Debug.LogError($"[NetworkSync] Убедитесь что префаб {characterClass}Model.prefab находится в Assets/Resources/Characters/");
+
+            // Fallback на Warrior если не найден
+            prefab = Resources.Load<GameObject>("Characters/WarriorModel");
+            if (prefab != null)
+            {
+                Debug.LogWarning($"[NetworkSync] ⚠️ Используется Warrior как fallback для класса {characterClass}");
+            }
         }
+        else
+        {
+            Debug.Log($"[NetworkSync] ✅ Префаб загружен: {prefabPath}");
+        }
+
+        return prefab;
     }
 
     /// <summary>

@@ -541,26 +541,26 @@ public class ArenaManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Получить префаб персонажа по классу
+    /// Получить префаб персонажа по классу (АВТОЗАГРУЗКА из Resources/Characters/)
     /// </summary>
     private GameObject GetCharacterPrefab(string characterClass)
     {
-        switch (characterClass)
+        // КРИТИЧЕСКОЕ: Загружаем префабы из Resources/Characters/ автоматически
+        // Формат: Resources/Characters/{ClassName}Model.prefab
+        string prefabPath = $"Characters/{characterClass}Model";
+        GameObject prefab = Resources.Load<GameObject>(prefabPath);
+
+        if (prefab == null)
         {
-            case "Warrior":
-                return warriorPrefab;
-            case "Mage":
-                return magePrefab;
-            case "Archer":
-                return archerPrefab;
-            case "Rogue":
-                return roguePrefab;
-            case "Paladin":
-                return paladinPrefab;
-            default:
-                Debug.LogWarning($"Неизвестный класс: {characterClass}");
-                return null;
+            Debug.LogError($"[ArenaManager] ❌ Префаб не найден: Resources/{prefabPath}.prefab");
+            Debug.LogError($"[ArenaManager] Убедитесь что префаб {characterClass}Model.prefab находится в Assets/Resources/Characters/");
         }
+        else
+        {
+            Debug.Log($"[ArenaManager] ✅ Префаб загружен: {prefabPath}");
+        }
+
+        return prefab;
     }
 
     /// <summary>
