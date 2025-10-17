@@ -366,12 +366,12 @@ public class SkillManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Скилл трансформации (Paladin - медведь) - MESH SWAPPING APPROACH
-    /// Заменяем mesh и материалы игрока на медведя, используя СУЩЕСТВУЮЩИЕ кости
+    /// Скилл трансформации (Paladin - медведь) - CHILD GAMEOBJECT WITH PROPER SETUP
+    /// Создаём медведя как child, отключаем его коллайдер, CharacterController остаётся на родителе
     /// </summary>
     private void ExecuteTransformationSkill(SkillData skill)
     {
-        Debug.Log($"[SkillManager] 🔍 ExecuteTransformationSkill (MESH SWAPPING) вызван для {skill.skillName}");
+        Debug.Log($"[SkillManager] 🔍 ExecuteTransformationSkill (CHILD GAMEOBJECT) вызван для {skill.skillName}");
 
         if (skill.transformationModel == null)
         {
@@ -387,28 +387,9 @@ public class SkillManager : MonoBehaviour
             return;
         }
 
-        // Сохраняем оригинальные mesh и materials
-        originalMesh = playerRenderer.sharedMesh;
-        originalMaterials = playerRenderer.sharedMaterials;
-        originalBones = playerRenderer.bones; // Сохраняем кости игрока!
-        Debug.Log($"[SkillManager] 💾 Сохранены оригинальные: mesh, {originalMaterials.Length} материалов, {originalBones.Length} костей");
-
-        // Получаем SkinnedMeshRenderer медведя из prefab
-        SkinnedMeshRenderer bearRenderer = skill.transformationModel.GetComponentInChildren<SkinnedMeshRenderer>();
-        if (bearRenderer == null)
-        {
-            Debug.LogError("[SkillManager] ❌ У модели медведя нет SkinnedMeshRenderer!");
-            return;
-        }
-
-        // КРИТИЧЕСКОЕ: MESH SWAPPING - меняем только mesh и materials, НЕ трогая bones!
-        // Unity будет использовать кости паладина (57 bones) для рендеринга меша медведя
-        playerRenderer.sharedMesh = bearRenderer.sharedMesh;
-        playerRenderer.sharedMaterials = bearRenderer.sharedMaterials;
-        // НЕ МЕНЯЕМ bones! playerRenderer.bones остаются костями паладина!
-
-        Debug.Log($"[SkillManager] 🔄 MESH SWAPPING: заменены mesh и {bearRenderer.sharedMaterials.Length} материалов");
-        Debug.Log($"[SkillManager] 🦴 Кости: используем {playerRenderer.bones.Length} костей паладина (НЕ меняем!)");
+        // Скрываем модель игрока (отключаем только renderer)
+        playerRenderer.enabled = false;
+        Debug.Log($"[SkillManager] 👻 SkinnedMeshRenderer игрока отключён");
 
         // Скрываем оружие паладина
         ClassWeaponManager playerWeaponManager = GetComponent<ClassWeaponManager>();
@@ -418,11 +399,26 @@ public class SkillManager : MonoBehaviour
             Debug.Log($"[SkillManager] 🔧 Оружие паладина удалено");
         }
 
-        // Камера уже следует за transform (root GameObject), ничего не меняем
+        // Создаём медведя как child объект (на root transform где CharacterController)
+        GameObject bearInstance = Instantiate(skill.transformationModel, transform);
+        bearInstance.transform.localPosition = Vector3.zero;
+        bearInstance.transform.localRotation = Quaternion.identity;
+        Debug.Log($"[SkillManager] 🐻 Медведь создан как child GameObject");
+
+        // КРИТИЧЕСКОЕ: Отключаем коллайдеры медведя (CharacterController на родителе управляет физикой!)
+        Collider[] bearColliders = bearInstance.GetComponentsInChildren<Collider>();
+        foreach (Collider col in bearColliders)
+        {
+            col.enabled = false;
+            Debug.Log($"[SkillManager] 🔧 Отключён коллайдер медведя: {col.GetType().Name}");
+        }
+
+        // Сохраняем ссылку на медведя для удаления позже
+        originalBones = new Transform[] { bearInstance.transform };
 
         isTransformed = true;
 
-        Debug.Log($"[SkillManager] 🐻 ✅ MESH SWAPPING завершён - игрок теперь медведь!");
+        Debug.Log($"[SkillManager] 🐻 ✅ Трансформация завершена - медведь на месте паладина!");
 
         // ОРУЖИЕ: Оружие игрока скрыто вместе с моделью, а у медведя своё оружие (через ClassWeaponManager выше)
 
@@ -441,19 +437,24 @@ public class SkillManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Завершить трансформацию - MESH SWAPPING
+    /// Завершить трансформацию - CHILD GAMEOBJECT
     /// </summary>
     private void EndTransformation()
     {
         if (!isTransformed) return;
 
-        // Восстанавливаем оригинальные mesh и materials
-        if (playerRenderer != null && originalMesh != null && originalMaterials != null)
+        // Удаляем медведя (child GameObject)
+        if (originalBones != null && originalBones.Length > 0 && originalBones[0] != null)
         {
-            playerRenderer.sharedMesh = originalMesh;
-            playerRenderer.sharedMaterials = originalMaterials;
-            // bones не меняли, поэтому не восстанавливаем
-            Debug.Log($"[SkillManager] 🔄 MESH SWAPPING отменён - паладин восстановлен");
+            Destroy(originalBones[0].gameObject);
+            Debug.Log($"[SkillManager] ✅ Медведь удалён");
+        }
+
+        // Показываем модель игрока
+        if (playerRenderer != null)
+        {
+            playerRenderer.enabled = true;
+            Debug.Log($"[SkillManager] ✅ SkinnedMeshRenderer игрока восстановлён");
         }
 
         // Восстанавливаем оружие паладина
@@ -485,7 +486,7 @@ public class SkillManager : MonoBehaviour
             SocketIOManager.Instance.SendTransformationEnd();
         }
 
-        Debug.Log("[SkillManager] 🐻 Трансформация завершена (MESH SWAPPING)");
+        Debug.Log("[SkillManager] 🐻 Трансформация завершена (CHILD GAMEOBJECT)");
     }
 
     /// <summary>
