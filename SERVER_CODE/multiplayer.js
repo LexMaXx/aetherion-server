@@ -944,6 +944,93 @@ module.exports = (io) => {
     });
 
     // ═══════════════════════════════════════════
+    // LOBBY SYSTEM - CLIENT-SIDE EVENTS
+    // ═══════════════════════════════════════════
+
+    // Обработка start_game от клиента (FALLBACK countdown завершился)
+    socket.on('start_game', (data) => {
+      const player = activePlayers.get(socket.id);
+      if (!player) {
+        console.warn(`[Start Game] Player ${socket.id} not found in activePlayers`);
+        return;
+      }
+
+      // ВАЖНО: Unity может отправить как строку, так и как объект
+      let parsedData = data;
+      if (typeof data === 'string') {
+        try {
+          parsedData = JSON.parse(data);
+        } catch (e) {
+          console.error('[Start Game] ❌ Failed to parse JSON:', e.message);
+          return;
+        }
+      }
+
+      const { roomId } = parsedData;
+      console.log(`[Start Game] 🎮 ${player.username} отправил start_game для комнаты ${roomId}`);
+
+      // КРИТИЧЕСКОЕ: Закрываем комнату для новых игроков (игра началась!)
+      const roomState = roomStates.get(roomId);
+      if (roomState) {
+        roomState.state = 'GAME';
+        roomState.canJoin = false;
+        console.log(`[Start Game] 🔒 Комната ${roomId} ЗАКРЫТА (canJoin=false, status=in-game)`);
+      }
+
+      // Собираем всех игроков с их spawn points
+      const players = [];
+      for (const [socketId, p] of activePlayers.entries()) {
+        if (p.roomId === roomId) {
+          players.push({
+            socketId,
+            username: p.username,
+            characterClass: p.characterClass,
+            spawnIndex: p.spawnIndex
+          });
+        }
+      }
+
+      // Рассылаем game_start ВСЕМ игрокам в комнате (СИНХРОННЫЙ СПАВН!)
+      io.to(roomId).emit('game_start', {
+        players,
+        timestamp: Date.now()
+      });
+
+      console.log(`[Start Game] ✅ Разослан game_start всем ${players.length} игрокам в комнате ${roomId}`);
+    });
+
+    // Обработка create_lobby от клиента (FALLBACK лобби запущено)
+    socket.on('create_lobby', (data) => {
+      const player = activePlayers.get(socket.id);
+      if (!player) {
+        console.warn(`[Create Lobby] Player ${socket.id} not found in activePlayers`);
+        return;
+      }
+
+      // ВАЖНО: Unity может отправить как строку, так и как объект
+      let parsedData = data;
+      if (typeof data === 'string') {
+        try {
+          parsedData = JSON.parse(data);
+        } catch (e) {
+          console.error('[Create Lobby] ❌ Failed to parse JSON:', e.message);
+          return;
+        }
+      }
+
+      const { roomId, waitTime } = parsedData;
+      console.log(`[Create Lobby] 🏁 ${player.username} отправил create_lobby для комнаты ${roomId}, время: ${waitTime}ms`);
+
+      // Рассылаем lobby_created ВСЕМ игрокам в комнате
+      io.to(roomId).emit('lobby_created', {
+        waitTime: waitTime || LOBBY_WAIT_TIME,
+        timestamp: Date.now()
+      });
+
+      console.log(`[Create Lobby] ✅ Разослан lobby_created всем игрокам в комнате ${roomId}`);
+    });
+
+    // ═══════════════════════════════════════════
     // ОТКЛЮЧЕНИЕ
     // ═══════════════════════════════════════════
 
