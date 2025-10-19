@@ -949,8 +949,8 @@ module.exports = (io) => {
     socket.on('projectile_spawned', (data) => {
       try {
         const player = activePlayers.get(socket.id);
-        if (!player || !player.isAlive) {
-          console.warn(`[Projectile] ⚠️ Player not found or dead for socket: ${socket.id}`);
+        if (!player) {
+          console.warn(`[Projectile] ⚠️ Player not found for socket: ${socket.id}`);
           return;
         }
 
