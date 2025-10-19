@@ -41,7 +41,7 @@ MonoBehaviour:
     canBeDispelled: 1
   aoeRadius: 8
   maxTargets: 8
-  animationTrigger: MageAttack
+  animationTrigger: Attack
   animationSpeed: 1
   blockMovementDuringCast: 0
   movementBlockDuration: 0

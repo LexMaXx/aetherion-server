@@ -46,7 +46,7 @@ MonoBehaviour:
     syncWithServer: 1
   aoeRadius: 0
   maxTargets: 1
-  animationTrigger: MageAttack
+  animationTrigger: Attack
   animationSpeed: 1
   blockMovementDuringCast: 0
   movementBlockDuration: 0
