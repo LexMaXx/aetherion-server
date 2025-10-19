@@ -944,6 +944,50 @@ module.exports = (io) => {
     });
 
     // ═══════════════════════════════════════════
+    // СНАРЯДЫ (Fireball, Lightning, Ice Shard и т.д.)
+    // ═══════════════════════════════════════════
+    socket.on('projectile_spawned', (data) => {
+      try {
+        const player = activePlayers.get(socket.id);
+        if (!player || !player.isAlive) {
+          console.warn(`[Projectile] ⚠️ Player not found or dead for socket: ${socket.id}`);
+          return;
+        }
+
+        // Парсим data если пришла строка
+        let parsedData = data;
+        if (typeof data === 'string') {
+          try {
+            parsedData = JSON.parse(data);
+          } catch (e) {
+            console.error('[Projectile] ❌ Failed to parse JSON:', e.message);
+            return;
+          }
+        }
+
+        console.log(`[Projectile] 🚀 Получен снаряд от ${player.username}: skillId=${parsedData.skillId}, pos=(${parsedData.spawnPosition.x.toFixed(1)}, ${parsedData.spawnPosition.y.toFixed(1)}, ${parsedData.spawnPosition.z.toFixed(1)})`);
+
+        // Рассылаем событие создания снаряда всем в комнате (включая отправителя)
+        const broadcastData = {
+          socketId: socket.id,
+          skillId: parsedData.skillId,
+          spawnPosition: parsedData.spawnPosition,
+          direction: parsedData.direction,
+          targetSocketId: parsedData.targetSocketId || '',
+          timestamp: Date.now()
+        };
+
+        io.to(player.roomId).emit('projectile_spawned', broadcastData);
+
+        console.log(`[Projectile] 📡 Снаряд разослан всем игрокам в комнате ${player.roomId}`);
+
+      } catch (error) {
+        console.error('[Projectile] ❌ Error processing projectile spawn:', error);
+        console.error('[Projectile] ❌ Stack:', error.stack);
+      }
+    });
+
+    // ═══════════════════════════════════════════
     // ВИЗУАЛЬНЫЕ ЭФФЕКТЫ (взрывы, ауры, горение, баффы и т.д.)
     // ═══════════════════════════════════════════
     socket.on('visual_effect_spawned', (data) => {
