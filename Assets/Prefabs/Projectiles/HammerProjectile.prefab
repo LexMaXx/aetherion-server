@@ -284,7 +284,7 @@ MonoBehaviour:
   lifetime: 3
   homing: 1
   trail: {fileID: 0}
-  hitEffect: {fileID: 0}
+  hitEffect: {fileID: 1590415177872986601, guid: bbf9e36a48d6c5648a13889afab076fd, type: 3}
   rotationSpeed: 540
 --- !u!114 &-2895099261935889691
 MonoBehaviour:
