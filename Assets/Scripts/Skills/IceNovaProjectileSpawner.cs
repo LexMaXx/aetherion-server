@@ -1,5 +1,4 @@
 using UnityEngine;
-using Network;
 
 /// <summary>
 /// Спавнер для Ice Nova - создает ледяные осколки, вылетающие радиально во все стороны
