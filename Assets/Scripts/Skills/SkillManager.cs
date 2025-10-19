@@ -859,6 +859,18 @@ public class SkillManager : MonoBehaviour
             {
                 projectile.Initialize(null, damage, direction, gameObject, skill.effects);
             }
+
+            // СИНХРОНИЗАЦИЯ: Отправляем каждый осколок на сервер для мультиплеера
+            if (SocketIOManager.Instance != null && SocketIOManager.Instance.IsConnected)
+            {
+                SocketIOManager.Instance.SendProjectileSpawned(
+                    skill.skillId, // 202 для Ice Nova
+                    spawnPosition,
+                    direction,
+                    "" // targetSocketId - осколки не наводятся
+                );
+                Debug.Log($"[SkillManager] 📡 Ice Nova shard {i + 1} sent to server: angle={angle:F1}°, dir={direction}");
+            }
         }
 
         Debug.Log($"[SkillManager] ❄️ Ice Nova: Spawned {shardCount} ice shards!");
