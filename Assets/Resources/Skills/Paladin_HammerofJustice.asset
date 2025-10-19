@@ -56,7 +56,7 @@ MonoBehaviour:
   visualEffectPrefab: {fileID: 0}
   casterEffectPrefab: {fileID: 0}
   projectilePrefab: {fileID: 4867267903092036128, guid: 6e512ba39f49c6549a4c44f656f22bf7, type: 3}
-  projectileHitEffectPrefab: {fileID: 100000, guid: e190bf97c041e58448af6b043116cba0, type: 3}
+  projectileHitEffectPrefab: {fileID: 1590415177872986601, guid: bbf9e36a48d6c5648a13889afab076fd, type: 3}
   projectileSpeed: 20
   projectileHoming: 1
   projectileLifetime: 5
