@@ -14,7 +14,7 @@ public class Projectile : MonoBehaviour
 
     [Header("Visual Settings")]
     [SerializeField] private TrailRenderer trail; // След за снарядом (опционально)
-    [SerializeField] private ParticleSystem hitEffect; // Эффект при попадании
+    [SerializeField] private GameObject hitEffect; // Эффект при попадании (prefab)
     [SerializeField] private float rotationSpeed = 360f; // Скорость вращения (градусы/сек)
 
     private Transform target; // Цель
@@ -71,7 +71,7 @@ public class Projectile : MonoBehaviour
         if (skill.projectileHitEffectPrefab != null)
         {
             // Создаем временную ссылку на prefab эффекта попадания
-            hitEffect = skill.projectileHitEffectPrefab.GetComponent<ParticleSystem>();
+            hitEffect = skill.projectileHitEffectPrefab;
         }
 
         // Ищем дочерний объект для вращения (если есть)
