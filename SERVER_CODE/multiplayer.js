@@ -944,6 +944,50 @@ module.exports = (io) => {
     });
 
     // ═══════════════════════════════════════════
+    // ВИЗУАЛЬНЫЕ ЭФФЕКТЫ (взрывы, ауры, горение, баффы и т.д.)
+    // ═══════════════════════════════════════════
+    socket.on('visual_effect_spawned', (data) => {
+      const player = activePlayers.get(socket.id);
+      if (!player) {
+        console.warn('[Visual Effect] ⚠️ Player not found for socket:', socket.id);
+        return;
+      }
+
+      // Парсим data если пришла строка
+      let parsedData = data;
+      if (typeof data === 'string') {
+        try {
+          parsedData = JSON.parse(data);
+        } catch (e) {
+          console.error('[Visual Effect] ❌ Failed to parse JSON:', e.message);
+          return;
+        }
+      }
+
+      console.log('[Visual Effect] ✨ Получен эффект:', {
+        socketId: socket.id,
+        username: player.username,
+        type: parsedData.effectType,
+        prefab: parsedData.effectPrefabName,
+        position: parsedData.position
+      });
+
+      // Рассылаем ВСЕМ игрокам в комнате (включая отправителя для других клиентов)
+      io.to(player.roomId).emit('visual_effect_spawned', {
+        socketId: socket.id,
+        effectType: parsedData.effectType,
+        effectPrefabName: parsedData.effectPrefabName,
+        position: parsedData.position,
+        rotation: parsedData.rotation,
+        targetSocketId: parsedData.targetSocketId || '',
+        duration: parsedData.duration || 0,
+        timestamp: Date.now()
+      });
+
+      console.log('[Visual Effect] 📡 Эффект разослан всем игрокам в комнате', player.roomId);
+    });
+
+    // ═══════════════════════════════════════════
     // LOBBY SYSTEM - CLIENT-SIDE EVENTS
     // ═══════════════════════════════════════════
 
