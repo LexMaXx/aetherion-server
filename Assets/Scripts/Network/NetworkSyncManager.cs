@@ -120,6 +120,7 @@ public class NetworkSyncManager : MonoBehaviour
         SocketIOManager.Instance.On("player_animation_changed", OnAnimationChanged); // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: теперь совпадает с сервером!
         SocketIOManager.Instance.On("player_attacked", OnPlayerAttacked);
         SocketIOManager.Instance.On("player_used_skill", OnPlayerSkillUsed); // НОВОЕ: Синхронизация скиллов (ИСПРАВЛЕНО: было player_skill_used)
+        SocketIOManager.Instance.On("projectile_spawned", OnProjectileSpawned); // НОВОЕ: Синхронизация снарядов (Fireball, Lightning и т.д.)
         SocketIOManager.Instance.On("player_transformed", OnPlayerTransformed); // НОВОЕ: Синхронизация трансформации
         SocketIOManager.Instance.On("player_transformation_ended", OnPlayerTransformationEnded); // НОВОЕ: Окончание трансформации
         SocketIOManager.Instance.On("player_health_changed", OnHealthChanged);
@@ -742,6 +743,95 @@ public class NetworkSyncManager : MonoBehaviour
         else
         {
             Debug.LogWarning($"[NetworkSync] ⚠️ У префаба {skill.projectilePrefab.name} нет компонента Projectile!");
+        }
+    }
+
+    /// <summary>
+    /// Обработать создание снаряда (НОВОЕ - для синхронизации Fireball, Lightning и т.д.)
+    /// </summary>
+    private void OnProjectileSpawned(string jsonData)
+    {
+        Debug.Log($"[NetworkSync] 🚀 RAW projectile_spawned JSON: {jsonData}");
+
+        try
+        {
+            var data = JsonConvert.DeserializeObject<ProjectileSpawnedEvent>(jsonData);
+            Debug.Log($"[NetworkSync] 🚀 Снаряд получен: socketId={data.socketId}, skillId={data.skillId}");
+
+            // Skip if it's our own projectile (we already created it locally)
+            if (data.socketId == localPlayerSocketId)
+            {
+                Debug.Log($"[NetworkSync] ⏭️ Это наш собственный снаряд, пропускаем");
+                return;
+            }
+
+            // Find the network player who spawned the projectile
+            if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer player))
+            {
+                Debug.Log($"[NetworkSync] 🚀 Создаём снаряд для {player.username}");
+
+                // Get the skill from SkillDatabase
+                SkillDatabase db = SkillDatabase.Instance;
+                if (db == null)
+                {
+                    Debug.LogError($"[NetworkSync] ❌ SkillDatabase.Instance == null!");
+                    return;
+                }
+
+                SkillData skill = db.GetSkillById(data.skillId);
+                if (skill == null)
+                {
+                    Debug.LogWarning($"[NetworkSync] ⚠️ Скилл с ID {data.skillId} не найден в SkillDatabase");
+                    return;
+                }
+
+                if (skill.projectilePrefab == null)
+                {
+                    Debug.LogWarning($"[NetworkSync] ⚠️ У скилла {skill.skillName} нет projectilePrefab");
+                    return;
+                }
+
+                // Создаём снаряд в позиции от сервера
+                Vector3 spawnPos = new Vector3(data.spawnPosition.x, data.spawnPosition.y, data.spawnPosition.z);
+                Vector3 direction = new Vector3(data.direction.x, data.direction.y, data.direction.z).normalized;
+
+                GameObject projectileObj = Instantiate(skill.projectilePrefab, spawnPos, Quaternion.LookRotation(direction));
+
+                // Настраиваем снаряд
+                Projectile projectile = projectileObj.GetComponent<Projectile>();
+                if (projectile != null)
+                {
+                    // Определяем цель (если есть targetSocketId)
+                    Transform target = null;
+                    if (!string.IsNullOrEmpty(data.targetSocketId))
+                    {
+                        if (networkPlayers.TryGetValue(data.targetSocketId, out NetworkPlayer targetPlayer))
+                        {
+                            target = targetPlayer.transform;
+                        }
+                        else if (data.targetSocketId == localPlayerSocketId && localPlayer != null)
+                        {
+                            target = localPlayer.transform;
+                        }
+                    }
+
+                    // ВАЖНО: Для сетевого снаряда урон = 0 (визуальный)
+                    projectile.Initialize(target, 0f, direction, player.gameObject);
+                    Debug.Log($"[NetworkSync] ✅ Снаряд {skill.projectilePrefab.name} создан для {player.username}");
+                }
+                else
+                {
+                    Debug.LogWarning($"[NetworkSync] ⚠️ У префаба {skill.projectilePrefab.name} нет компонента Projectile!");
+                }
+            }
+            else
+            {
+                Debug.LogWarning($"[NetworkSync] ⚠️ Network player {data.socketId} не найден для создания снаряда");
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[NetworkSync] ❌ Ошибка в OnProjectileSpawned: {ex.Message}\nJSON: {jsonData}");
         }
     }
 
@@ -1549,6 +1639,20 @@ public class PlayerSkillUsedEvent
     public string animationTrigger; // НОВОЕ: триггер анимации ("Cast", "Attack" и т.д.)
     public float animationSpeed; // НОВОЕ: скорость анимации (default: 1.0)
     public float castTime; // НОВОЕ: время каста для задержки создания снаряда
+}
+
+/// <summary>
+/// Projectile spawned event (НОВОЕ - для синхронизации снарядов)
+/// </summary>
+[Serializable]
+public class ProjectileSpawnedEvent
+{
+    public string socketId;
+    public int skillId;
+    public Vector3Data spawnPosition;
+    public Vector3Data direction;
+    public string targetSocketId;
+    public long timestamp;
 }
 
 /// <summary>

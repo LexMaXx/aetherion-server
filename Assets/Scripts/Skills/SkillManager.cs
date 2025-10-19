@@ -731,6 +731,35 @@ public class SkillManager : MonoBehaviour
     }
 
     /// <summary>
+    /// Отправить создание снаряда на сервер для синхронизации
+    /// </summary>
+    private void SendProjectileToServer(int skillId, Vector3 spawnPosition, Vector3 direction, Transform target)
+    {
+        // Проверяем что мы в мультиплеере
+        if (SocketIOManager.Instance == null || !SocketIOManager.Instance.IsConnected)
+        {
+            Debug.Log("[SkillManager] Не в мультиплеере - пропускаем отправку снаряда на сервер");
+            return;
+        }
+
+        // Получаем target socketId (если цель - другой игрок)
+        string targetSocketId = "";
+        if (target != null)
+        {
+            NetworkPlayer networkTarget = target.GetComponent<NetworkPlayer>();
+            if (networkTarget != null)
+            {
+                targetSocketId = networkTarget.socketId;
+            }
+        }
+
+        // Отправляем на сервер
+        SocketIOManager.Instance.SendProjectileSpawned(skillId, spawnPosition, direction, targetSocketId);
+
+        Debug.Log($"[SkillManager] 🚀 Снаряд отправлен на сервер: skillId={skillId}, pos={spawnPosition}, dir={direction}");
+    }
+
+    /// <summary>
     /// Создать ледяные осколки для Ice Nova (радиально во все стороны)
     /// ВАЖНО: Только для локального игрока! Не для NetworkPlayer!
     /// </summary>
@@ -798,11 +827,15 @@ public class SkillManager : MonoBehaviour
         if (proj != null)
         {
             Vector3 direction = (target.position - transform.position).normalized;
+            Vector3 spawnPosition = transform.position + Vector3.up;
 
             // НОВОЕ: Используем InitializeFromSkill для применения всех настроек из SkillData
             proj.InitializeFromSkill(skill, target, direction, gameObject);
 
             Debug.Log($"[SkillManager] 🚀 Снаряд инициализирован: {skill.projectilePrefab.name}, урон: {damage}, скорость: {skill.projectileSpeed}, homing: {skill.projectileHoming}");
+
+            // КРИТИЧЕСКОЕ: Отправляем на сервер для синхронизации с другими игроками
+            SendProjectileToServer(skill.skillId, spawnPosition, direction, target);
         }
         else
         {

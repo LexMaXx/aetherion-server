@@ -260,6 +260,29 @@ function initializeGameSocket(io) {
             }
         });
 
+        // Создание снаряда (НОВОЕ - для синхронизации Fireball, Lightning и т.д.)
+        socket.on('projectile_spawned', (data) => {
+            try {
+                const player = activePlayers.get(socket.id);
+                if (!player || !player.isAlive) return;
+
+                // Рассылаем событие создания снаряда всем в комнате (включая отправителя для дебага)
+                io.to(player.roomId).emit('projectile_spawned', {
+                    socketId: socket.id,
+                    skillId: data.skillId,
+                    spawnPosition: data.spawnPosition,
+                    direction: data.direction,
+                    targetSocketId: data.targetSocketId,
+                    timestamp: Date.now()
+                });
+
+                console.log(`[Socket.io] ${socket.username} создал снаряд: skillId=${data.skillId}, pos=(${data.spawnPosition.x}, ${data.spawnPosition.y}, ${data.spawnPosition.z})`);
+
+            } catch (error) {
+                console.error('[Socket.io] Error processing projectile spawn:', error);
+            }
+        });
+
         // Обновление здоровья
         socket.on('update_health', (data) => {
             try {

@@ -466,6 +466,30 @@ public class SocketIOManager : MonoBehaviour
     }
 
     /// <summary>
+    /// Отправить создание снаряда на сервер (НОВОЕ)
+    /// </summary>
+    public void SendProjectileSpawned(int skillId, Vector3 spawnPosition, Vector3 direction, string targetSocketId)
+    {
+        if (!isConnected)
+        {
+            DebugLog("⚠️ SendProjectileSpawned: Не подключен к серверу");
+            return;
+        }
+
+        var data = new
+        {
+            skillId = skillId,
+            spawnPosition = new { x = spawnPosition.x, y = spawnPosition.y, z = spawnPosition.z },
+            direction = new { x = direction.x, y = direction.y, z = direction.z },
+            targetSocketId = targetSocketId
+        };
+
+        string json = JsonConvert.SerializeObject(data);
+        DebugLog($"🚀 Отправка снаряда: skillId={skillId}, pos=({spawnPosition.x:F1}, {spawnPosition.y:F1}, {spawnPosition.z:F1}), dir=({direction.x:F2}, {direction.y:F2}, {direction.z:F2})");
+        Emit("projectile_spawned", json);
+    }
+
+    /// <summary>
     /// Отправить окончание трансформации на сервер
     /// </summary>
     public void SendTransformationEnd()
