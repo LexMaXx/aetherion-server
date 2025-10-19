@@ -264,22 +264,30 @@ function initializeGameSocket(io) {
         socket.on('projectile_spawned', (data) => {
             try {
                 const player = activePlayers.get(socket.id);
-                if (!player || !player.isAlive) return;
+                if (!player || !player.isAlive) {
+                    console.warn(`[Projectile] ⚠️ Player not found or dead for socket: ${socket.id}`);
+                    return;
+                }
+
+                console.log(`[Projectile] 🚀 Получен снаряд от ${player.username}: skillId=${data.skillId}, pos=(${data.spawnPosition.x.toFixed(1)}, ${data.spawnPosition.y.toFixed(1)}, ${data.spawnPosition.z.toFixed(1)})`);
 
                 // Рассылаем событие создания снаряда всем в комнате (включая отправителя для дебага)
-                io.to(player.roomId).emit('projectile_spawned', {
+                const broadcastData = {
                     socketId: socket.id,
                     skillId: data.skillId,
                     spawnPosition: data.spawnPosition,
                     direction: data.direction,
-                    targetSocketId: data.targetSocketId,
+                    targetSocketId: data.targetSocketId || '',
                     timestamp: Date.now()
-                });
+                };
 
-                console.log(`[Socket.io] ${socket.username} создал снаряд: skillId=${data.skillId}, pos=(${data.spawnPosition.x}, ${data.spawnPosition.y}, ${data.spawnPosition.z})`);
+                io.to(player.roomId).emit('projectile_spawned', broadcastData);
+
+                console.log(`[Projectile] 📡 Снаряд разослан всем игрокам в комнате ${player.roomId}`);
 
             } catch (error) {
-                console.error('[Socket.io] Error processing projectile spawn:', error);
+                console.error('[Projectile] ❌ Error processing projectile spawn:', error);
+                console.error('[Projectile] ❌ Stack:', error.stack);
             }
         });
 
