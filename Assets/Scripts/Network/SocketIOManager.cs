@@ -505,6 +505,33 @@ public class SocketIOManager : MonoBehaviour
     }
 
     /// <summary>
+    /// Отправить визуальный эффект на сервер (НОВОЕ - для синхронизации визуальных эффектов)
+    /// Используется для: взрывы, ауры, горение, яд, баффы и т.д.
+    /// </summary>
+    public void SendVisualEffect(string effectType, string effectPrefabName, Vector3 position, Quaternion rotation, string targetSocketId = "", float duration = 0f, Transform parentTransform = null)
+    {
+        if (!isConnected)
+        {
+            DebugLog("⚠️ SendVisualEffect: Не подключен к серверу");
+            return;
+        }
+
+        var data = new
+        {
+            effectType = effectType, // "explosion", "aura", "burn", "poison", "buff", "debuff" и т.д.
+            effectPrefabName = effectPrefabName, // Название prefab эффекта (для поиска в Resources)
+            position = new { x = position.x, y = position.y, z = position.z },
+            rotation = new { x = rotation.eulerAngles.x, y = rotation.eulerAngles.y, z = rotation.eulerAngles.z },
+            targetSocketId = targetSocketId, // Если эффект привязан к игроку (пустая строка = world space)
+            duration = duration // Длительность эффекта (0 = мгновенный/particle system автоматически)
+        };
+
+        string json = JsonConvert.SerializeObject(data);
+        DebugLog($"✨ Отправка визуального эффекта: type={effectType}, prefab={effectPrefabName}, pos=({position.x:F1}, {position.y:F1}, {position.z:F1})");
+        Emit("visual_effect_spawned", json);
+    }
+
+    /// <summary>
     /// Отправить получение урона на сервер (для мультиплеера)
     /// </summary>
     public void SendPlayerDamaged(float damage, float currentHealth, float maxHealth, string attackerId)

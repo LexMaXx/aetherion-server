@@ -121,6 +121,7 @@ public class NetworkSyncManager : MonoBehaviour
         SocketIOManager.Instance.On("player_attacked", OnPlayerAttacked);
         SocketIOManager.Instance.On("player_used_skill", OnPlayerSkillUsed); // НОВОЕ: Синхронизация скиллов (ИСПРАВЛЕНО: было player_skill_used)
         SocketIOManager.Instance.On("projectile_spawned", OnProjectileSpawned); // НОВОЕ: Синхронизация снарядов (Fireball, Lightning и т.д.)
+        SocketIOManager.Instance.On("visual_effect_spawned", OnVisualEffectSpawned); // НОВОЕ: Синхронизация визуальных эффектов (взрывы, ауры, горение и т.д.)
         SocketIOManager.Instance.On("player_transformed", OnPlayerTransformed); // НОВОЕ: Синхронизация трансформации
         SocketIOManager.Instance.On("player_transformation_ended", OnPlayerTransformationEnded); // НОВОЕ: Окончание трансформации
         SocketIOManager.Instance.On("player_health_changed", OnHealthChanged);
@@ -833,6 +834,133 @@ public class NetworkSyncManager : MonoBehaviour
         {
             Debug.LogError($"[NetworkSync] ❌ Ошибка в OnProjectileSpawned: {ex.Message}\nJSON: {jsonData}");
         }
+    }
+
+    /// <summary>
+    /// Обработать создание визуального эффекта (НОВОЕ - для синхронизации взрывов, аур, горения и т.д.)
+    /// </summary>
+    private void OnVisualEffectSpawned(string jsonData)
+    {
+        Debug.Log($"[NetworkSync] ✨ RAW visual_effect_spawned JSON: {jsonData}");
+
+        try
+        {
+            var data = JsonConvert.DeserializeObject<VisualEffectSpawnedEvent>(jsonData);
+            Debug.Log($"[NetworkSync] ✨ Визуальный эффект получен: type={data.effectType}, prefab={data.effectPrefabName}, targetSocketId={data.targetSocketId}");
+
+            // Skip if it's our own effect (we already created it locally)
+            if (data.socketId == localPlayerSocketId)
+            {
+                Debug.Log($"[NetworkSync] ⏭️ Это наш собственный эффект, пропускаем");
+                return;
+            }
+
+            // Определяем позицию для эффекта
+            Vector3 effectPosition = new Vector3(data.position.x, data.position.y, data.position.z);
+            Quaternion effectRotation = Quaternion.Euler(data.rotation.x, data.rotation.y, data.rotation.z);
+            Transform effectParent = null;
+
+            // Если эффект привязан к игроку - найти этого игрока
+            if (!string.IsNullOrEmpty(data.targetSocketId))
+            {
+                // Проверяем это мы или сетевой игрок
+                if (data.targetSocketId == localPlayerSocketId && localPlayer != null)
+                {
+                    effectParent = localPlayer.transform;
+                    Debug.Log($"[NetworkSync] ✨ Эффект привязан к ЛОКАЛЬНОМУ игроку");
+                }
+                else if (networkPlayers.TryGetValue(data.targetSocketId, out NetworkPlayer targetPlayer))
+                {
+                    effectParent = targetPlayer.transform;
+                    Debug.Log($"[NetworkSync] ✨ Эффект привязан к сетевому игроку {targetPlayer.username}");
+                }
+                else
+                {
+                    Debug.LogWarning($"[NetworkSync] ⚠️ Целевой игрок {data.targetSocketId} не найден для эффекта");
+                }
+            }
+
+            // Пытаемся загрузить prefab эффекта из Resources
+            GameObject effectPrefab = TryLoadEffectPrefab(data.effectPrefabName);
+            if (effectPrefab == null)
+            {
+                Debug.LogWarning($"[NetworkSync] ⚠️ Prefab эффекта '{data.effectPrefabName}' не найден!");
+                return;
+            }
+
+            // Создаём эффект
+            GameObject effectObj = null;
+            if (effectParent != null)
+            {
+                // Привязываем к игроку (для аур, баффов)
+                effectObj = Instantiate(effectPrefab, effectParent.position, effectRotation, effectParent);
+                Debug.Log($"[NetworkSync] ✨ Эффект создан как child объект игрока");
+            }
+            else
+            {
+                // Создаём в мире (для взрывов, hit effects)
+                effectObj = Instantiate(effectPrefab, effectPosition, effectRotation);
+                Debug.Log($"[NetworkSync] ✨ Эффект создан в мировых координатах");
+            }
+
+            // Если указана длительность - уничтожаем через указанное время
+            if (data.duration > 0f)
+            {
+                Destroy(effectObj, data.duration);
+                Debug.Log($"[NetworkSync] ⏱️ Эффект будет уничтожен через {data.duration}с");
+            }
+            // Иначе пусть ParticleSystem сам уничтожится автоматически
+            else
+            {
+                // Проверяем есть ли ParticleSystem и добавляем AutoDestroy компонент
+                ParticleSystem ps = effectObj.GetComponent<ParticleSystem>();
+                if (ps != null)
+                {
+                    float psLifetime = ps.main.duration + ps.main.startLifetime.constantMax;
+                    Destroy(effectObj, psLifetime + 0.5f);
+                    Debug.Log($"[NetworkSync] ⏱️ Эффект (ParticleSystem) будет уничтожен через {psLifetime:F1}с");
+                }
+            }
+
+            Debug.Log($"[NetworkSync] ✅ Визуальный эффект создан: {data.effectPrefabName}");
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[NetworkSync] ❌ Ошибка в OnVisualEffectSpawned: {ex.Message}\nJSON: {jsonData}");
+        }
+    }
+
+    /// <summary>
+    /// Попытаться загрузить prefab эффекта из Resources
+    /// Ищет в папках: Effects/, Prefabs/Effects/, VFX/, Particles/
+    /// </summary>
+    private GameObject TryLoadEffectPrefab(string prefabName)
+    {
+        // Убираем расширения если есть
+        prefabName = prefabName.Replace(".prefab", "");
+
+        // Список возможных путей для поиска
+        string[] possiblePaths = new string[]
+        {
+            $"Effects/{prefabName}",
+            $"Prefabs/Effects/{prefabName}",
+            $"VFX/{prefabName}",
+            $"Particles/{prefabName}",
+            prefabName // На случай если указан полный путь
+        };
+
+        foreach (string path in possiblePaths)
+        {
+            GameObject prefab = Resources.Load<GameObject>(path);
+            if (prefab != null)
+            {
+                Debug.Log($"[NetworkSync] ✅ Prefab найден: Resources/{path}");
+                return prefab;
+            }
+        }
+
+        Debug.LogWarning($"[NetworkSync] ⚠️ Prefab '{prefabName}' не найден ни в одной из папок Resources!");
+        return null;
     }
 
     /// <summary>
@@ -1836,5 +1964,21 @@ public class PlayerTransformationEndedEvent
 {
     public string socketId;
     public string username;
+    public long timestamp;
+}
+
+/// <summary>
+/// Visual effect spawned event (НОВОЕ - для синхронизации визуальных эффектов)
+/// </summary>
+[Serializable]
+public class VisualEffectSpawnedEvent
+{
+    public string socketId; // Кто создал эффект
+    public string effectType; // "explosion", "aura", "burn", "poison" и т.д.
+    public string effectPrefabName; // Название prefab эффекта
+    public Vector3Data position;
+    public Vector3Data rotation;
+    public string targetSocketId; // Если эффект привязан к игроку (пустая строка = world space)
+    public float duration; // Длительность эффекта (0 = автоматически)
     public long timestamp;
 }

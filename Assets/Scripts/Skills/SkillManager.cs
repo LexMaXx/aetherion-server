@@ -250,8 +250,23 @@ public class SkillManager : MonoBehaviour
             // Обычный визуальный эффект для других AOE скилов
             else if (skill.visualEffectPrefab != null)
             {
-                Instantiate(skill.visualEffectPrefab, center, Quaternion.identity);
+                GameObject effectObj = Instantiate(skill.visualEffectPrefab, center, Quaternion.identity);
                 Debug.Log($"[SkillManager] ✨ AOE визуальный эффект создан в центре: {skill.visualEffectPrefab.name}");
+
+                // СИНХРОНИЗАЦИЯ: Отправляем AOE визуальный эффект на сервер
+                if (SocketIOManager.Instance != null && SocketIOManager.Instance.IsConnected)
+                {
+                    string effectName = skill.visualEffectPrefab.name;
+                    SocketIOManager.Instance.SendVisualEffect(
+                        "aoe", // тип эффекта
+                        effectName, // название prefab
+                        center, // позиция центра AOE
+                        Quaternion.identity, // ротация
+                        "", // не привязан к игроку
+                        0f // длительность автоматически
+                    );
+                    Debug.Log($"[SkillManager] ✨ AOE эффект отправлен на сервер: {effectName}");
+                }
             }
 
             Collider[] hits = Physics.OverlapSphere(center, skill.aoeRadius);
@@ -319,7 +334,22 @@ public class SkillManager : MonoBehaviour
                     // Визуальный эффект
                     if (skill.visualEffectPrefab != null)
                     {
-                        Instantiate(skill.visualEffectPrefab, target.position, Quaternion.identity);
+                        GameObject effectObj = Instantiate(skill.visualEffectPrefab, target.position, Quaternion.identity);
+
+                        // СИНХРОНИЗАЦИЯ: Отправляем визуальный эффект на сервер
+                        if (SocketIOManager.Instance != null && SocketIOManager.Instance.IsConnected)
+                        {
+                            string effectName = skill.visualEffectPrefab.name;
+                            SocketIOManager.Instance.SendVisualEffect(
+                                "skill_hit", // тип эффекта
+                                effectName, // название prefab
+                                target.position, // позиция
+                                Quaternion.identity, // ротация
+                                "", // не привязан к игроку
+                                0f // длительность автоматически
+                            );
+                            Debug.Log($"[SkillManager] ✨ Визуальный эффект скилла отправлен на сервер: {effectName}");
+                        }
                     }
 
                     Debug.Log($"[SkillManager] 💥 Урон (мгновенный): {damage}");
@@ -346,7 +376,22 @@ public class SkillManager : MonoBehaviour
             // Визуальный эффект
             if (skill.visualEffectPrefab != null)
             {
-                Instantiate(skill.visualEffectPrefab, healTarget.position, Quaternion.identity);
+                GameObject effectObj = Instantiate(skill.visualEffectPrefab, healTarget.position, Quaternion.identity);
+
+                // СИНХРОНИЗАЦИЯ: Отправляем визуальный эффект на сервер
+                if (SocketIOManager.Instance != null && SocketIOManager.Instance.IsConnected)
+                {
+                    string effectName = skill.visualEffectPrefab.name;
+                    SocketIOManager.Instance.SendVisualEffect(
+                        "heal", // тип эффекта
+                        effectName, // название prefab
+                        healTarget.position, // позиция
+                        Quaternion.identity, // ротация
+                        "", // не привязан к игроку (можно добавить привязку)
+                        0f // длительность автоматически
+                    );
+                    Debug.Log($"[SkillManager] ✨ Визуальный эффект лечения отправлен на сервер: {effectName}");
+                }
             }
 
             Debug.Log($"[SkillManager] 💚 Лечение: {healAmount} HP");
@@ -451,8 +496,23 @@ public class SkillManager : MonoBehaviour
         // ВИЗУАЛЬНЫЙ ЭФФЕКТ ТРАНСФОРМАЦИИ (дым/магия)
         if (skill.visualEffectPrefab != null)
         {
-            Instantiate(skill.visualEffectPrefab, transform.position, Quaternion.identity);
+            GameObject effectObj = Instantiate(skill.visualEffectPrefab, transform.position, Quaternion.identity);
             Debug.Log($"[SkillManager] ✨ Эффект трансформации проигран: {skill.visualEffectPrefab.name}");
+
+            // СИНХРОНИЗАЦИЯ: Отправляем визуальный эффект трансформации на сервер
+            if (SocketIOManager.Instance != null && SocketIOManager.Instance.IsConnected)
+            {
+                string effectName = skill.visualEffectPrefab.name;
+                SocketIOManager.Instance.SendVisualEffect(
+                    "transformation", // тип эффекта
+                    effectName, // название prefab
+                    transform.position, // позиция
+                    Quaternion.identity, // ротация
+                    "", // не привязан к игроку (можно привязать если нужно)
+                    0f // длительность автоматически
+                );
+                Debug.Log($"[SkillManager] ✨ Эффект трансформации отправлен на сервер: {effectName}");
+            }
         }
 
         // Получаем или добавляем SimpleTransformation компонент
@@ -849,22 +909,34 @@ public class SkillManager : MonoBehaviour
 
     /// <summary>
     /// Проиграть анимацию скилла с настройками скорости
+    /// ОБНОВЛЕНО: Всегда играет "Attack" анимацию (как у мага) перед любым скиллом!
     /// </summary>
     private void PlaySkillAnimation(SkillData skill)
     {
-        if (animator == null || string.IsNullOrEmpty(skill.animationTrigger))
+        if (animator == null)
         {
+            Debug.LogWarning("[SkillManager] ⚠️ Animator отсутствует!");
             return;
+        }
+
+        // КРИТИЧЕСКОЕ ИЗМЕНЕНИЕ: Всегда используем "Attack" как анимацию каста!
+        // Это стандартная анимация каста магии/скилла для ВСЕХ классов
+        string castAnimationTrigger = "Attack";
+
+        // Если у скилла задан свой триггер - используем его, иначе "Attack"
+        if (!string.IsNullOrEmpty(skill.animationTrigger))
+        {
+            castAnimationTrigger = skill.animationTrigger;
         }
 
         // Устанавливаем скорость анимации
         float previousSpeed = animator.speed;
         animator.speed = skill.animationSpeed;
 
-        // Запускаем триггер анимации
-        animator.SetTrigger(skill.animationTrigger);
+        // Запускаем триггер анимации каста
+        animator.SetTrigger(castAnimationTrigger);
 
-        Debug.Log($"[SkillManager] 🎬 Анимация: триггер='{skill.animationTrigger}', скорость={skill.animationSpeed}x");
+        Debug.Log($"[SkillManager] 🎬 Анимация КАСТА: триггер='{castAnimationTrigger}', скорость={skill.animationSpeed}x");
 
         // Восстанавливаем скорость анимации через castTime или небольшую задержку
         float resetDelay = skill.castTime > 0f ? skill.castTime : 1f;
