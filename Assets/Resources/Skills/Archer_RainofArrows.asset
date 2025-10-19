@@ -24,8 +24,8 @@ MonoBehaviour:
   castTime: 1.5
   canUseWhileMoving: 1
   skillType: 0
-  targetType: 1
-  requiresTarget: 1
+  targetType: 2
+  requiresTarget: 0
   canTargetAllies: 0
   canTargetEnemies: 1
   baseDamageOrHeal: 35
@@ -34,8 +34,8 @@ MonoBehaviour:
   effects: []
   aoeRadius: 12
   maxTargets: 10
-  animationTrigger: 
-  visualEffectPrefab: {fileID: 0}
+  animationTrigger:
+  visualEffectPrefab: {fileID: 5510541211312523356, guid: 70c4de8c3bf3fa148bdc6fe7df3ed6b4, type: 3}
   projectilePrefab: {fileID: 0}
   castSound: {fileID: 0}
   impactSound: {fileID: 0}

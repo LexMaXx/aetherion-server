@@ -14,26 +14,36 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   skillId: 503
   skillName: Divine Shield
-  description: "\u0412\u0440\u0435\u043C\u0435\u043D\u043D\u0430\u044F \u043D\u0435\u0443\u044F\u0437\u0432\u0438\u043C\u043E\u0441\u0442\u044C"
+  description: "\u0411\u043E\u0436\u0435\u0441\u0442\u0432\u0435\u043D\u043D\u044B\u0439
+    \u0449\u0438\u0442 - \u043E\u043A\u0440\u0443\u0436\u0430\u0435\u0442 \u043F\u0430\u043B\u0430\u0434\u0438\u043D\u0430
+    \u0441\u0432\u044F\u0442\u044B\u043C \u0449\u0438\u0442\u043E\u043C, \u0434\u0435\u043B\u0430\u044F
+    \u0435\u0433\u043E \u043D\u0435\u0443\u044F\u0437\u0432\u0438\u043C\u044B\u043C"
   icon: {fileID: 21300000, guid: 44a93c3013b950141a624c715e801cb7, type: 3}
   characterClass: 4
   cooldown: 45
   manaCost: 60
   castRange: 0
-  castTime: 0.5
+  castTime: 0
   canUseWhileMoving: 1
   skillType: 2
   targetType: 0
   requiresTarget: 0
   canTargetAllies: 0
-  canTargetEnemies: 1
+  canTargetEnemies: 0
   baseDamageOrHeal: 0
   intelligenceScaling: 0
   strengthScaling: 0
-  effects: []
+  effects:
+  - effectType: 20
+    duration: 8
+    power: 0
+    damageOrHealPerTick: 0
+    tickInterval: 1
+    particleEffectPrefab: {fileID: 3280519133390621005, guid: a71be3e7990efb040a07565c43cbb198, type: 3}
+    canBeDispelled: 0
   aoeRadius: 0
   maxTargets: 1
-  animationTrigger: 
+  animationTrigger: Buff
   visualEffectPrefab: {fileID: 0}
   projectilePrefab: {fileID: 0}
   castSound: {fileID: 0}

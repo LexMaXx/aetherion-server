@@ -14,29 +14,52 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   skillId: 505
   skillName: Hammer of Justice
-  description: "\u0411\u0440\u043E\u0441\u0430\u0435\u0442 \u043C\u043E\u043B\u043E\u0442,
-    \u043E\u0433\u043B\u0443\u0448\u0430\u0435\u0442 \u0432\u0440\u0430\u0433\u0430"
+  description: "\u041C\u043E\u043B\u043E\u0442 \u041F\u0440\u0430\u0432\u043E\u0441\u0443\u0434\u0438\u044F
+    - \u0431\u0440\u043E\u0441\u0430\u0435\u0442 \u0441\u0432\u0435\u0442\u044F\u0449\u0438\u0439\u0441\u044F
+    \u043C\u043E\u043B\u043E\u0442, \u043A\u043E\u0442\u043E\u0440\u044B\u0439 \u043E\u0433\u043B\u0443\u0448\u0430\u0435\u0442
+    \u0432\u0440\u0430\u0433\u0430"
   icon: {fileID: 21300000, guid: 7e2a77fad90590e43aebd97985d7c6ff, type: 3}
   characterClass: 4
-  cooldown: 15
-  manaCost: 25
-  castRange: 15
-  castTime: 0.6
+  cooldown: 12
+  manaCost: 35
+  castRange: 20
+  castTime: 0.3
   canUseWhileMoving: 1
   skillType: 4
   targetType: 1
   requiresTarget: 1
   canTargetAllies: 0
   canTargetEnemies: 1
-  baseDamageOrHeal: 30
+  baseDamageOrHeal: 35
   intelligenceScaling: 0
-  strengthScaling: 0
-  effects: []
+  strengthScaling: 12
+  effects:
+  - effectType: 12
+    duration: 3
+    power: 0
+    damageOrHealPerTick: 0
+    tickInterval: 1
+    particleEffectPrefab: {fileID: 5880797563127281583, guid: 265d3a5ba69981a4698ceabcedf368b0, type: 3}
+    canBeDispelled: 1
   aoeRadius: 0
   maxTargets: 1
-  animationTrigger: 
+  animationTrigger: MageAttack
+  animationSpeed: 1
+  blockMovementDuringCast: 0
+  movementBlockDuration: 0
+  enableMovement: 0
+  movementType: 0
+  movementDistance: 5
+  movementSpeed: 10
+  movementAnimationTrigger:
+  movementDirection: 0
   visualEffectPrefab: {fileID: 0}
-  projectilePrefab: {fileID: 0}
+  casterEffectPrefab: {fileID: 0}
+  projectilePrefab: {fileID: 4867267903092036128, guid: 6e512ba39f49c6549a4c44f656f22bf7, type: 3}
+  projectileHitEffectPrefab: {fileID: 100000, guid: e190bf97c041e58448af6b043116cba0, type: 3}
+  projectileSpeed: 20
+  projectileHoming: 1
+  projectileLifetime: 5
   castSound: {fileID: 0}
   impactSound: {fileID: 0}
   summonPrefab: {fileID: 0}

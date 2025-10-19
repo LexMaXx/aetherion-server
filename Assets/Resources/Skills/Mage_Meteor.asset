@@ -25,7 +25,7 @@ MonoBehaviour:
   castTime: 2
   canUseWhileMoving: 1
   skillType: 0
-  targetType: 1
+  targetType: 2
   requiresTarget: 1
   canTargetAllies: 0
   canTargetEnemies: 1
@@ -35,8 +35,18 @@ MonoBehaviour:
   effects: []
   aoeRadius: 10
   maxTargets: 10
-  animationTrigger: 
-  visualEffectPrefab: {fileID: 0}
+  animationTrigger: MageAttack
+  animationSpeed: 1
+  blockMovementDuringCast: 0
+  movementBlockDuration: 0
+  enableMovement: 0
+  movementType: 0
+  movementDistance: 5
+  movementSpeed: 10
+  movementAnimationTrigger:
+  movementDirection: 0
+  visualEffectPrefab: {fileID: 8194992990867289339, guid: 99bc28c0d45f51c4fbac01080b73edc7, type: 3}
+  casterEffectPrefab: {fileID: 0}
   projectilePrefab: {fileID: 0}
   castSound: {fileID: 0}
   impactSound: {fileID: 0}

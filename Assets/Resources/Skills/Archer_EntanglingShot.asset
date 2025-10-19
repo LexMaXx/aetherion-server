@@ -31,10 +31,17 @@ MonoBehaviour:
   baseDamageOrHeal: 20
   intelligenceScaling: 0
   strengthScaling: 0
-  effects: []
+  effects:
+  - effectType: 13
+    duration: 3
+    power: 0
+    damageOrHealPerTick: 0
+    tickInterval: 1
+    particleEffectPrefab: {fileID: 4772634663576830964, guid: e1385af346f4e624eb313ec1ea4fcd7e, type: 3}
+    canBeDispelled: 0
   aoeRadius: 0
   maxTargets: 1
-  animationTrigger: 
+  animationTrigger:
   visualEffectPrefab: {fileID: 0}
   projectilePrefab: {fileID: 0}
   castSound: {fileID: 0}

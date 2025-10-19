@@ -35,7 +35,7 @@ public class SkillManager : MonoBehaviour
     // Призванные существа (для Rogue)
     private List<GameObject> summonedCreatures = new List<GameObject>();
 
-    // Трансформация (для Paladin) - MESH SWAPPING APPROACH
+    // Трансформация (для Paladin) - SIMPLE TRANSFORMATION APPROACH
     public bool isTransformed = false; // PUBLIC для NetworkSyncManager
     private float transformationHPBonus = 0f; // Сохраняем бонус HP для удаления
 
@@ -98,15 +98,11 @@ public class SkillManager : MonoBehaviour
     /// </summary>
     public bool UseSkill(SkillData skill, Transform target = null)
     {
-        Debug.Log($"[SkillManager] 🔍 UseSkill вызван: skill={skill?.skillName ?? "NULL"}");
-
         if (skill == null)
         {
             Debug.LogError("[SkillManager] ❌ Skill is NULL!");
             return false;
         }
-
-        Debug.Log($"[SkillManager] 🔍 Скилл: {skill.skillName}, Тип: {skill.skillType}, Мана: {skill.manaCost}");
 
         // Проверка контроля (стан, молчание и т.д.)
         if (IsUnderCrowdControl())
@@ -124,7 +120,6 @@ public class SkillManager : MonoBehaviour
 
         // Проверка возможности использования
         float currentCooldown = GetCooldown(skill.skillId);
-        Debug.Log($"[SkillManager] 🔍 Кулдаун скилла {skill.skillId}: {currentCooldown:F1}с");
 
         if (!skill.CanUse(characterStats, manaSystem, currentCooldown))
         {
@@ -159,10 +154,19 @@ public class SkillManager : MonoBehaviour
         // Запускаем кулдаун
         skillCooldowns[skill.skillId] = skill.cooldown;
 
-        // Проигрываем анимацию
-        if (animator != null && !string.IsNullOrEmpty(skill.animationTrigger))
+        // Проигрываем анимацию с настройками из SkillData
+        PlaySkillAnimation(skill);
+
+        // НОВОЕ: Выполняем движение если включено
+        if (skill.enableMovement)
         {
-            animator.SetTrigger(skill.animationTrigger);
+            PerformSkillMovement(skill, target);
+        }
+
+        // Блокируем движение если требуется
+        if (skill.blockMovementDuringCast)
+        {
+            BlockMovement(skill);
         }
 
         // Проигрываем звук каста
@@ -174,8 +178,15 @@ public class SkillManager : MonoBehaviour
         // НОВОЕ: Отправляем скилл на сервер для синхронизации в мультиплеере
         SendSkillToServer(skill, target);
 
-        // Выполняем скилл локально
-        ExecuteSkill(skill, target);
+        // Выполняем скилл локально (с задержкой castTime если есть)
+        if (skill.castTime > 0f)
+        {
+            StartCoroutine(ExecuteSkillAfterCastTime(skill, target));
+        }
+        else
+        {
+            ExecuteSkill(skill, target);
+        }
 
         // Событие
         OnSkillUsed?.Invoke(skill);
@@ -230,6 +241,19 @@ public class SkillManager : MonoBehaviour
         if (skill.aoeRadius > 0f)
         {
             Vector3 center = target != null ? target.position : transform.position;
+
+            // СПЕЦИАЛЬНАЯ ОБРАБОТКА ДЛЯ ICE NOVA (skillId 202) - создаём радиальные снаряды
+            if (skill.skillId == 202 && skill.projectilePrefab != null)
+            {
+                SpawnIceNovaShards(skill, center, damage);
+            }
+            // Обычный визуальный эффект для других AOE скилов
+            else if (skill.visualEffectPrefab != null)
+            {
+                Instantiate(skill.visualEffectPrefab, center, Quaternion.identity);
+                Debug.Log($"[SkillManager] ✨ AOE визуальный эффект создан в центре: {skill.visualEffectPrefab.name}");
+            }
+
             Collider[] hits = Physics.OverlapSphere(center, skill.aoeRadius);
 
             int hitCount = 0;
@@ -241,13 +265,24 @@ public class SkillManager : MonoBehaviour
                 if (enemy != null)
                 {
                     enemy.TakeDamage(damage);
-                    hitCount++;
 
-                    // Визуальный эффект
-                    if (skill.visualEffectPrefab != null)
+                    // ВАЖНО: Применяем все эффекты из SkillData к врагу!
+                    if (skill.effects != null && skill.effects.Count > 0)
                     {
-                        Instantiate(skill.visualEffectPrefab, hit.transform.position, Quaternion.identity);
+                        foreach (SkillEffect effect in skill.effects)
+                        {
+                            ApplyEffect(effect, enemy.transform);
+                        }
+                        Debug.Log($"[SkillManager] ✅ Применено {skill.effects.Count} эффектов к {enemy.GetEnemyName()}");
                     }
+
+                    // Визуальный эффект попадания на враге
+                    if (skill.projectileHitEffectPrefab != null)
+                    {
+                        Instantiate(skill.projectileHitEffectPrefab, enemy.transform.position, Quaternion.identity);
+                    }
+
+                    hitCount++;
                 }
             }
 
@@ -256,30 +291,39 @@ public class SkillManager : MonoBehaviour
         // Одиночный урон
         else if (target != null)
         {
-            Enemy enemy = target.GetComponent<Enemy>();
-            if (enemy != null)
+            // ВАЖНО: Если есть снаряд - НЕ наносим урон напрямую! Снаряд нанесёт урон при попадании
+            if (skill.projectilePrefab != null)
             {
-                enemy.TakeDamage(damage);
+                Debug.Log($"[SkillManager] 🔍 Префаб снаряда найден для {skill.skillName}: {skill.projectilePrefab.name}");
 
-                // Визуальный эффект
-                if (skill.visualEffectPrefab != null)
+                // Создаём снаряд (только для локального игрока)
+                NetworkPlayer networkPlayer = GetComponent<NetworkPlayer>();
+                if (networkPlayer == null)
                 {
-                    Instantiate(skill.visualEffectPrefab, target.position, Quaternion.identity);
+                    Debug.Log($"[SkillManager] ✅ Локальный игрок - создаём снаряд");
+                    SpawnProjectile(skill, target, damage);
                 }
-
-                Debug.Log($"[SkillManager] 💥 Урон: {damage}");
+                else
+                {
+                    Debug.Log($"[SkillManager] ⏭️ NetworkPlayer - пропускаем создание снаряда");
+                }
             }
-        }
-
-        // Снаряд
-        if (skill.projectilePrefab != null && target != null)
-        {
-            GameObject projectile = Instantiate(skill.projectilePrefab, transform.position + Vector3.up, Quaternion.identity);
-            Projectile proj = projectile.GetComponent<Projectile>();
-            if (proj != null)
+            // Нет снаряда - урон напрямую (мгновенный)
+            else
             {
-                Vector3 direction = (target.position - transform.position).normalized;
-                proj.Initialize(target, damage, direction);
+                Enemy enemy = target.GetComponent<Enemy>();
+                if (enemy != null)
+                {
+                    enemy.TakeDamage(damage);
+
+                    // Визуальный эффект
+                    if (skill.visualEffectPrefab != null)
+                    {
+                        Instantiate(skill.visualEffectPrefab, target.position, Quaternion.identity);
+                    }
+
+                    Debug.Log($"[SkillManager] 💥 Урон (мгновенный): {damage}");
+                }
             }
         }
     }
@@ -316,13 +360,44 @@ public class SkillManager : MonoBehaviour
     {
         Transform effectTarget = target != null ? target : transform;
 
-        // Применяем все эффекты скилла
-        foreach (SkillEffect effect in skill.effects)
+        // СНАРЯД (для Hammer of Justice и других projectile-based CC скиллов)
+        if (skill.projectilePrefab != null && target != null)
         {
-            ApplyEffect(effect, effectTarget);
-        }
+            // Проверяем это NetworkPlayer (враг)?
+            NetworkPlayer networkPlayer = GetComponent<NetworkPlayer>();
+            if (networkPlayer == null)
+            {
+                // Создаём снаряд только для локального игрока
+                float damage = skill.CalculateDamage(characterStats);
+                SpawnProjectile(skill, target, damage);
+                Debug.Log($"[SkillManager] ⚔️ Снаряд создан для {skill.skillName}, эффектов: {skill.effects.Count}");
+            }
+            else
+            {
+                Debug.Log($"[SkillManager] ⏭️ NetworkPlayer detected - пропускаем снаряд для {skill.skillName}");
+            }
 
-        Debug.Log($"[SkillManager] ✨ Применено эффектов: {skill.effects.Count}");
+            // КРИТИЧЕСКОЕ: Если есть снаряд - НЕ применяем эффекты сразу!
+            // Снаряд применит эффекты при попадании через Projectile.ApplyEffects()
+            Debug.Log($"[SkillManager] ⏭️ Эффекты будут применены снарядом при попадании");
+        }
+        // Без снаряда - применяем эффекты сразу (баффы на себя, дебаффы в области и т.д.)
+        else
+        {
+            // Визуальный эффект (для скиллов без снарядов)
+            if (skill.visualEffectPrefab != null)
+            {
+                Instantiate(skill.visualEffectPrefab, effectTarget.position, Quaternion.identity);
+            }
+
+            // Применяем все эффекты скилла
+            foreach (SkillEffect effect in skill.effects)
+            {
+                ApplyEffect(effect, effectTarget);
+            }
+
+            Debug.Log($"[SkillManager] ✨ Применено эффектов: {skill.effects.Count}");
+        }
     }
 
     /// <summary>
@@ -360,12 +435,12 @@ public class SkillManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Скилл трансформации (Paladin - медведь) - MESH SWAPPING
-    /// Меняем визуальную модель (mesh и materials) на медведя
+    /// Скилл трансформации (Paladin - медведь) - SIMPLE TRANSFORMATION
+    /// Создаём модель медведя как child объект, скрываем паладина
     /// </summary>
     private void ExecuteTransformationSkill(SkillData skill)
     {
-        Debug.Log($"[SkillManager] 🔍 ExecuteTransformationSkill (MESH SWAPPING) вызван для {skill.skillName}");
+        Debug.Log($"[SkillManager] 🔍 ExecuteTransformationSkill (SIMPLE TRANSFORMATION) вызван для {skill.skillName}");
 
         if (skill.transformationModel == null)
         {
@@ -373,33 +448,32 @@ public class SkillManager : MonoBehaviour
             return;
         }
 
-        // Получаем или добавляем MeshSwapper компонент
-        MeshSwapper meshSwapper = GetComponent<MeshSwapper>();
-        if (meshSwapper == null)
+        // ВИЗУАЛЬНЫЙ ЭФФЕКТ ТРАНСФОРМАЦИИ (дым/магия)
+        if (skill.visualEffectPrefab != null)
         {
-            meshSwapper = gameObject.AddComponent<MeshSwapper>();
-            Debug.Log($"[SkillManager] ➕ Добавлен MeshSwapper компонент");
+            Instantiate(skill.visualEffectPrefab, transform.position, Quaternion.identity);
+            Debug.Log($"[SkillManager] ✨ Эффект трансформации проигран: {skill.visualEffectPrefab.name}");
         }
 
-        // Скрываем оружие паладина
-        ClassWeaponManager playerWeaponManager = GetComponent<ClassWeaponManager>();
-        if (playerWeaponManager != null)
+        // Получаем или добавляем SimpleTransformation компонент
+        SimpleTransformation simpleTransformation = GetComponent<SimpleTransformation>();
+        if (simpleTransformation == null)
         {
-            playerWeaponManager.DetachWeapon();
-            Debug.Log($"[SkillManager] 🔧 Оружие паладина удалено");
+            simpleTransformation = gameObject.AddComponent<SimpleTransformation>();
+            Debug.Log($"[SkillManager] ➕ Добавлен SimpleTransformation компонент");
         }
 
-        // Выполняем mesh swap
-        bool success = meshSwapper.TransformTo(skill.transformationModel);
+        // Выполняем трансформацию (передаём аниматор паладина явно)
+        bool success = simpleTransformation.TransformTo(skill.transformationModel, animator);
         if (!success)
         {
-            Debug.LogError("[SkillManager] ❌ Mesh swap не удался!");
+            Debug.LogError("[SkillManager] ❌ Трансформация не удалась!");
             return;
         }
 
         isTransformed = true;
 
-        Debug.Log($"[SkillManager] 🐻 ✅ Mesh swap завершён - паладин превратился в медведя!");
+        Debug.Log($"[SkillManager] 🐻 ✅ Трансформация завершена - паладин превратился в медведя!");
 
         // Применяем бонусы
         if (healthSystem != null && skill.hpBonusPercent > 0f)
@@ -412,31 +486,23 @@ public class SkillManager : MonoBehaviour
         // Автоматически отключаем через время
         Invoke(nameof(EndTransformation), skill.transformationDuration);
 
-        Debug.Log($"[SkillManager] 🐻 ✅ ТРАНСФОРМАЦИЯ АКТИВИРОВАНА (MESH SWAP) на {skill.transformationDuration}с!");
+        Debug.Log($"[SkillManager] 🐻 ✅ ТРАНСФОРМАЦИЯ АКТИВИРОВАНА (SIMPLE TRANSFORMATION) на {skill.transformationDuration}с!");
     }
 
     /// <summary>
-    /// Завершить трансформацию - MESH SWAPPING
+    /// Завершить трансформацию - SIMPLE TRANSFORMATION
     /// </summary>
     private void EndTransformation()
     {
         if (!isTransformed) return;
 
-        // Получаем MeshSwapper компонент
-        MeshSwapper meshSwapper = GetComponent<MeshSwapper>();
-        if (meshSwapper != null)
+        // Получаем SimpleTransformation компонент
+        SimpleTransformation simpleTransformation = GetComponent<SimpleTransformation>();
+        if (simpleTransformation != null)
         {
-            // Возвращаем оригинальный mesh
-            meshSwapper.RevertToOriginal();
-            Debug.Log($"[SkillManager] ✅ Mesh восстановлен");
-        }
-
-        // Восстанавливаем оружие паладина
-        ClassWeaponManager playerWeaponManager = GetComponent<ClassWeaponManager>();
-        if (playerWeaponManager != null)
-        {
-            playerWeaponManager.AttachWeaponForClass();
-            Debug.Log($"[SkillManager] ⚔️ Оружие паладина восстановлено");
+            // Возвращаем паладина (удаляем медведя, показываем паладина)
+            simpleTransformation.RevertToOriginal();
+            Debug.Log($"[SkillManager] ✅ Паладин восстановлен");
         }
 
         // Убираем бонус HP
@@ -454,7 +520,7 @@ public class SkillManager : MonoBehaviour
             SocketIOManager.Instance.SendTransformationEnd();
         }
 
-        Debug.Log("[SkillManager] 🐻 Трансформация завершена (MESH SWAP)");
+        Debug.Log("[SkillManager] 🐻 Трансформация завершена (SIMPLE TRANSFORMATION)");
     }
 
     /// <summary>
@@ -509,11 +575,8 @@ public class SkillManager : MonoBehaviour
     /// </summary>
     private void UpdateCooldowns()
     {
-        // ИСПРАВЛЕНИЕ: Создаём временный список ключей для безопасной итерации
-        // Нужно потому что UseSkill() может добавлять новые ключи во время Update()
         if (skillCooldowns.Count == 0) return;
 
-        // Копируем ключи в список (это безопасно)
         var keys = new List<int>(skillCooldowns.Keys);
 
         foreach (int skillId in keys)
@@ -581,6 +644,21 @@ public class SkillManager : MonoBehaviour
     }
 
     /// <summary>
+    /// Проверка неуязвимости
+    /// </summary>
+    public bool IsInvulnerable()
+    {
+        foreach (ActiveEffect effect in activeEffects)
+        {
+            if (effect.isInvulnerable)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
     /// Найти скилл по ID
     /// </summary>
     private SkillData GetSkillById(int skillId)
@@ -612,7 +690,7 @@ public class SkillManager : MonoBehaviour
 
     /// <summary>
     /// Отправить скилл на сервер для синхронизации
-    /// ОБНОВЛЕНО: Теперь передает skillType для корректной обработки трансформации
+    /// ОБНОВЛЕНО: Теперь передает skillType, анимацию и визуальные эффекты
     /// </summary>
     private void SendSkillToServer(SkillData skill, Transform target)
     {
@@ -637,11 +715,351 @@ public class SkillManager : MonoBehaviour
         // ВАЖНО: Передаем тип скилла для правильной обработки на сервере
         string skillType = skill.skillType.ToString(); // "Transformation", "Damage", "Heal" и т.д.
 
-        // Отправляем на сервер
+        // Отправляем на сервер с информацией об анимации
         Vector3 targetPos = target != null ? target.position : transform.position;
-        SocketIOManager.Instance.SendPlayerSkill(skill.skillId, targetSocketId, targetPos, skillType);
+        SocketIOManager.Instance.SendPlayerSkillWithAnimation(
+            skill.skillId,
+            targetSocketId,
+            targetPos,
+            skillType,
+            skill.animationTrigger,
+            skill.animationSpeed,
+            skill.castTime
+        );
 
-        Debug.Log($"[SkillManager] 📡 Скилл {skill.skillName} (ID:{skill.skillId}, тип:{skillType}) отправлен на сервер");
+        Debug.Log($"[SkillManager] 📡 Скилл {skill.skillName} (ID:{skill.skillId}, тип:{skillType}, анимация:{skill.animationTrigger}, castTime:{skill.castTime}с) отправлен на сервер");
+    }
+
+    /// <summary>
+    /// Создать ледяные осколки для Ice Nova (радиально во все стороны)
+    /// ВАЖНО: Только для локального игрока! Не для NetworkPlayer!
+    /// </summary>
+    private void SpawnIceNovaShards(SkillData skill, Vector3 center, float damage)
+    {
+        // КРИТИЧЕСКОЕ: Проверяем это NetworkPlayer (враг)?
+        NetworkPlayer networkPlayer = GetComponent<NetworkPlayer>();
+        if (networkPlayer != null)
+        {
+            Debug.Log($"[SkillManager] ⏭️ NetworkPlayer detected - пропускаем визуальные эффекты Ice Nova");
+            return;
+        }
+
+        int shardCount = 12;
+        float spawnHeight = 1f;
+        float angleStep = 360f / shardCount;
+
+        Vector3 spawnPosition = center + Vector3.up * spawnHeight;
+
+        for (int i = 0; i < shardCount; i++)
+        {
+            // Вычисляем угол для этого осколка
+            float angle = i * angleStep;
+
+            // Добавляем случайность
+            angle += Random.Range(-angleStep * 0.2f, angleStep * 0.2f);
+
+            // Направление
+            Vector3 direction = Quaternion.Euler(0, angle, 0) * Vector3.forward;
+
+            // Создаем осколок
+            GameObject shard = Instantiate(skill.projectilePrefab, spawnPosition, Quaternion.LookRotation(direction));
+
+            // Настраиваем Projectile
+            Projectile projectile = shard.GetComponent<Projectile>();
+            if (projectile != null)
+            {
+                projectile.Initialize(null, damage, direction, gameObject, skill.effects);
+            }
+        }
+
+        Debug.Log($"[SkillManager] ❄️ Ice Nova: Spawned {shardCount} ice shards!");
+    }
+
+    /// <summary>
+    /// Создать снаряд (НОВОЕ - centralized method)
+    /// </summary>
+    private void SpawnProjectile(SkillData skill, Transform target, float damage)
+    {
+        // DEBUG: Проверяем что префаб загружен
+        if (skill.projectilePrefab == null)
+        {
+            Debug.LogError($"[SkillManager] ❌ projectilePrefab == NULL для скилла {skill.skillName}!");
+            return;
+        }
+
+        Debug.Log($"[SkillManager] 📦 Создаём снаряд из префаба: {skill.projectilePrefab.name}");
+
+        GameObject projectile = Instantiate(skill.projectilePrefab, transform.position + Vector3.up, Quaternion.identity);
+
+        Debug.Log($"[SkillManager] ✅ Снаряд создан в сцене: {projectile.name}");
+
+        Projectile proj = projectile.GetComponent<Projectile>();
+
+        if (proj != null)
+        {
+            Vector3 direction = (target.position - transform.position).normalized;
+
+            // НОВОЕ: Используем InitializeFromSkill для применения всех настроек из SkillData
+            proj.InitializeFromSkill(skill, target, direction, gameObject);
+
+            Debug.Log($"[SkillManager] 🚀 Снаряд инициализирован: {skill.projectilePrefab.name}, урон: {damage}, скорость: {skill.projectileSpeed}, homing: {skill.projectileHoming}");
+        }
+        else
+        {
+            Debug.LogError($"[SkillManager] ❌ У префаба {projectile.name} нет компонента Projectile!");
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // СИСТЕМА АНИМАЦИЙ СКИЛЛОВ
+    // ═══════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Проиграть анимацию скилла с настройками скорости
+    /// </summary>
+    private void PlaySkillAnimation(SkillData skill)
+    {
+        if (animator == null || string.IsNullOrEmpty(skill.animationTrigger))
+        {
+            return;
+        }
+
+        // Устанавливаем скорость анимации
+        float previousSpeed = animator.speed;
+        animator.speed = skill.animationSpeed;
+
+        // Запускаем триггер анимации
+        animator.SetTrigger(skill.animationTrigger);
+
+        Debug.Log($"[SkillManager] 🎬 Анимация: триггер='{skill.animationTrigger}', скорость={skill.animationSpeed}x");
+
+        // Восстанавливаем скорость анимации через castTime или небольшую задержку
+        float resetDelay = skill.castTime > 0f ? skill.castTime : 1f;
+        StartCoroutine(ResetAnimationSpeed(previousSpeed, resetDelay));
+    }
+
+    /// <summary>
+    /// Восстановить скорость анимации после каста
+    /// </summary>
+    private System.Collections.IEnumerator ResetAnimationSpeed(float originalSpeed, float delay)
+    {
+        yield return new WaitForSeconds(delay);
+
+        if (animator != null)
+        {
+            animator.speed = originalSpeed;
+            Debug.Log($"[SkillManager] ⏱️ Скорость анимации восстановлена: {originalSpeed}x");
+        }
+    }
+
+    /// <summary>
+    /// Выполнить скилл после времени каста
+    /// </summary>
+    private System.Collections.IEnumerator ExecuteSkillAfterCastTime(SkillData skill, Transform target)
+    {
+        Debug.Log($"[SkillManager] ⏳ Каст скилла {skill.skillName}... Ждём {skill.castTime}с");
+
+        yield return new WaitForSeconds(skill.castTime);
+
+        Debug.Log($"[SkillManager] ✅ Каст завершён! Выполняем скилл {skill.skillName}");
+        ExecuteSkill(skill, target);
+    }
+
+    /// <summary>
+    /// Блокировать движение персонажа во время каста
+    /// </summary>
+    private void BlockMovement(SkillData skill)
+    {
+        CharacterController controller = GetComponent<CharacterController>();
+        if (controller != null)
+        {
+            StartCoroutine(BlockMovementCoroutine(controller, skill.movementBlockDuration > 0f ? skill.movementBlockDuration : skill.castTime));
+        }
+    }
+
+    /// <summary>
+    /// Корутина блокировки движения
+    /// </summary>
+    private System.Collections.IEnumerator BlockMovementCoroutine(CharacterController controller, float duration)
+    {
+        // Если duration == 0, используем castTime или дефолтное значение
+        if (duration <= 0f)
+        {
+            duration = 0.5f; // Минимальная блокировка
+        }
+
+        Debug.Log($"[SkillManager] 🔒 Движение заблокировано на {duration}с");
+
+        // Сохраняем состояние контроллера
+        bool wasEnabled = controller.enabled;
+
+        // Отключаем контроллер
+        controller.enabled = false;
+
+        // Ждём
+        yield return new WaitForSeconds(duration);
+
+        // Восстанавливаем состояние
+        controller.enabled = wasEnabled;
+
+        Debug.Log($"[SkillManager] 🔓 Движение разблокировано");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // СИСТЕМА ДВИЖЕНИЯ СКИЛЛОВ
+    // ═══════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Выполнить движение персонажа при использовании скилла
+    /// </summary>
+    private void PerformSkillMovement(SkillData skill, Transform target)
+    {
+        if (!skill.enableMovement || skill.movementType == MovementType.None)
+        {
+            return;
+        }
+
+        // Проигрываем анимацию движения если указана
+        if (!string.IsNullOrEmpty(skill.movementAnimationTrigger) && animator != null)
+        {
+            animator.SetTrigger(skill.movementAnimationTrigger);
+            Debug.Log($"[SkillManager] 🏃 Анимация движения: {skill.movementAnimationTrigger}");
+        }
+
+        // Определяем целевую позицию
+        Vector3 targetPosition = CalculateMovementTarget(skill, target);
+
+        // Выполняем движение в зависимости от типа
+        switch (skill.movementType)
+        {
+            case MovementType.Teleport:
+            case MovementType.Blink:
+                // Мгновенная телепортация
+                TeleportToPosition(targetPosition);
+                break;
+
+            case MovementType.Dash:
+            case MovementType.Charge:
+            case MovementType.Roll:
+            case MovementType.Leap:
+                // Плавное перемещение
+                StartCoroutine(MoveToPosition(targetPosition, skill.movementSpeed));
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Вычислить целевую позицию для движения
+    /// </summary>
+    private Vector3 CalculateMovementTarget(SkillData skill, Transform target)
+    {
+        Vector3 direction = Vector3.zero;
+
+        switch (skill.movementDirection)
+        {
+            case MovementDirection.Forward:
+                direction = transform.forward;
+                break;
+
+            case MovementDirection.Backward:
+                direction = -transform.forward;
+                break;
+
+            case MovementDirection.ToTarget:
+                if (target != null)
+                {
+                    direction = (target.position - transform.position).normalized;
+                }
+                else
+                {
+                    direction = transform.forward;
+                }
+                break;
+
+            case MovementDirection.AwayFromTarget:
+                if (target != null)
+                {
+                    direction = (transform.position - target.position).normalized;
+                }
+                else
+                {
+                    direction = -transform.forward;
+                }
+                break;
+
+            case MovementDirection.MouseDirection:
+                direction = transform.forward;
+                break;
+        }
+
+        return transform.position + direction * skill.movementDistance;
+    }
+
+    /// <summary>
+    /// Мгновенная телепортация
+    /// </summary>
+    private void TeleportToPosition(Vector3 targetPosition)
+    {
+        CharacterController controller = GetComponent<CharacterController>();
+
+        if (controller != null)
+        {
+            controller.enabled = false;
+            transform.position = targetPosition;
+            controller.enabled = true;
+
+            Debug.Log($"[SkillManager] ✨ Телепорт в позицию: {targetPosition}");
+        }
+        else
+        {
+            transform.position = targetPosition;
+        }
+    }
+
+    /// <summary>
+    /// Плавное перемещение к позиции
+    /// </summary>
+    private System.Collections.IEnumerator MoveToPosition(Vector3 targetPosition, float speed)
+    {
+        CharacterController controller = GetComponent<CharacterController>();
+        Vector3 startPosition = transform.position;
+        float distance = Vector3.Distance(startPosition, targetPosition);
+        float duration = distance / speed;
+        float elapsed = 0f;
+
+        Debug.Log($"[SkillManager] 🏃 Начинаем движение, скорость: {speed}м/с, дистанция: {distance:F1}м");
+
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / duration);
+
+            Vector3 newPosition = Vector3.Lerp(startPosition, targetPosition, t);
+
+            if (controller != null && controller.enabled)
+            {
+                Vector3 movement = newPosition - transform.position;
+                controller.Move(movement);
+            }
+            else
+            {
+                transform.position = newPosition;
+            }
+
+            yield return null;
+        }
+
+        if (controller != null && controller.enabled)
+        {
+            Vector3 finalMovement = targetPosition - transform.position;
+            controller.Move(finalMovement);
+        }
+        else
+        {
+            transform.position = targetPosition;
+        }
+
+        Debug.Log($"[SkillManager] ✅ Движение завершено");
     }
 
     void OnDestroy()

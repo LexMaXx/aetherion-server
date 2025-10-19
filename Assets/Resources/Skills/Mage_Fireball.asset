@@ -31,14 +31,35 @@ MonoBehaviour:
   baseDamageOrHeal: 60
   intelligenceScaling: 25
   strengthScaling: 0
-  effects: []
+  effects:
+  - effectType: 11
+    duration: 3
+    power: 0
+    damageOrHealPerTick: 10
+    tickInterval: 1
+    particleEffectPrefab: {fileID: 6294508013172393196, guid: 043176b6a68be2b43b073aaaa4782c7d, type: 3}
+    applySound: {fileID: 0}
+    removeSound: {fileID: 0}
+    canBeDispelled: 1
+    canStack: 0
+    maxStacks: 1
+    syncWithServer: 1
   aoeRadius: 0
   maxTargets: 1
-  animationTrigger: 
+  animationTrigger: MageAttack
+  animationSpeed: 1
+  blockMovementDuringCast: 0
+  movementBlockDuration: 0
   visualEffectPrefab: {fileID: 0}
-  projectilePrefab: {fileID: 0}
+  casterEffectPrefab: {fileID: 0}
+  projectilePrefab: {fileID: 2075008070597749825, guid: a820759f39b5ea94faf930825025e595, type: 3}
+  projectileHitEffectPrefab: {fileID: 8194992990867289339, guid: 99bc28c0d45f51c4fbac01080b73edc7, type: 3}
+  projectileSpeed: 20
+  projectileHoming: 1
+  projectileLifetime: 3
   castSound: {fileID: 0}
   impactSound: {fileID: 0}
+  projectileHitSound: {fileID: 0}
   summonPrefab: {fileID: 0}
   summonCount: 1
   summonDuration: 30

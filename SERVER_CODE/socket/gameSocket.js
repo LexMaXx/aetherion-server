@@ -240,14 +240,20 @@ function initializeGameSocket(io) {
                 const player = activePlayers.get(socket.id);
                 if (!player || !player.isAlive) return;
 
-                // Рассылаем событие скилла всем в комнате
+                // Рассылаем событие скилла всем в комнате (включая информацию об анимации)
                 io.to(player.roomId).emit('player_used_skill', {
                     socketId: socket.id,
                     skillId: data.skillId,
                     targetPosition: data.targetPosition,
                     targetSocketId: data.targetSocketId,
+                    skillType: data.skillType || '', // Тип скилла (Damage, Heal, Transformation и т.д.)
+                    animationTrigger: data.animationTrigger || '', // Триггер анимации
+                    animationSpeed: data.animationSpeed || 1.0, // Скорость анимации
+                    castTime: data.castTime || 0, // Время каста для задержки создания снаряда
                     timestamp: Date.now()
                 });
+
+                console.log(`[Socket.io] ${socket.username} использовал скилл ${data.skillId} (анимация: ${data.animationTrigger}, castTime: ${data.castTime || 0}с)`);
 
             } catch (error) {
                 console.error('[Socket.io] Error processing skill:', error);

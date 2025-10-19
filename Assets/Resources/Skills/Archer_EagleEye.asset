@@ -32,17 +32,17 @@ MonoBehaviour:
   intelligenceScaling: 0
   strengthScaling: 0
   effects:
-  - effectType: 2
-    duration: 10
-    power: 0
+  - effectType: 0
+    duration: 15
+    power: 30
     damageOrHealPerTick: 0
-    tickInterval: 0
+    tickInterval: 1
     particleEffectPrefab: {fileID: 0}
-    canBeDispelled: 0
+    canBeDispelled: 1
   aoeRadius: 0
   maxTargets: 1
-  animationTrigger: 
-  visualEffectPrefab: {fileID: 0}
+  animationTrigger:
+  visualEffectPrefab: {fileID: 4364354964670000192, guid: 3801a320e9ae1bf44a14efa194c86c3f, type: 3}
   projectilePrefab: {fileID: 0}
   castSound: {fileID: 0}
   impactSound: {fileID: 0}

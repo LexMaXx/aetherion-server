@@ -14,7 +14,7 @@ public class NetworkSyncManager : MonoBehaviour
 
     [Header("Settings")]
     [Tooltip("Интервал синхронизации позиций (секунды). 0.0167 = 60Hz, 0.033 = 30Hz, 0.05 = 20Hz")]
-    [SerializeField] private float positionSyncInterval = 0.0167f; // 60 Hz для REAL-TIME PvP (было 20Hz = 0.05)
+    [SerializeField] private float positionSyncInterval = 0.05f; // 20 Hz - ОПТИМАЛЬНО для баланса точности/трафика (было 60Hz = 0.0167)
     [SerializeField] private bool syncEnabled = true;
 
     [Header("Spawn Points")]
@@ -42,6 +42,10 @@ public class NetworkSyncManager : MonoBehaviour
     private string localPlayerSocketId; // КРИТИЧЕСКОЕ: Наш socketId для проверки урона
     private float lastPositionSync = 0f;
     private string lastAnimationState = "Idle";
+    private Vector3 lastSentPosition = Vector3.zero; // Для проверки изменения позиции
+    private Quaternion lastSentRotation = Quaternion.identity; // Для проверки изменения ротации
+    private const float positionThreshold = 0.01f; // Минимальное изменение позиции для отправки (1см)
+    private const float rotationThreshold = 1f; // Минимальное изменение ротации для отправки (1 градус)
 
     void Awake()
     {
@@ -115,7 +119,7 @@ public class NetworkSyncManager : MonoBehaviour
         SocketIOManager.Instance.On("player_moved", OnPlayerMoved);
         SocketIOManager.Instance.On("player_animation_changed", OnAnimationChanged); // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: теперь совпадает с сервером!
         SocketIOManager.Instance.On("player_attacked", OnPlayerAttacked);
-        SocketIOManager.Instance.On("player_skill_used", OnPlayerSkillUsed); // НОВОЕ: Синхронизация скиллов
+        SocketIOManager.Instance.On("player_used_skill", OnPlayerSkillUsed); // НОВОЕ: Синхронизация скиллов (ИСПРАВЛЕНО: было player_skill_used)
         SocketIOManager.Instance.On("player_transformed", OnPlayerTransformed); // НОВОЕ: Синхронизация трансформации
         SocketIOManager.Instance.On("player_transformation_ended", OnPlayerTransformationEnded); // НОВОЕ: Окончание трансформации
         SocketIOManager.Instance.On("player_health_changed", OnHealthChanged);
@@ -152,6 +156,7 @@ public class NetworkSyncManager : MonoBehaviour
 
     /// <summary>
     /// Синхронизировать позицию локального игрока
+    /// ОПТИМИЗИРОВАНО: отправляет ТОЛЬКО при изменении позиции/ротации
     /// </summary>
     private void SyncLocalPlayerPosition()
     {
@@ -179,21 +184,31 @@ public class NetworkSyncManager : MonoBehaviour
             }
         }
 
-        // ДИАГНОСТИКА: Логируем каждую 60-ю отправку (1 раз в секунду при 60Hz)
-        if (Time.frameCount % 60 == 0)
-        {
-            Debug.Log($"[NetworkSync] 📤 Отправка позиции: pos=({position.x:F1}, {position.y:F1}, {position.z:F1}), vel=({velocity.x:F1}, {velocity.y:F1}, {velocity.z:F1}), rot={rotation.eulerAngles.y:F0}°");
-        }
+        // ОПТИМИЗАЦИЯ: Проверяем изменилась ли позиция/ротация достаточно сильно
+        float positionDelta = Vector3.Distance(position, lastSentPosition);
+        float rotationDelta = Quaternion.Angle(rotation, lastSentRotation);
+        bool isMoving = velocity.sqrMagnitude > 0.01f; // Игрок движется?
 
-        // КРИТИЧЕСКОЕ: Проверяем что трансформированный игрок отправляет позиции
-        SkillManager skillMgr = localPlayer.GetComponent<SkillManager>();
-        if (skillMgr != null && skillMgr.isTransformed && Time.frameCount % 60 == 0)
+        // Отправляем ТОЛЬКО если:
+        // 1. Игрок движется (velocity > 0)
+        // 2. ИЛИ позиция изменилась больше чем на порог (0.01m = 1см)
+        // 3. ИЛИ ротация изменилась больше чем на порог (1 градус)
+        if (isMoving || positionDelta > positionThreshold || rotationDelta > rotationThreshold)
         {
-            Debug.Log($"[NetworkSync] 🐻 TRANSFORMED PLAYER отправляет позицию: {position}");
-        }
+            // Сохраняем последнюю отправленную позицию
+            lastSentPosition = position;
+            lastSentRotation = rotation;
 
-        // Send to server
-        SocketIOManager.Instance.UpdatePosition(position, rotation, velocity, isGrounded);
+            // Send to server
+            SocketIOManager.Instance.UpdatePosition(position, rotation, velocity, isGrounded);
+
+            // ДИАГНОСТИКА: Логируем каждую 20-ю отправку (1 раз в секунду при 20Hz)
+            if (Time.frameCount % 20 == 0)
+            {
+                Debug.Log($"[NetworkSync] 📤 Отправка позиции: pos=({position.x:F1}, {position.y:F1}, {position.z:F1}), vel=({velocity.x:F1}, {velocity.y:F1}, {velocity.z:F1}), rot={rotation.eulerAngles.y:F0}°");
+            }
+        }
+        // Если игрок стоит на месте - НЕ отправляем (экономим трафик)
     }
 
     /// <summary>
@@ -221,20 +236,16 @@ public class NetworkSyncManager : MonoBehaviour
 
         string currentState = GetLocalPlayerAnimationState();
 
-        // ВАЖНО: Отправляем анимацию КАЖДЫЙ раз для real-time синхронизации
-        // Сервер сам решит нужно ли рассылать всем (если изменилась)
-        bool stateChanged = (currentState != lastAnimationState);
-
-        if (stateChanged)
+        // ОПТИМИЗАЦИЯ: Отправляем анимацию ТОЛЬКО когда она ИЗМЕНИЛАСЬ!
+        if (currentState != lastAnimationState)
         {
             Debug.Log($"[NetworkSync] 🎬 Анимация изменилась: {lastAnimationState} → {currentState}");
             lastAnimationState = currentState;
+
+            // Отправляем ТОЛЬКО при изменении
+            SocketIOManager.Instance.UpdateAnimation(currentState);
         }
-
-        // ДИАГНОСТИКА: Логируем КАЖДУЮ отправку анимации
-        Debug.Log($"[NetworkSync] 📤 Отправка анимации на сервер: {currentState} (changed={stateChanged})");
-
-        SocketIOManager.Instance.UpdateAnimation(currentState);
+        // Если анимация не изменилась - НЕ отправляем (экономим трафик)
     }
 
     /// <summary>
@@ -345,6 +356,25 @@ public class NetworkSyncManager : MonoBehaviour
                 Debug.LogWarning("[NetworkSync] ⚠️ ArenaManager.Instance == null! Не могу установить spawnIndex");
             }
 
+            // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Проверяем РЕАЛЬНО ли игра УЖЕ НАЧАЛАСЬ!
+            // Игра началась = 2+ игроков И countdown УЖЕ прошел (gameStarted == true в ArenaManager)
+            // Игра НЕ началась = лобби запущено или ждем игроков
+            bool gameAlreadyStarted = data.players.Length >= 2 &&
+                                     ArenaManager.Instance != null &&
+                                     ArenaManager.Instance.IsGameStarted();
+
+            if (gameAlreadyStarted)
+            {
+                Debug.Log($"[NetworkSync] 🎮 Игра УЖЕ ИДЕТ ({data.players.Length} игроков)! Спавним локального игрока сразу (JOIN EXISTING GAME)");
+
+                // ВАЖНО: Отложенный спавн через корутину, чтобы ArenaManager.Start() успел выполниться
+                StartCoroutine(SpawnLocalPlayerDelayed());
+            }
+            else
+            {
+                Debug.Log($"[NetworkSync] ⏳ Игра ещё НЕ началась (лобби или ожидание), НЕ спавним себя, ждем game_start");
+            }
+
             // Spawn all existing players
             foreach (var playerData in data.players)
             {
@@ -357,10 +387,30 @@ public class NetworkSyncManager : MonoBehaviour
                     continue;
                 }
 
-                // ИЗМЕНЕНО: Сохраняем в pending ВСЕГДА - игроки заспавнятся при game_start или player_moved
-                // Это нужно чтобы игроки стояли в арене и ждали таймер, а не ждали первого движения
-                pendingPlayers[playerData.socketId] = playerData;
-                Debug.Log($"[NetworkSync] ⏳ Игрок {playerData.username} добавлен в pending, заспавнится при game_start");
+                if (gameAlreadyStarted)
+                {
+                    // Игра уже началась - СПАВНИМ СРАЗУ!
+                    Debug.Log($"[NetworkSync] 🎬 Спавним существующего игрока {playerData.username} сразу (игра началась)");
+
+                    // Используем spawn point по индексу
+                    Vector3 spawnPos = Vector3.zero;
+                    if (spawnPoints != null && playerData.spawnIndex >= 0 && playerData.spawnIndex < spawnPoints.Length)
+                    {
+                        spawnPos = spawnPoints[playerData.spawnIndex].position;
+                    }
+                    else
+                    {
+                        spawnPos = new Vector3(playerData.position.x, playerData.position.y, playerData.position.z);
+                    }
+
+                    SpawnNetworkPlayer(playerData.socketId, playerData.username, playerData.characterClass, spawnPos, playerData.stats);
+                }
+                else
+                {
+                    // Игра ещё не началась - добавляем в pending (ждем game_start)
+                    pendingPlayers[playerData.socketId] = playerData;
+                    Debug.Log($"[NetworkSync] ⏳ Игрок {playerData.username} добавлен в pending, заспавнится при game_start");
+                }
             }
 
             Debug.Log($"[NetworkSync] 📊 Всего сетевых игроков: {networkPlayers.Count}");
@@ -376,8 +426,10 @@ public class NetworkSyncManager : MonoBehaviour
     /// </summary>
     private void OnPlayerJoined(string jsonData)
     {
+        Debug.Log($"[NetworkSync] 📥 RAW player_joined JSON: {jsonData}");
+
         var data = JsonConvert.DeserializeObject<PlayerJoinedEvent>(jsonData);
-        Debug.Log($"[NetworkSync] Игрок подключился: {data.username} ({data.characterClass})");
+        Debug.Log($"[NetworkSync] Игрок подключился: {data.username} ({data.characterClass}), socketId={data.socketId}");
 
         // Don't create network player for ourselves
         // SocketIOManager doesn't have SessionId, so we compare with our socket ID from room_players
@@ -396,19 +448,26 @@ public class NetworkSyncManager : MonoBehaviour
         };
 
         pendingPlayers[data.socketId] = playerInfo;
-        Debug.Log($"[NetworkSync] ⏳ Игрок {data.username} добавлен в pending (STR={data.stats?.strength ?? 5}), ждем player_moved...");
+        Debug.Log($"[NetworkSync] ⏳ Игрок {data.username} добавлен в pending по ключу socketId={data.socketId} (STR={data.stats?.strength ?? 5}), ждем game_start...");
 
-        // ВРЕМЕННОЕ ИСПРАВЛЕНИЕ: Если это второй+ игрок и лобби еще не запущено - запускаем сами
-        // (сервер должен отправлять lobby_created новым игрокам, но пока не делает этого)
-        int totalPlayers = networkPlayers.Count + pendingPlayers.Count + 1; // +1 = мы сами
+        // КРИТИЧЕСКОЕ: Запускаем лобби для второго+ игрока, НО НЕ СПАВНИМ ЕГО СРАЗУ!
+        // Сервер должен отправлять lobby_created, но если не отправил - запускаем сами
+        // ВАЖНО: +1 для локального игрока (мы сами), который НЕ в networkPlayers!
+        int totalPlayers = networkPlayers.Count + pendingPlayers.Count + 1;
+        Debug.Log($"[NetworkSync] 👥 Всего игроков в комнате: {totalPlayers} (network={networkPlayers.Count}, pending={pendingPlayers.Count}, local=1)");
+
         if (totalPlayers >= 2 && ArenaManager.Instance != null)
         {
-            // Проверяем, уже запущено ли лобби (если UI создан - значит да)
+            // Проверяем, уже запущено ли лобби
             var lobbyUI = GameObject.Find("LobbyUI");
             if (lobbyUI == null)
             {
                 Debug.Log($"[NetworkSync] 🏁 FALLBACK: Запускаем лобби локально (всего игроков: {totalPlayers})");
                 ArenaManager.Instance.OnLobbyStarted(20000); // 20 секунд
+            }
+            else
+            {
+                Debug.Log($"[NetworkSync] ⏭️ LobbyUI уже существует, не запускаем повторно");
             }
         }
     }
@@ -431,8 +490,8 @@ public class NetworkSyncManager : MonoBehaviour
     {
         try
         {
-            // ДИАГНОСТИКА: Логируем ВСЕ player_moved события
-            Debug.Log($"[NetworkSync] 📥 RAW position data: {jsonData}");
+            // ДИАГНОСТИКА: Логируем ВСЕ player_moved события (ОТКЛЮЧЕНО для производительности)
+            // Debug.Log($"[NetworkSync] 📥 RAW position data: {jsonData}");
 
             var data = JsonConvert.DeserializeObject<PlayerMovedEvent>(jsonData);
 
@@ -447,14 +506,9 @@ public class NetworkSyncManager : MonoBehaviour
                 vel = new Vector3(data.velocity.x, data.velocity.y, data.velocity.z);
             }
 
-            // КРИТИЧЕСКОЕ: Если игрок в pending (еще не заспавнился) - спавним его СЕЙЧАС
-            if (!networkPlayers.ContainsKey(data.socketId) && pendingPlayers.TryGetValue(data.socketId, out RoomPlayerInfo playerInfo))
-            {
-                Debug.Log($"[NetworkSync] 🎬 Первый player_moved для {playerInfo.username} - спавним в позиции {pos}");
-                SpawnNetworkPlayer(data.socketId, playerInfo.username, playerInfo.characterClass, pos, playerInfo.stats);
-                pendingPlayers.Remove(data.socketId); // Удаляем из pending
-                // После спавна продолжим обновление позиции ниже
-            }
+            // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: НЕ СПАВНИМ pending игроков по player_moved!
+            // Они должны заспавниться ТОЛЬКО по событию game_start (после лобби и countdown)
+            // Раньше здесь был код который спавнил при первом player_moved - это НЕПРАВИЛЬНО!
 
             if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer player))
             {
@@ -563,16 +617,18 @@ public class NetworkSyncManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Обработать использование скилла игроком
+    /// Обработать использование скилла игроком (ПЕРЕРАБОТАНО)
+    /// Теперь показывает только визуальные эффекты (анимация + снаряды)
+    /// Урон/логика обрабатывается через отдельные события (player_damaged и т.д.)
     /// </summary>
     private void OnPlayerSkillUsed(string jsonData)
     {
-        Debug.Log($"[NetworkSync] ⚡ RAW player_skill_used JSON: {jsonData}");
+        Debug.Log($"[NetworkSync] ⚡ RAW player_used_skill JSON: {jsonData}");
 
         try
         {
-            var data = JsonUtility.FromJson<PlayerSkillUsedEvent>(jsonData);
-            Debug.Log($"[NetworkSync] ⚡ Скилл получен: socketId={data.socketId}, skillId={data.skillId}");
+            var data = JsonConvert.DeserializeObject<PlayerSkillUsedEvent>(jsonData);
+            Debug.Log($"[NetworkSync] ⚡ Скилл получен: socketId={data.socketId}, skillId={data.skillId}, animationTrigger={data.animationTrigger}");
 
             // Skip if it's our own skill (we already executed it locally)
             if (data.socketId == localPlayerSocketId)
@@ -584,55 +640,61 @@ public class NetworkSyncManager : MonoBehaviour
             // Find the network player who used the skill
             if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer player))
             {
-                Debug.Log($"[NetworkSync] ⚡ Применяем скилл {data.skillId} для {player.username}");
+                Debug.Log($"[NetworkSync] ⚡ Показываем визуальные эффекты скилла {data.skillId} для {player.username}");
 
                 // Get the skill from SkillDatabase
                 SkillDatabase db = SkillDatabase.Instance;
-                if (db != null)
-                {
-                    SkillData skill = db.GetSkillById(data.skillId);
-                    if (skill != null)
-                    {
-                        // Apply skill to network player via SkillManager
-                        SkillManager skillManager = player.GetComponent<SkillManager>();
-                        if (skillManager == null)
-                        {
-                            // Add SkillManager if not present
-                            skillManager = player.gameObject.AddComponent<SkillManager>();
-                            Debug.Log($"[NetworkSync] SkillManager добавлен к {player.username}");
-                        }
-
-                        if (skillManager != null)
-                        {
-                            // Get target if needed
-                            Transform target = null;
-                            if (!string.IsNullOrEmpty(data.targetSocketId))
-                            {
-                                if (networkPlayers.TryGetValue(data.targetSocketId, out NetworkPlayer targetPlayer))
-                                {
-                                    target = targetPlayer.transform;
-                                }
-                                else if (data.targetSocketId == localPlayerSocketId && localPlayer != null)
-                                {
-                                    // Target is local player
-                                    target = localPlayer.transform;
-                                }
-                            }
-
-                            // Execute skill on network player
-                            skillManager.UseSkill(skill, target);
-                            Debug.Log($"[NetworkSync] ✅ Скилл {skill.skillName} применён к {player.username}");
-                        }
-                    }
-                    else
-                    {
-                        Debug.LogWarning($"[NetworkSync] ⚠️ Скилл с ID {data.skillId} не найден в SkillDatabase");
-                    }
-                }
-                else
+                if (db == null)
                 {
                     Debug.LogError($"[NetworkSync] ❌ SkillDatabase.Instance == null!");
+                    return;
                 }
+
+                SkillData skill = db.GetSkillById(data.skillId);
+                if (skill == null)
+                {
+                    Debug.LogWarning($"[NetworkSync] ⚠️ Скилл с ID {data.skillId} не найден в SkillDatabase");
+                    return;
+                }
+
+                // 1. ПРОИГРЫВАЕМ АНИМАЦИЮ КАСТА
+                Animator animator = player.GetComponentInChildren<Animator>();
+                if (animator != null && !string.IsNullOrEmpty(data.animationTrigger))
+                {
+                    animator.SetTrigger(data.animationTrigger);
+                    if (data.animationSpeed > 0)
+                    {
+                        animator.speed = data.animationSpeed;
+                    }
+                    Debug.Log($"[NetworkSync] 🎬 Анимация '{data.animationTrigger}' запущена для {player.username}");
+                }
+
+                // 2. СОЗДАЁМ СНАРЯД (если есть)
+                if (skill.projectilePrefab != null)
+                {
+                    // Определяем целевую позицию
+                    Vector3 targetPosition = data.targetPosition != null
+                        ? new Vector3(data.targetPosition.x, data.targetPosition.y, data.targetPosition.z)
+                        : player.transform.position + player.transform.forward * 10f;
+
+                    // Запускаем корутину для создания снаряда после анимации
+                    player.StartCoroutine(SpawnSkillProjectile(player, skill, targetPosition, data.castTime));
+                }
+
+                // 3. ВИЗУАЛЬНЫЙ ЭФФЕКТ КАСТА (если есть)
+                if (skill.visualEffectPrefab != null)
+                {
+                    Instantiate(skill.visualEffectPrefab, player.transform.position, Quaternion.identity);
+                    Debug.Log($"[NetworkSync] ✨ Визуальный эффект создан для {skill.skillName}");
+                }
+
+                // 4. ЗВУК КАСТА (если есть)
+                if (skill.castSound != null)
+                {
+                    AudioSource.PlayClipAtPoint(skill.castSound, player.transform.position);
+                }
+
+                Debug.Log($"[NetworkSync] ✅ Визуальные эффекты скилла {skill.skillName} показаны для {player.username}");
             }
             else
             {
@@ -642,6 +704,44 @@ public class NetworkSyncManager : MonoBehaviour
         catch (Exception ex)
         {
             Debug.LogError($"[NetworkSync] ❌ Ошибка в OnPlayerSkillUsed: {ex.Message}\nJSON: {jsonData}");
+        }
+    }
+
+    /// <summary>
+    /// Создать снаряд для скилла с задержкой (для анимации каста)
+    /// </summary>
+    private System.Collections.IEnumerator SpawnSkillProjectile(NetworkPlayer player, SkillData skill, Vector3 targetPosition, float delay)
+    {
+        // Ждём завершения анимации каста
+        if (delay > 0f)
+        {
+            yield return new WaitForSeconds(delay);
+        }
+
+        // Проверяем что игрок ещё жив
+        if (player == null || player.gameObject == null)
+        {
+            Debug.LogWarning($"[NetworkSync] ⚠️ NetworkPlayer уничтожен до создания снаряда");
+            yield break;
+        }
+
+        // Создаём снаряд в позиции игрока
+        Vector3 spawnPos = player.transform.position + Vector3.up * 1.5f + player.transform.forward * 0.5f;
+        Vector3 direction = (targetPosition - spawnPos).normalized;
+
+        GameObject projectileObj = Instantiate(skill.projectilePrefab, spawnPos, Quaternion.LookRotation(direction));
+
+        // Настраиваем снаряд
+        Projectile projectile = projectileObj.GetComponent<Projectile>();
+        if (projectile != null)
+        {
+            // ВАЖНО: Для сетевого игрока снаряд ЧИСТО ВИЗУАЛЬНЫЙ (урон = 0, owner = NetworkPlayer)
+            projectile.Initialize(null, 0f, direction, player.gameObject);
+            Debug.Log($"[NetworkSync] 🚀 Снаряд {skill.projectilePrefab.name} создан для {player.username}");
+        }
+        else
+        {
+            Debug.LogWarning($"[NetworkSync] ⚠️ У префаба {skill.projectilePrefab.name} нет компонента Projectile!");
         }
     }
 
@@ -1270,6 +1370,64 @@ public class NetworkSyncManager : MonoBehaviour
         Debug.Log("[NetworkSync] Все сетевые игроки удалены");
     }
 
+    /// <summary>
+    /// Отложенный спавн локального игрока (даёт время ArenaManager.Start() выполниться)
+    /// </summary>
+    private System.Collections.IEnumerator SpawnLocalPlayerDelayed()
+    {
+        Debug.Log("[NetworkSync] ⏰ Отложенный спавн через 0.5 секунды...");
+
+        // Ждём 0.5 секунды чтобы ArenaManager.Start() выполнился
+        yield return new WaitForSeconds(0.5f);
+
+        Debug.Log("[NetworkSync] ✅ Задержка истекла, спавним локального игрока");
+
+        if (ArenaManager.Instance != null)
+        {
+            ArenaManager.Instance.OnGameStarted();
+        }
+        else
+        {
+            Debug.LogError("[NetworkSync] ❌ ArenaManager.Instance ВСЁЩЁ null после задержки!");
+        }
+    }
+
+    /// <summary>
+    /// ПУБЛИЧНЫЙ метод: Спавнить ВСЕХ pending игроков (вызывается из ArenaManager при FALLBACK countdown)
+    /// </summary>
+    public void SpawnAllPendingPlayers()
+    {
+        Debug.Log($"[NetworkSync] 🎬 Спавним ВСЕ pending игроки ({pendingPlayers.Count} игроков)...");
+
+        // Создаем копию словаря чтобы избежать ошибки модификации во время итерации
+        var pendingPlayersCopy = new Dictionary<string, RoomPlayerInfo>(pendingPlayers);
+
+        foreach (var kvp in pendingPlayersCopy)
+        {
+            string socketId = kvp.Key;
+            RoomPlayerInfo playerInfo = kvp.Value;
+
+            Debug.Log($"[NetworkSync] 🎬 Спавним pending игрока {playerInfo.username} (spawnIndex={playerInfo.spawnIndex})");
+
+            // КРИТИЧЕСКОЕ: Используем spawn point по индексу от сервера
+            Vector3 spawnPos = Vector3.zero;
+            if (spawnPoints != null && playerInfo.spawnIndex >= 0 && playerInfo.spawnIndex < spawnPoints.Length)
+            {
+                spawnPos = spawnPoints[playerInfo.spawnIndex].position;
+                Debug.Log($"[NetworkSync] 📍 Spawn position для {playerInfo.username}: {spawnPos} (index {playerInfo.spawnIndex})");
+            }
+            else
+            {
+                Debug.LogWarning($"[NetworkSync] ⚠️ Некорректный spawnIndex {playerInfo.spawnIndex} для {playerInfo.username}, используем (0,0,0)");
+            }
+
+            SpawnNetworkPlayer(socketId, playerInfo.username, playerInfo.characterClass, spawnPos, playerInfo.stats);
+            pendingPlayers.Remove(socketId); // Удаляем из pending после спавна
+        }
+
+        Debug.Log($"[NetworkSync] ✅ Все pending игроки заспавнены! Теперь сетевых игроков: {networkPlayers.Count}");
+    }
+
     void OnDestroy()
     {
         // Note: SocketIOManager handles event cleanup internally
@@ -1387,6 +1545,10 @@ public class PlayerSkillUsedEvent
     public string targetSocketId;
     public Vector3Data targetPosition;
     public long timestamp;
+    public string skillType; // НОВОЕ: "Damage", "Heal", "Transformation" и т.д.
+    public string animationTrigger; // НОВОЕ: триггер анимации ("Cast", "Attack" и т.д.)
+    public float animationSpeed; // НОВОЕ: скорость анимации (default: 1.0)
+    public float castTime; // НОВОЕ: время каста для задержки создания снаряда
 }
 
 /// <summary>

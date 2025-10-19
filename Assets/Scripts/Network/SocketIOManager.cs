@@ -438,6 +438,34 @@ public class SocketIOManager : MonoBehaviour
     }
 
     /// <summary>
+    /// Отправить использование скилла с анимацией на сервер (улучшенная версия)
+    /// НОВОЕ: Передает информацию об анимации для синхронизации
+    /// </summary>
+    public void SendPlayerSkillWithAnimation(int skillId, string targetSocketId, Vector3 targetPosition, string skillType, string animationTrigger, float animationSpeed, float castTime)
+    {
+        if (!isConnected)
+        {
+            DebugLog("⚠️ SendPlayerSkillWithAnimation: Не подключен к серверу");
+            return;
+        }
+
+        var data = new
+        {
+            skillId = skillId,
+            targetSocketId = targetSocketId,
+            targetPosition = new { x = targetPosition.x, y = targetPosition.y, z = targetPosition.z },
+            skillType = skillType,
+            animationTrigger = animationTrigger,
+            animationSpeed = animationSpeed,
+            castTime = castTime
+        };
+
+        string json = JsonConvert.SerializeObject(data);
+        DebugLog($"⚡ Отправка скилла с анимацией: ID={skillId}, тип={skillType}, анимация={animationTrigger}@{animationSpeed}x, castTime={castTime}с");
+        Emit("player_skill", json); // Используем тот же событие, сервер будет обрабатывать доп. поля
+    }
+
+    /// <summary>
     /// Отправить окончание трансформации на сервер
     /// </summary>
     public void SendTransformationEnd()
@@ -495,6 +523,110 @@ public class SocketIOManager : MonoBehaviour
         string json = JsonConvert.SerializeObject(data);
         DebugLog($"♻️ Отправка респавна на позиции ({position.x:F1}, {position.y:F1}, {position.z:F1})");
         Emit("player_respawn", json);
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // НОВЫЕ МЕТОДЫ ДЛЯ УЛУЧШЕННОЙ СИНХРОНИЗАЦИИ СКИЛЛОВ
+    // ══════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Отправить урон от скилла на сервер (НОВОЕ)
+    /// Сервер валидирует урон и применяет к цели
+    /// </summary>
+    public void SendSkillDamage(int skillId, string targetSocketId, float damage, List<SkillEffect> effects)
+    {
+        if (!isConnected)
+        {
+            DebugLog("⚠️ SendSkillDamage: Не подключен к серверу");
+            return;
+        }
+
+        // Сериализуем эффекты
+        var effectsData = new List<object>();
+        if (effects != null)
+        {
+            foreach (var effect in effects)
+            {
+                effectsData.Add(new
+                {
+                    type = effect.effectType.ToString(),
+                    duration = effect.duration,
+                    power = effect.power,
+                    damageOrHealPerTick = effect.damageOrHealPerTick,
+                    tickInterval = effect.tickInterval,
+                    canStack = effect.canStack,
+                    maxStacks = effect.maxStacks,
+                    syncWithServer = effect.syncWithServer
+                });
+            }
+        }
+
+        var data = new
+        {
+            skillId = skillId,
+            targetSocketId = targetSocketId,
+            damage = damage,
+            effects = effectsData
+        };
+
+        string json = JsonConvert.SerializeObject(data);
+        DebugLog($"💥 Отправка урона скилла: ID={skillId}, урон={damage:F1}, цель={targetSocketId}, эффектов={effectsData.Count}");
+        Emit("skill_damage", json);
+    }
+
+    /// <summary>
+    /// Отправить применение эффекта (баффа/дебаффа) на сервер (НОВОЕ)
+    /// </summary>
+    public void SendEffectApplied(SkillEffect effect, string targetSocketId = null)
+    {
+        if (!isConnected)
+        {
+            DebugLog("⚠️ SendEffectApplied: Не подключен к серверу");
+            return;
+        }
+
+        // Отправляем только если эффект должен синхронизироваться
+        if (!effect.syncWithServer)
+        {
+            DebugLog($"⏭️ Эффект {effect.effectType} не требует синхронизации");
+            return;
+        }
+
+        var data = new
+        {
+            targetSocketId = targetSocketId ?? "", // Пустая строка = на себя
+            effectType = effect.effectType.ToString(),
+            duration = effect.duration,
+            power = effect.power,
+            damageOrHealPerTick = effect.damageOrHealPerTick,
+            tickInterval = effect.tickInterval
+        };
+
+        string json = JsonConvert.SerializeObject(data);
+        DebugLog($"✨ Отправка эффекта: {effect.effectType}, цель={targetSocketId ?? "self"}, duration={effect.duration}с");
+        Emit("effect_applied", json);
+    }
+
+    /// <summary>
+    /// Отправить начало игры на сервер (FALLBACK countdown завершился)
+    /// Сервер должен разослать game_start всем игрокам в комнате
+    /// </summary>
+    public void SendGameStart()
+    {
+        if (!isConnected || string.IsNullOrEmpty(currentRoomId))
+        {
+            DebugLog("⚠️ SendGameStart: Не подключен к комнате");
+            return;
+        }
+
+        var data = new
+        {
+            roomId = currentRoomId
+        };
+
+        string json = JsonConvert.SerializeObject(data);
+        DebugLog($"🚀 Отправка start_game для комнаты {currentRoomId}");
+        Emit("start_game", json);
     }
 
     public bool IsConnected => isConnected;

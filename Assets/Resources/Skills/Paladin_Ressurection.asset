@@ -13,29 +13,31 @@ MonoBehaviour:
   m_Name: Paladin_Ressurection
   m_EditorClassIdentifier: 
   skillId: 506
-  skillName: Ressurection
-  description: "\u0412\u043E\u0441\u043A\u0440\u0435\u0448\u0430\u0435\u0442 \u043F\u0430\u0432\u0448\u0435\u0433\u043E
-    \u0441\u043E\u044E\u0437\u043D\u0438\u043A\u0430"
+  skillName: Resurrection
+  description: "\u0412\u043E\u0441\u043A\u0440\u0435\u0448\u0435\u043D\u0438\u0435
+    - \u0432\u043E\u0437\u0432\u0440\u0430\u0449\u0430\u0435\u0442 \u0434\u0443\u0448\u0443
+    \u043F\u0430\u0432\u0448\u0435\u0433\u043E \u0441\u043E\u044E\u0437\u043D\u0438\u043A\u0430
+    \u043A \u0436\u0438\u0437\u043D\u0438"
   icon: {fileID: 21300000, guid: e0286c67e38d3624ea88123980e85596, type: 3}
   characterClass: 4
-  cooldown: 60
+  cooldown: 120
   manaCost: 100
   castRange: 10
   castTime: 3
-  canUseWhileMoving: 1
+  canUseWhileMoving: 0
   skillType: 8
   targetType: 1
   requiresTarget: 1
   canTargetAllies: 1
-  canTargetEnemies: 1
+  canTargetEnemies: 0
   baseDamageOrHeal: 0
   intelligenceScaling: 0
   strengthScaling: 0
   effects: []
   aoeRadius: 0
   maxTargets: 1
-  animationTrigger: 
-  visualEffectPrefab: {fileID: 0}
+  animationTrigger: Cast
+  visualEffectPrefab: {fileID: 5642766282230003982, guid: b5c8ca7ed10b61e499cce8ec3b6e2e4c, type: 3}
   projectilePrefab: {fileID: 0}
   castSound: {fileID: 0}
   impactSound: {fileID: 0}

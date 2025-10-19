@@ -34,8 +34,8 @@ MonoBehaviour:
   effects: []
   aoeRadius: 0
   maxTargets: 1
-  animationTrigger: 
-  visualEffectPrefab: {fileID: 0}
+  animationTrigger:
+  visualEffectPrefab: {fileID: 4021103657954561961, guid: 5c755f9bc5253ea418e919994537dcc7, type: 3}
   projectilePrefab: {fileID: 0}
   castSound: {fileID: 0}
   impactSound: {fileID: 0}

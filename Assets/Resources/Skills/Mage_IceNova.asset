@@ -24,19 +24,35 @@ MonoBehaviour:
   castTime: 1.2
   canUseWhileMoving: 1
   skillType: 0
-  targetType: 1
-  requiresTarget: 1
+  targetType: 3
+  requiresTarget: 0
   canTargetAllies: 0
   canTargetEnemies: 1
   baseDamageOrHeal: 40
   intelligenceScaling: 20
   strengthScaling: 0
-  effects: []
+  effects:
+  - effectType: 8
+    duration: 4
+    power: 40
+    damageOrHealPerTick: 0
+    tickInterval: 1
+    particleEffectPrefab: {fileID: 0}
+    canBeDispelled: 1
   aoeRadius: 8
   maxTargets: 8
-  animationTrigger: 
+  animationTrigger: MageAttack
+  animationSpeed: 1
+  blockMovementDuringCast: 0
+  movementBlockDuration: 0
+  enableMovement: 0
+  movementType: 0
+  movementDistance: 5
+  movementSpeed: 10
+  movementAnimationTrigger:
+  movementDirection: 0
   visualEffectPrefab: {fileID: 0}
-  projectilePrefab: {fileID: 0}
+  projectilePrefab: {fileID: 5678901234567890123, guid: c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6, type: 3}
   castSound: {fileID: 0}
   impactSound: {fileID: 0}
   summonPrefab: {fileID: 0}

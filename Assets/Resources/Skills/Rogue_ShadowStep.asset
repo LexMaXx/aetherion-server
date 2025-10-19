@@ -13,29 +13,38 @@ MonoBehaviour:
   m_Name: Rogue_ShadowStep
   m_EditorClassIdentifier: 
   skillId: 403
-  skillName: Shadow Step
-  description: "\u0422\u0435\u043B\u0435\u043F\u043E\u0440\u0442 \u0437\u0430 \u0441\u043F\u0438\u043D\u0443
-    \u0432\u0440\u0430\u0433\u0430"
+  skillName: Life Drain
+  description: "\u0412\u044B\u0441\u0430\u0441\u044B\u0432\u0430\u0435\u0442 \u0436\u0438\u0437\u043D\u0435\u043D\u043D\u0443\u044E
+    \u0441\u0438\u043B\u0443 \u0432\u0440\u0430\u0433\u0430, \u043D\u0430\u043D\u043E\u0441\u0438\u0442
+    \u0443\u0440\u043E\u043D \u0438 \u0432\u043E\u0441\u0441\u0442\u0430\u043D\u0430\u0432\u043B\u0438\u0432\u0430\u0435\u0442
+    \u0437\u0434\u043E\u0440\u043E\u0432\u044C\u0435"
   icon: {fileID: 21300000, guid: 6c2aa742bcadb9f4a9eb50813d4449ed, type: 3}
   characterClass: 3
   cooldown: 10
-  manaCost: 25
-  castRange: 10
-  castTime: 0
+  manaCost: 30
+  castRange: 15
+  castTime: 0.8
   canUseWhileMoving: 1
-  skillType: 7
+  skillType: 0
   targetType: 1
   requiresTarget: 1
   canTargetAllies: 0
   canTargetEnemies: 1
-  baseDamageOrHeal: 0
-  intelligenceScaling: 0
+  baseDamageOrHeal: 40
+  intelligenceScaling: 12
   strengthScaling: 0
-  effects: []
+  effects:
+  - effectType: 11
+    duration: 0
+    power: 50
+    damageOrHealPerTick: 0
+    tickInterval: 1
+    particleEffectPrefab: {fileID: 0}
+    canBeDispelled: 0
   aoeRadius: 0
   maxTargets: 1
-  animationTrigger: 
-  visualEffectPrefab: {fileID: 0}
+  animationTrigger:
+  visualEffectPrefab: {fileID: 6823200998282874702, guid: 8f8fe12323625f5499b2853dd2ad3e58, type: 3}
   projectilePrefab: {fileID: 0}
   castSound: {fileID: 0}
   impactSound: {fileID: 0}

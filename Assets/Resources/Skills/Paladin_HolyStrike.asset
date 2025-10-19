@@ -14,27 +14,29 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   skillId: 501
   skillName: Holy Strike
-  description: "\u0423\u0434\u0430\u0440 \u0441\u0432\u044F\u0442\u043E\u0439 \u0441\u0438\u043B\u043E\u0439"
+  description: "\u0423\u0434\u0430\u0440 \u0441\u0432\u044F\u0442\u043E\u0439 \u0441\u0438\u043B\u043E\u0439
+    - \u043C\u043E\u0449\u043D\u044B\u0439 \u0443\u0434\u0430\u0440 \u043E\u0440\u0443\u0436\u0438\u0435\u043C,
+    \u043E\u0437\u0430\u0440\u0451\u043D\u043D\u044B\u043C \u0441\u0432\u0435\u0442\u043E\u043C"
   icon: {fileID: 21300000, guid: 2cef9b4b07c27a04497a9f237ded18b2, type: 3}
   characterClass: 4
-  cooldown: 10
+  cooldown: 8
   manaCost: 30
   castRange: 5
-  castTime: 0.7
+  castTime: 0
   canUseWhileMoving: 1
   skillType: 0
   targetType: 1
   requiresTarget: 1
   canTargetAllies: 0
   canTargetEnemies: 1
-  baseDamageOrHeal: 45
+  baseDamageOrHeal: 50
   intelligenceScaling: 0
-  strengthScaling: 18
+  strengthScaling: 20
   effects: []
   aoeRadius: 0
   maxTargets: 1
-  animationTrigger: 
-  visualEffectPrefab: {fileID: 0}
+  animationTrigger: Attack
+  visualEffectPrefab: {fileID: 8771972552311404799, guid: bbf9e36a48d6c5648a13889afab076fd, type: 3}
   projectilePrefab: {fileID: 0}
   castSound: {fileID: 0}
   impactSound: {fileID: 0}
