@@ -199,6 +199,11 @@ public class ActiveEffect
 
             case EffectType.IncreasePerception:
                 int perceptionBonus = Mathf.RoundToInt(effectData.power); // power = прямое значение (не процент)
+                Debug.Log($"[ActiveEffect] 🔍 ОТЛАДКА PERCEPTION:");
+                Debug.Log($"[ActiveEffect] 🔍 effectData.power: {effectData.power}");
+                Debug.Log($"[ActiveEffect] 🔍 perceptionBonus: {perceptionBonus}");
+                Debug.Log($"[ActiveEffect] 🔍 stats: {stats != null}");
+                Debug.Log($"[ActiveEffect] 🔍 target.name: {target.name}");
                 stats.ModifyPerception(perceptionBonus);
                 Debug.Log($"[ActiveEffect] 👁️ Восприятие увеличено на {perceptionBonus}");
                 break;
@@ -366,6 +371,7 @@ public class ActiveEffect
             case EffectType.IncreaseSpeed:
             case EffectType.IncreaseHPRegen:
             case EffectType.IncreaseMPRegen:
+            case EffectType.IncreasePerception:
             case EffectType.HealOverTime:
             case EffectType.Shield:
             case EffectType.Invulnerability:
