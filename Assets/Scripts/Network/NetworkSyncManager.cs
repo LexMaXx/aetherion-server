@@ -902,6 +902,11 @@ public class NetworkSyncManager : MonoBehaviour
             Transform effectParent = null;
 
             // Если эффект привязан к игроку - найти этого игрока
+            Debug.Log($"[NetworkSync] 🔍 ОТЛАДКА targetSocketId:");
+            Debug.Log($"[NetworkSync] 🔍 data.targetSocketId: '{data.targetSocketId}' (длина: {data.targetSocketId?.Length ?? 0})");
+            Debug.Log($"[NetworkSync] 🔍 localPlayerSocketId: '{localPlayerSocketId}' (длина: {localPlayerSocketId?.Length ?? 0})");
+            Debug.Log($"[NetworkSync] 🔍 networkPlayers count: {networkPlayers.Count}");
+
             if (!string.IsNullOrEmpty(data.targetSocketId))
             {
                 // Проверяем это мы или сетевой игрок
@@ -918,7 +923,16 @@ public class NetworkSyncManager : MonoBehaviour
                 else
                 {
                     Debug.LogWarning($"[NetworkSync] ⚠️ Целевой игрок {data.targetSocketId} не найден для эффекта");
+                    Debug.LogWarning($"[NetworkSync] 🔍 Доступные networkPlayers:");
+                    foreach (var kvp in networkPlayers)
+                    {
+                        Debug.LogWarning($"[NetworkSync]    - socketId: '{kvp.Key}', username: {kvp.Value.username}");
+                    }
                 }
+            }
+            else
+            {
+                Debug.Log($"[NetworkSync] 🔍 targetSocketId пустой - эффект в мировых координатах");
             }
 
             // Пытаемся загрузить prefab эффекта из Resources
