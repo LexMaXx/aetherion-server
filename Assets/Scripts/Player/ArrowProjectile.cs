@@ -401,14 +401,21 @@ public class ArrowProjectile : MonoBehaviour
     /// </summary>
     private void OnTriggerEnter(Collider other)
     {
+        Debug.Log($"[ArrowProjectile] ⚡ OnTriggerEnter: {other.gameObject.name}, hasHit={hasHit}");
+
         if (hasHit) return;
 
         // Игнорируем владельца
-        if (other.gameObject == owner) return;
+        if (other.gameObject == owner)
+        {
+            Debug.Log($"[ArrowProjectile] ⏭️ Пропуск владельца: {other.gameObject.name}");
+            return;
+        }
 
         // Проверяем попадание в цель
         if (other.transform == target)
         {
+            Debug.Log($"[ArrowProjectile] 🎯 Попадание в цель: {target.name}");
             HitTarget();
         }
         // Или попадание в любого врага
@@ -417,10 +424,17 @@ public class ArrowProjectile : MonoBehaviour
             Enemy enemy = other.GetComponent<Enemy>();
             NetworkPlayer networkPlayer = other.GetComponent<NetworkPlayer>();
 
+            Debug.Log($"[ArrowProjectile] 🔍 Проверка: enemy={enemy != null}, networkPlayer={networkPlayer != null}");
+
             if ((enemy != null && enemy.IsAlive()) || networkPlayer != null)
             {
+                Debug.Log($"[ArrowProjectile] ✅ Попадание в врага: {other.gameObject.name}");
                 target = other.transform;
                 HitTarget();
+            }
+            else
+            {
+                Debug.Log($"[ArrowProjectile] ❌ Не враг, пропуск: {other.gameObject.name}");
             }
         }
     }
