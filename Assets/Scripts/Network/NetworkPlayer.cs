@@ -348,7 +348,9 @@ public class NetworkPlayer : MonoBehaviour
                 }
 
                 // ЭФФЕКТ 3: СОЗДАНИЕ СНАРЯДА для дальних атак
-                StartCoroutine(SpawnProjectileAfterDelay(attackType, 0.3f));
+                // ОТКЛЮЧЕНО: Теперь снаряды создаются через событие projectile_spawned от сервера
+                // StartCoroutine(SpawnProjectileAfterDelay(attackType, 0.3f));
+                Debug.Log($"[NetworkPlayer] ℹ️ Снаряд будет создан через projectile_spawned от сервера");
                 break;
 
             case "skill":
