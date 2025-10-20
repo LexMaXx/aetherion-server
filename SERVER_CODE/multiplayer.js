@@ -12,6 +12,9 @@ const activePlayers = new Map(); // socketId => { roomId, username, characterCla
 // Хранилище врагов в комнатах
 const roomEnemies = new Map(); // roomId => Map(enemyId => { health, alive, position })
 
+// Хранилище активных эффектов игроков
+const playerEffects = new Map(); // socketId => Set(effectType) - для быстрой проверки Root/Stun
+
 // Хранилище использованных точек спавна в комнатах
 const roomSpawnPoints = new Map(); // roomId => Set(spawnIndex)
 const MAX_SPAWN_POINTS = 20; // Максимум 20 точек спавна
@@ -429,6 +432,15 @@ module.exports = (io) => {
       if (!player) {
         // Это может быть нормально если игрок ещё не в activePlayers
         // console.warn(`[Player Update] Player ${socket.id} not found in activePlayers`);
+        return;
+      }
+
+      // ВАЖНО: Блокируем обновление позиции если игрок Root'нут или Stunned
+      const effects = playerEffects.get(socket.id);
+      if (effects && (effects.has('root') || effects.has('stun'))) {
+        // Игрок не может двигаться - игнорируем обновление позиции
+        // Но разрешаем обновление ротации (поворот камеры)
+        console.log(`[Player Update] 🌿 Ignoring movement for ${player.username} (Root/Stun active)`);
         return;
       }
 
@@ -1043,6 +1055,52 @@ module.exports = (io) => {
     });
 
     // ═══════════════════════════════════════════
+    // CROWD CONTROL EFFECTS (Root, Stun, etc.)
+    // ═══════════════════════════════════════════
+
+    // Клиент сообщает что на игрока наложен CC эффект
+    socket.on('effect_applied', (data) => {
+      try {
+        let parsedData = data;
+        if (typeof data === 'string') {
+          parsedData = JSON.parse(data);
+        }
+
+        const targetSocketId = parsedData.targetSocketId;
+        const effectType = parsedData.effectType; // 'root', 'stun', etc.
+
+        if (!playerEffects.has(targetSocketId)) {
+          playerEffects.set(targetSocketId, new Set());
+        }
+
+        playerEffects.get(targetSocketId).add(effectType);
+        console.log(`[CC Effect] 🌿 Applied ${effectType} to ${targetSocketId}`);
+      } catch (error) {
+        console.error('[CC Effect] ❌ Error applying effect:', error.message);
+      }
+    });
+
+    // Клиент сообщает что CC эффект снят
+    socket.on('effect_removed', (data) => {
+      try {
+        let parsedData = data;
+        if (typeof data === 'string') {
+          parsedData = JSON.parse(data);
+        }
+
+        const targetSocketId = parsedData.targetSocketId;
+        const effectType = parsedData.effectType;
+
+        if (playerEffects.has(targetSocketId)) {
+          playerEffects.get(targetSocketId).delete(effectType);
+          console.log(`[CC Effect] ✅ Removed ${effectType} from ${targetSocketId}`);
+        }
+      } catch (error) {
+        console.error('[CC Effect] ❌ Error removing effect:', error.message);
+      }
+    });
+
+    // ═══════════════════════════════════════════
     // LOBBY SYSTEM - CLIENT-SIDE EVENTS
     // ═══════════════════════════════════════════
 
@@ -1147,6 +1205,9 @@ module.exports = (io) => {
           socketId: socket.id,
           username: player.username
         });
+
+        // Очищаем активные эффекты
+        playerEffects.delete(socket.id);
 
         // Удаляем игрока
         activePlayers.delete(socket.id);
