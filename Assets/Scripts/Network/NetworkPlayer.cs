@@ -21,13 +21,7 @@ public class NetworkPlayer : MonoBehaviour
     private int currentHP = 100;
     private int maxHP = 100;
 
-    [Header("Sync Settings")]
-    [SerializeField] private float positionLerpSpeed = 30f; // Увеличено для 60Hz PvP (было 10 → 20 → 30)
-    [SerializeField] private float rotationLerpSpeed = 40f; // Увеличено для 60Hz PvP (было 10 → 20 → 40)
-
-    // Target state (received from server)
-    private Vector3 targetPosition;
-    private Quaternion targetRotation;
+    // Animation state
     private string currentAnimationState = "Idle";
 
     // Health
@@ -61,6 +55,11 @@ public class NetworkPlayer : MonoBehaviour
         if (networkTransform == null)
         {
             networkTransform = gameObject.AddComponent<NetworkTransform>();
+            Debug.Log($"[NetworkPlayer] ✅ NetworkTransform добавлен для плавного движения (SmoothDamp как в Dota 2)");
+        }
+        else
+        {
+            Debug.Log($"[NetworkPlayer] ✅ NetworkTransform уже существует");
         }
 
         // Disable local player components for network players
@@ -97,20 +96,12 @@ public class NetworkPlayer : MonoBehaviour
 
     void Update()
     {
-        if (!hasReceivedFirstUpdate) return;
-
-        // ВАЖНО: Если NetworkTransform существует, он управляет позицией
-        // Иначе управляем позицией здесь
-        if (networkTransform == null)
-        {
-            // Smooth position interpolation
-            // CharacterController отключён, используем прямую установку transform.position
-            transform.position = Vector3.Lerp(transform.position, targetPosition, positionLerpSpeed * Time.deltaTime);
-
-            // Smooth rotation interpolation
-            transform.rotation = Quaternion.Lerp(transform.rotation, targetRotation, rotationLerpSpeed * Time.deltaTime);
-        }
-
+        // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ ОТ ФРИЗОВ:
+        // NetworkTransform ПОЛНОСТЬЮ управляет позицией и ротацией!
+        // Убрали дублирующую интерполяцию которая конфликтовала с SmoothDamp
+        //
+        // ВАЖНО: Не трогаем transform.position и transform.rotation здесь!
+        // NetworkTransform.Update() уже делает всю работу через Vector3.SmoothDamp
     }
 
     // УДАЛЕНО: Старая система nameplate - заменена на EnemyNameplate.cs
@@ -125,31 +116,20 @@ public class NetworkPlayer : MonoBehaviour
             timestamp = Time.time;
         }
 
-        // ДИАГНОСТИКА: Логируем обновление позиции
-        if (Time.frameCount % 60 == 0)
-        {
-            Debug.Log($"[NetworkPlayer] 🔧 UpdatePosition для {username}: current=({transform.position.x:F2}, {transform.position.y:F2}, {transform.position.z:F2}), target=({position.x:F2}, {position.y:F2}, {position.z:F2}), distance={Vector3.Distance(transform.position, position):F2}m");
-        }
-
-        // Используем NetworkTransform для плавной синхронизации
+        // КРИТИЧЕСКОЕ: NetworkTransform ВСЕГДА управляет позицией!
+        // Он использует SmoothDamp для плавного движения как в Dota 2
         if (networkTransform != null)
         {
             networkTransform.ReceivePositionUpdate(position, rotation, velocity, timestamp);
         }
         else
         {
-            // Fallback к старому методу если NetworkTransform отсутствует
-            targetPosition = position;
-            targetRotation = rotation;
+            // Это не должно происходить! NetworkTransform добавляется в Awake()
+            Debug.LogError($"[NetworkPlayer] ❌ NetworkTransform == null для {username}! Это баг!");
 
-            if (!hasReceivedFirstUpdate)
-            {
-                // First update - teleport
-                transform.position = position;
-                transform.rotation = rotation;
-                hasReceivedFirstUpdate = true;
-                Debug.Log($"[NetworkPlayer] 🎯 Первая позиция для {username}: ({position.x:F2}, {position.y:F2}, {position.z:F2})");
-            }
+            // Emergency fallback - телепортация
+            transform.position = position;
+            transform.rotation = rotation;
         }
 
         hasReceivedFirstUpdate = true;
@@ -216,7 +196,7 @@ public class NetworkPlayer : MonoBehaviour
                 Debug.Log($"[NetworkPlayer] ➡️ Walking: IsMoving=true, MoveX=0, MoveY=0.5, speed=0.5");
                 animator.SetBool("IsMoving", true);
                 animator.SetFloat("MoveX", 0);
-                animator.SetFloat("MoveY", 0.5f); // 0.5 = Slow Run (ходьба)
+                animator.SetFloat("MoveY", 0.5f); // Напрямую устанавливаем значение (Animator сам сделает blend)
                 animator.speed = 0.5f; // Замедленная анимация для ходьбы
                 break;
 
@@ -224,7 +204,7 @@ public class NetworkPlayer : MonoBehaviour
                 Debug.Log($"[NetworkPlayer] ➡️ Running: IsMoving=true, MoveX=0, MoveY=1.0, speed=1.0");
                 animator.SetBool("IsMoving", true);
                 animator.SetFloat("MoveX", 0);
-                animator.SetFloat("MoveY", 1.0f); // 1.0 = Sprint (бег)
+                animator.SetFloat("MoveY", 1.0f); // Напрямую устанавливаем значение (Animator сам сделает blend)
                 animator.speed = 1.0f; // Нормальная скорость анимации
                 break;
 
@@ -466,7 +446,7 @@ public class NetworkPlayer : MonoBehaviour
             case "Archer":
                 return "ArrowProjectile";
             case "Mage":
-                return "FireballProjectile";
+                return "CelestialBallProjectile"; // Обновлено: Celestial Ball вместо Fireball
             case "Rogue":
                 return "SoulShardsProjectile";
             default:
@@ -600,18 +580,15 @@ public class NetworkPlayer : MonoBehaviour
 
     // УДАЛЕНО: GetNameplate(), ShowNameplate(), HideNameplate(), OnDestroy() - заменено на EnemyNameplate.cs
 
-    // ===== ТРАНСФОРМАЦИЯ (MESH SWAPPING) =====
-
-    private Mesh originalMesh;
-    private Material[] originalMaterials;
-    private Transform[] originalBones;
+    // ===== ТРАНСФОРМАЦИЯ (SIMPLE TRANSFORMATION) =====
 
     /// <summary>
-    /// Применить трансформацию к сетевому игроку (MESH SWAPPING)
+    /// Применить трансформацию к сетевому игроку (SIMPLE TRANSFORMATION)
+    /// Создаёт модель медведя как child, скрывает паладина
     /// </summary>
     public void ApplyTransformation(int skillId)
     {
-        Debug.Log($"[NetworkPlayer] 🐻 ApplyTransformation (MESH SWAPPING) вызван для {username}, skillId={skillId}");
+        Debug.Log($"[NetworkPlayer] 🐻 ApplyTransformation (SIMPLE TRANSFORMATION) вызван для {username}, skillId={skillId}");
 
         // Получаем скилл из SkillDatabase
         SkillDatabase db = SkillDatabase.Instance;
@@ -636,76 +613,40 @@ public class NetworkPlayer : MonoBehaviour
 
         Debug.Log($"[NetworkPlayer] 🔍 Скилл найден: {skill.skillName}, модель: {skill.transformationModel.name}");
 
-        // Находим SkinnedMeshRenderer игрока
-        SkinnedMeshRenderer playerRenderer = GetComponentInChildren<SkinnedMeshRenderer>();
-        if (playerRenderer == null)
+        // Получаем или добавляем SimpleTransformation компонент
+        SimpleTransformation simpleTransformation = GetComponent<SimpleTransformation>();
+        if (simpleTransformation == null)
         {
-            Debug.LogError($"[NetworkPlayer] ❌ SkinnedMeshRenderer не найден для {username}!");
+            simpleTransformation = gameObject.AddComponent<SimpleTransformation>();
+            Debug.Log($"[NetworkPlayer] ➕ Добавлен SimpleTransformation компонент для {username}");
+        }
+
+        // Выполняем трансформацию (передаём аниматор явно)
+        bool success = simpleTransformation.TransformTo(skill.transformationModel, animator);
+        if (!success)
+        {
+            Debug.LogError($"[NetworkPlayer] ❌ Трансформация не удалась для {username}!");
             return;
         }
 
-        // Сохраняем оригинальные mesh и materials
-        originalMesh = playerRenderer.sharedMesh;
-        originalMaterials = playerRenderer.sharedMaterials;
-        originalBones = playerRenderer.bones;
-        Debug.Log($"[NetworkPlayer] 💾 Сохранены оригинальные: mesh, {originalMaterials.Length} материалов, {originalBones.Length} костей для {username}");
-
-        // Получаем SkinnedMeshRenderer медведя из prefab
-        SkinnedMeshRenderer bearRenderer = skill.transformationModel.GetComponentInChildren<SkinnedMeshRenderer>();
-        if (bearRenderer == null)
-        {
-            Debug.LogError($"[NetworkPlayer] ❌ У модели медведя нет SkinnedMeshRenderer!");
-            return;
-        }
-
-        // MESH SWAPPING - меняем только mesh и materials, НЕ трогая bones!
-        playerRenderer.sharedMesh = bearRenderer.sharedMesh;
-        playerRenderer.sharedMaterials = bearRenderer.sharedMaterials;
-        // НЕ МЕНЯЕМ bones! playerRenderer.bones остаются костями игрока!
-
-        Debug.Log($"[NetworkPlayer] 🔄 MESH SWAPPING: заменены mesh и {bearRenderer.sharedMaterials.Length} материалов для {username}");
-        Debug.Log($"[NetworkPlayer] 🦴 Кости: используем {playerRenderer.bones.Length} костей игрока (НЕ меняем!)");
-
-        // Скрываем оружие игрока
-        ClassWeaponManager playerWeaponManager = GetComponent<ClassWeaponManager>();
-        if (playerWeaponManager != null)
-        {
-            playerWeaponManager.DetachWeapon();
-            Debug.Log($"[NetworkPlayer] 🔧 Оружие игрока {username} удалено");
-        }
-
-        Debug.Log($"[NetworkPlayer] 🐻 ✅ MESH SWAPPING завершён для {username}!");
+        Debug.Log($"[NetworkPlayer] 🐻 ✅ SIMPLE TRANSFORMATION завершён для {username}!");
     }
 
     /// <summary>
-    /// Завершить трансформацию сетевого игрока (MESH SWAPPING)
+    /// Завершить трансформацию сетевого игрока (SIMPLE TRANSFORMATION)
     /// </summary>
     public void EndTransformation()
     {
-        Debug.Log($"[NetworkPlayer] 🔄 EndTransformation (MESH SWAPPING) вызван для {username}");
+        Debug.Log($"[NetworkPlayer] 🔄 EndTransformation (SIMPLE TRANSFORMATION) вызван для {username}");
 
-        // Восстанавливаем оригинальные mesh и materials
-        SkinnedMeshRenderer playerRenderer = GetComponentInChildren<SkinnedMeshRenderer>();
-        if (playerRenderer != null && originalMesh != null && originalMaterials != null)
+        // Получаем SimpleTransformation компонент
+        SimpleTransformation simpleTransformation = GetComponent<SimpleTransformation>();
+        if (simpleTransformation != null)
         {
-            playerRenderer.sharedMesh = originalMesh;
-            playerRenderer.sharedMaterials = originalMaterials;
-            // bones не меняли, поэтому не восстанавливаем
-            Debug.Log($"[NetworkPlayer] 🔄 MESH SWAPPING отменён для {username}");
+            // Возвращаем паладина (удаляем медведя, показываем паладина)
+            simpleTransformation.RevertToOriginal();
+            Debug.Log($"[NetworkPlayer] ✅ Паладин восстановлен для {username}");
         }
-
-        // Восстанавливаем оружие игрока
-        ClassWeaponManager playerWeaponManager = GetComponent<ClassWeaponManager>();
-        if (playerWeaponManager != null)
-        {
-            playerWeaponManager.AttachWeaponForClass();
-            Debug.Log($"[NetworkPlayer] ⚔️ Оружие игрока {username} восстановлено");
-        }
-
-        // Очищаем ссылки
-        originalMesh = null;
-        originalMaterials = null;
-        originalBones = null;
 
         Debug.Log($"[NetworkPlayer] 🔄 ✅ Трансформация завершена для {username}!");
     }
