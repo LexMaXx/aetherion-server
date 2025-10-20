@@ -163,7 +163,7 @@ MonoBehaviour:
   homingRadius: 30
   targetAcquisitionAngle: 90
   hitEffect: {fileID: 8194992990867289333, guid: 99bc28c0d45f51c4fbac01080b73edc7, type: 3}
-  windEffect: {fileID: 5824670795371433373, guid: f6fd568b816c64943a44efc3add3a881, type: 3}
+  windEffect: {fileID: 0}
   projectileLight: {fileID: 1234567890123456789}
   trail: {fileID: 9876543210987654321}
   rotationSpeed: 360

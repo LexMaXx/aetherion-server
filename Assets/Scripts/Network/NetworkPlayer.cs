@@ -424,15 +424,24 @@ public class NetworkPlayer : MonoBehaviour
         // Создаём снаряд
         GameObject projectileObj = Instantiate(projectilePrefab, spawnPosition, Quaternion.LookRotation(direction));
 
-        // Настраиваем снаряд (если есть компонент Projectile)
-        Projectile projectile = projectileObj.GetComponent<Projectile>();
-        if (projectile != null)
+        // Настраиваем снаряд (проверяем сначала CelestialProjectile, потом Projectile)
+        CelestialProjectile celestialProjectile = projectileObj.GetComponent<CelestialProjectile>();
+        if (celestialProjectile != null)
         {
             // Для NetworkPlayer снаряд чисто визуальный (урон обрабатывает сервер)
             // Цель = null, урон = 0, просто летит вперёд
-            // owner = this.gameObject чтобы снаряд не попадал в своего владельца
-            projectile.Initialize(null, 0f, direction, this.gameObject);
-            Debug.Log($"[NetworkPlayer] ✅ Снаряд создан: {projectileName} для {username}");
+            celestialProjectile.Initialize(null, 0f, direction, this.gameObject);
+            Debug.Log($"[NetworkPlayer] ✅ CelestialProjectile создан для {username} - визуальный эффект");
+        }
+        else
+        {
+            // Fallback на старый Projectile для других классов
+            Projectile projectile = projectileObj.GetComponent<Projectile>();
+            if (projectile != null)
+            {
+                projectile.Initialize(null, 0f, direction, this.gameObject);
+                Debug.Log($"[NetworkPlayer] ✅ Снаряд создан: {projectileName} для {username}");
+            }
         }
     }
 
