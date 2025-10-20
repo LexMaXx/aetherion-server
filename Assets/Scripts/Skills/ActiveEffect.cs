@@ -65,7 +65,7 @@ public class ActiveEffect
                     string effectTypeString = GetEffectTypeString(effect.effectType);
 
                     // Получаем socketId локального игрока для привязки эффекта
-                    string localSocketId = SocketIOManager.Instance.GetSocketId();
+                    string localSocketId = SocketIOManager.Instance.SocketId;
 
                     SocketIOManager.Instance.SendVisualEffect(
                         effectTypeString, // тип эффекта ("buff", "debuff", "burn", "poison" и т.д.)

@@ -683,6 +683,7 @@ public class SocketIOManager : MonoBehaviour
     public bool IsConnected => isConnected;
     public string CurrentRoomId => currentRoomId;
     public string MyUsername => myUsername;
+    public string SocketId => socket?.Id ?? "";
 
     private void DebugLog(string message)
     {
