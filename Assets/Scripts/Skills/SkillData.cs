@@ -76,19 +76,68 @@ public class SkillData : ScriptableObject
     [Tooltip("Максимум целей в AOE")]
     public int maxTargets = 1;
 
-    [Header("Анимация")]
-    [Tooltip("Имя триггера анимации в Animator")]
+    [Header("Анимация каста")]
+    [Tooltip("Имя триггера анимации в Animator (Attack, Cast, Spell, etc.)")]
     public string animationTrigger = "";
 
-    [Tooltip("Префаб визуального эффекта")]
+    [Tooltip("Скорость воспроизведения анимации (1.0 = нормально, 2.0 = в 2 раза быстрее)")]
+    [Range(0.1f, 5f)]
+    public float animationSpeed = 1.0f;
+
+    [Tooltip("Блокировать движение во время каста?")]
+    public bool blockMovementDuringCast = false;
+
+    [Tooltip("Длительность блокировки движения (секунды, 0 = до конца анимации)")]
+    public float movementBlockDuration = 0f;
+
+    [Header("Движение при использовании скилла")]
+    [Tooltip("Перемещать персонажа при использовании? (Dash, Charge, Teleport)")]
+    public bool enableMovement = false;
+
+    [Tooltip("Тип движения")]
+    public MovementType movementType = MovementType.None;
+
+    [Tooltip("Дистанция перемещения (метры)")]
+    public float movementDistance = 5f;
+
+    [Tooltip("Скорость перемещения (м/с, 0 = мгновенно)")]
+    public float movementSpeed = 10f;
+
+    [Tooltip("Триггер анимации движения (Dash, Roll, Teleport)")]
+    public string movementAnimationTrigger = "";
+
+    [Tooltip("Направление движения")]
+    public MovementDirection movementDirection = MovementDirection.Forward;
+
+    [Header("Визуальные эффекты")]
+    [Tooltip("Префаб визуального эффекта каста (вспышка, круг на земле)")]
     public GameObject visualEffectPrefab;
 
-    [Tooltip("Префаб снаряда (если есть)")]
+    [Tooltip("Эффект на кастере во время каста (свечение рук, аура)")]
+    public GameObject casterEffectPrefab;
+
+    [Header("Снаряды")]
+    [Tooltip("Префаб снаряда (файрбол, стрела, молот)")]
     public GameObject projectilePrefab;
 
-    [Header("Звук")]
+    [Tooltip("Эффект попадания снаряда (взрыв, искры)")]
+    public GameObject projectileHitEffectPrefab;
+
+    [Tooltip("Скорость снаряда (м/с)")]
+    public float projectileSpeed = 20f;
+
+    [Tooltip("Самонаведение на цель")]
+    public bool projectileHoming = false;
+
+    [Tooltip("Время жизни снаряда (секунды)")]
+    public float projectileLifetime = 5f;
+
+    [Header("Звуки")]
     public AudioClip castSound;
     public AudioClip impactSound;
+
+    [Tooltip("Звук попадания снаряда")]
+    public AudioClip projectileHitSound;
 
     [Header("Призыв (для Rogue - скелеты)")]
     [Tooltip("Префаб призываемого существа")]
@@ -171,31 +220,77 @@ public enum SkillTargetType
 }
 
 /// <summary>
+/// Тип движения при использовании скилла
+/// </summary>
+public enum MovementType
+{
+    None,           // Нет движения
+    Dash,           // Рывок вперёд (быстро)
+    Charge,         // Заряд/наскок на врага
+    Teleport,       // Телепорт (мгновенно)
+    Leap,           // Прыжок
+    Roll,           // Перекат
+    Blink           // Мигание (короткий телепорт)
+}
+
+/// <summary>
+/// Направление движения
+/// </summary>
+public enum MovementDirection
+{
+    Forward,        // Вперёд
+    Backward,       // Назад
+    ToTarget,       // К цели
+    AwayFromTarget, // От цели
+    MouseDirection  // По направлению мыши
+}
+
+/// <summary>
 /// Эффект скилла (баф/дебаф/контроль)
 /// </summary>
 [System.Serializable]
 public class SkillEffect
 {
+    [Header("Основные параметры")]
     [Tooltip("Тип эффекта")]
     public EffectType effectType;
 
     [Tooltip("Длительность (секунды)")]
     public float duration = 5f;
 
-    [Tooltip("Сила эффекта (урон/сек, скорость и т.д.)")]
+    [Tooltip("Сила эффекта (% для баффов/дебаффов, урон для DoT)")]
     public float power = 0f;
 
+    [Header("Урон/Лечение во времени")]
     [Tooltip("Тиковый урон/лечение в секунду")]
     public float damageOrHealPerTick = 0f;
 
     [Tooltip("Интервал тиков (секунды)")]
     public float tickInterval = 1f;
 
-    [Tooltip("Визуальный эффект на цели")]
+    [Header("Визуальные эффекты")]
+    [Tooltip("Визуальный эффект на цели (огонь, яд, аура)")]
     public GameObject particleEffectPrefab;
 
+    [Tooltip("Звук применения эффекта")]
+    public AudioClip applySound;
+
+    [Tooltip("Звук окончания эффекта")]
+    public AudioClip removeSound;
+
+    [Header("Настройки")]
     [Tooltip("Можно ли снять эффект")]
     public bool canBeDispelled = true;
+
+    [Tooltip("Можно ли стакать эффект")]
+    public bool canStack = false;
+
+    [Tooltip("Максимум стаков")]
+    public int maxStacks = 1;
+
+    [Header("Сетевая синхронизация")]
+    [Tooltip("Синхронизировать эффект с сервером (для PvP)")]
+    public bool syncWithServer = true;
 }
 
 /// <summary>
@@ -210,6 +305,7 @@ public enum EffectType
     IncreaseHPRegen,     // Регенерация HP
     IncreaseMPRegen,     // Регенерация MP
     Shield,              // Щит (поглощение урона)
+    IncreasePerception,  // Увеличение восприятия (радиус обзора)
 
     // Дебаффы
     DecreaseAttack,      // Уменьшение атаки

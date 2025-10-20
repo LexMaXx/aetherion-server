@@ -240,6 +240,57 @@ public class CharacterStats : MonoBehaviour
         RecalculateStats();
     }
 
+    // ═══════════════════════════════════════════
+    // МОДИФИКАТОРЫ СТАТОВ (для баффов/дебаффов)
+    // ═══════════════════════════════════════════
+
+    [Header("Runtime Modifiers (Buffs/Debuffs)")]
+    [SerializeField] private float physicalDamageModifier = 0f;
+    [SerializeField] private float physicalDefenseModifier = 0f;
+    [SerializeField] private float movementSpeedModifier = 0f;
+
+    // Базовые значения
+    public float physicalDamage => formulas != null ? formulas.CalculatePhysicalDamage(100f, strength) + physicalDamageModifier : 100f + physicalDamageModifier;
+    public float physicalDefense => (endurance * 5f) + physicalDefenseModifier; // Простая формула: Endurance * 5
+    public float movementSpeed => 5f + movementSpeedModifier; // Базовая скорость 5 + модификатор
+
+    /// <summary>
+    /// Модифицировать физический урон (для баффов/дебаффов)
+    /// </summary>
+    public void ModifyPhysicalDamage(float amount)
+    {
+        physicalDamageModifier += amount;
+        Debug.Log($"[CharacterStats] Physical Damage Modifier: {physicalDamageModifier:F1} (total: {physicalDamage:F1})");
+    }
+
+    /// <summary>
+    /// Модифицировать физическую защиту (для баффов/дебаффов)
+    /// </summary>
+    public void ModifyPhysicalDefense(float amount)
+    {
+        physicalDefenseModifier += amount;
+        Debug.Log($"[CharacterStats] Physical Defense Modifier: {physicalDefenseModifier:F1} (total: {physicalDefense:F1})");
+    }
+
+    /// <summary>
+    /// Модифицировать скорость движения (для баффов/дебаффов)
+    /// </summary>
+    public void ModifyMovementSpeed(float amount)
+    {
+        movementSpeedModifier += amount;
+        Debug.Log($"[CharacterStats] Movement Speed Modifier: {movementSpeedModifier:F1} (total: {movementSpeed:F1})");
+    }
+
+    /// <summary>
+    /// Модифицировать восприятие (для баффов/дебаффов Eagle Eye)
+    /// </summary>
+    public void ModifyPerception(int amount)
+    {
+        perception += amount;
+        RecalculateStats(); // Пересчитываем visionRadius
+        Debug.Log($"[CharacterStats] Perception изменено на {amount} (total: {perception}, visionRadius: {visionRadius}м)");
+    }
+
     // Для отладки в Inspector
     private void OnValidate()
     {

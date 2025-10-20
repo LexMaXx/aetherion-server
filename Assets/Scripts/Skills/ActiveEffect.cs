@@ -185,6 +185,12 @@ public class ActiveEffect
                 Debug.Log($"[ActiveEffect] 🏃 Скорость увеличена на {effectData.power}% (+{speedBonus:F1})");
                 break;
 
+            case EffectType.IncreasePerception:
+                int perceptionBonus = Mathf.RoundToInt(effectData.power); // power = прямое значение (не процент)
+                stats.ModifyPerception(perceptionBonus);
+                Debug.Log($"[ActiveEffect] 👁️ Восприятие увеличено на {perceptionBonus}");
+                break;
+
             case EffectType.DecreaseAttack:
                 float attackPenalty = -stats.physicalDamage * bonusValue;
                 stats.ModifyPhysicalDamage(attackPenalty);
@@ -260,6 +266,12 @@ public class ActiveEffect
                 float speedBonus = stats.movementSpeed * bonusValue;
                 stats.ModifyMovementSpeed(-speedBonus);
                 Debug.Log($"[ActiveEffect] 🏃 Бонус скорости снят (-{speedBonus:F1})");
+                break;
+
+            case EffectType.IncreasePerception:
+                int perceptionBonus = Mathf.RoundToInt(effectData.power);
+                stats.ModifyPerception(-perceptionBonus); // Убираем бонус
+                Debug.Log($"[ActiveEffect] 👁️ Бонус восприятия снят (-{perceptionBonus})");
                 break;
 
             case EffectType.DecreaseAttack:
@@ -340,7 +352,9 @@ public class ActiveEffect
             case EffectType.IncreaseAttack:
             case EffectType.IncreaseDefense:
             case EffectType.IncreaseSpeed:
-            case EffectType.Regeneration:
+            case EffectType.IncreaseHPRegen:
+            case EffectType.IncreaseMPRegen:
+            case EffectType.HealOverTime:
             case EffectType.Shield:
             case EffectType.Invulnerability:
                 return "buff";
@@ -352,7 +366,8 @@ public class ActiveEffect
             case EffectType.Root:
             case EffectType.Silence:
             case EffectType.Sleep:
-            case EffectType.Slow:
+            case EffectType.Fear:
+            case EffectType.Taunt:
                 return "debuff";
 
             default:
