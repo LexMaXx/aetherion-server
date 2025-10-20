@@ -32,20 +32,40 @@ MonoBehaviour:
   intelligenceScaling: 0
   strengthScaling: 0
   effects:
-  - effectType: 13
-    duration: 3
+  - effectType: 14
+    duration: 5
     power: 0
     damageOrHealPerTick: 0
     tickInterval: 1
     particleEffectPrefab: {fileID: 4772634663576830964, guid: e1385af346f4e624eb313ec1ea4fcd7e, type: 3}
-    canBeDispelled: 0
+    applySound: {fileID: 0}
+    removeSound: {fileID: 0}
+    canBeDispelled: 1
+    canStack: 0
+    maxStacks: 1
+    syncWithServer: 1
   aoeRadius: 0
   maxTargets: 1
-  animationTrigger:
+  animationTrigger: Attack
+  animationSpeed: 1
+  blockMovementDuringCast: 0
+  movementBlockDuration: 0
+  enableMovement: 0
+  movementType: 0
+  movementDistance: 5
+  movementSpeed: 10
+  movementAnimationTrigger:
+  movementDirection: 0
   visualEffectPrefab: {fileID: 0}
-  projectilePrefab: {fileID: 0}
+  casterEffectPrefab: {fileID: 0}
+  projectilePrefab: {fileID: 4867267903092036128, guid: 4fd22885b2965ea47817662bc649b17c, type: 3}
+  projectileHitEffectPrefab: {fileID: 8771972552311404799, guid: ceec7516237b4104b94300043ca39784, type: 3}
+  projectileSpeed: 25
+  projectileHoming: 1
+  projectileLifetime: 5
   castSound: {fileID: 0}
   impactSound: {fileID: 0}
+  projectileHitSound: {fileID: 0}
   summonPrefab: {fileID: 0}
   summonCount: 1
   summonDuration: 30
