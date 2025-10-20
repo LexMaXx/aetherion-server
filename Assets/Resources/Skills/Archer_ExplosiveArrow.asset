@@ -21,9 +21,9 @@ MonoBehaviour:
   cooldown: 15
   manaCost: 40
   castRange: 25
-  castTime: 1
+  castTime: 0.3
   canUseWhileMoving: 1
-  skillType: 0
+  skillType: 4
   targetType: 1
   requiresTarget: 1
   canTargetAllies: 0
@@ -31,14 +31,41 @@ MonoBehaviour:
   baseDamageOrHeal: 50
   intelligenceScaling: 0
   strengthScaling: 20
-  effects: []
-  aoeRadius: 4
-  maxTargets: 5
-  animationTrigger:
-  visualEffectPrefab: {fileID: 8194992990867289339, guid: 99bc28c0d45f51c4fbac01080b73edc7, type: 3}
-  projectilePrefab: {fileID: 0}
+  effects:
+  - effectType: 12
+    duration: 2
+    power: 0
+    damageOrHealPerTick: 0
+    tickInterval: 1
+    particleEffectPrefab: {fileID: 5880797563127281583, guid: 265d3a5ba69981a4698ceabcedf368b0, type: 3}
+    applySound: {fileID: 0}
+    removeSound: {fileID: 0}
+    canBeDispelled: 1
+    canStack: 0
+    maxStacks: 1
+    syncWithServer: 1
+  aoeRadius: 0
+  maxTargets: 1
+  animationTrigger: Attack
+  animationSpeed: 1
+  blockMovementDuringCast: 0
+  movementBlockDuration: 0
+  enableMovement: 0
+  movementType: 0
+  movementDistance: 5
+  movementSpeed: 10
+  movementAnimationTrigger:
+  movementDirection: 0
+  visualEffectPrefab: {fileID: 0}
+  casterEffectPrefab: {fileID: 0}
+  projectilePrefab: {fileID: 4867267903092036128, guid: a1b2c3d4e5f6789012345678abcdef01, type: 3}
+  projectileHitEffectPrefab: {fileID: 8771972552311404799, guid: 06e5eacd3c47acc40836ba8ed0db5834, type: 3}
+  projectileSpeed: 25
+  projectileHoming: 1
+  projectileLifetime: 5
   castSound: {fileID: 0}
   impactSound: {fileID: 0}
+  projectileHitSound: {fileID: 0}
   summonPrefab: {fileID: 0}
   summonCount: 1
   summonDuration: 30
