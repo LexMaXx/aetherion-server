@@ -207,7 +207,7 @@ public class PlayerAttack : MonoBehaviour
             isRangedAttack = true;
             projectileSpeed = 20f;
             attackAnimationSpeed = 3.0f; // Анимация атаки в 3 раза быстрее!
-            LoadProjectilePrefab("FireballProjectile");
+            LoadProjectilePrefab("CelestialBallProjectile");
             Debug.Log("[PlayerAttack] 🔮 Mage: Range=20m, Damage=40, AnimSpeed=3x");
         }
         else if (objectName.Contains("rogue"))
