@@ -47,7 +47,8 @@ public class CelestialProjectile : MonoBehaviour
     /// <summary>
     /// Инициализация снаряда
     /// </summary>
-    public void Initialize(Transform targetTransform, float projectileDamage, Vector3 initialDirection, GameObject projectileOwner = null, List<SkillEffect> skillEffects = null)
+    /// <param name="isVisualOnly">Если true, снаряд чисто визуальный (без коллизии, автонаведения, урона)</param>
+    public void Initialize(Transform targetTransform, float projectileDamage, Vector3 initialDirection, GameObject projectileOwner = null, List<SkillEffect> skillEffects = null, bool isVisualOnly = false)
     {
         target = targetTransform;
         damage = projectileDamage;
@@ -56,6 +57,25 @@ public class CelestialProjectile : MonoBehaviour
         owner = projectileOwner;
         effects = skillEffects;
         currentSpeed = baseSpeed;
+
+        // Если это визуальный снаряд - отключаем автонаведение и коллизию
+        if (isVisualOnly)
+        {
+            enableHoming = false;
+
+            // Отключаем коллайдер для визуальных снарядов
+            Collider col = GetComponent<Collider>();
+            if (col != null)
+            {
+                col.enabled = false;
+            }
+
+            // Уменьшаем lifetime для визуальных снарядов (1.5 секунды вместо 5)
+            // Это примерно время полета на 20-25 метров при скорости 15 м/с
+            lifetime = 1.5f;
+
+            Debug.Log($"[CelestialProjectile] 👁️ Визуальный снаряд создан (без коллизии, автонаведения, lifetime: {lifetime}s)");
+        }
 
         // Поворачиваем снаряд по направлению полета
         if (direction != Vector3.zero)
@@ -73,7 +93,7 @@ public class CelestialProjectile : MonoBehaviour
         // Автопоиск компонентов если не назначены
         AutoFindComponents();
 
-        Debug.Log($"[CelestialProjectile] ✨ Создан! Target: {target?.name ?? "None"}, Damage: {damage}, Homing: {enableHoming}");
+        Debug.Log($"[CelestialProjectile] ✨ Создан! Target: {target?.name ?? "None"}, Damage: {damage}, Homing: {enableHoming}, Visual: {isVisualOnly}");
     }
 
     /// <summary>

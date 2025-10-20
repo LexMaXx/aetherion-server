@@ -429,9 +429,9 @@ public class NetworkPlayer : MonoBehaviour
         if (celestialProjectile != null)
         {
             // Для NetworkPlayer снаряд чисто визуальный (урон обрабатывает сервер)
-            // Цель = null, урон = 0, просто летит вперёд
-            celestialProjectile.Initialize(null, 0f, direction, this.gameObject);
-            Debug.Log($"[NetworkPlayer] ✅ CelestialProjectile создан для {username} - визуальный эффект");
+            // isVisualOnly = true отключает автонаведение и коллизию
+            celestialProjectile.Initialize(null, 0f, direction, this.gameObject, null, isVisualOnly: true);
+            Debug.Log($"[NetworkPlayer] ✅ CelestialProjectile создан для {username} - визуальный режим (без автонаведения)");
         }
         else
         {
