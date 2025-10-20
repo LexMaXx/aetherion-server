@@ -527,6 +527,11 @@ public class SocketIOManager : MonoBehaviour
         };
 
         string json = JsonConvert.SerializeObject(data);
+        Debug.Log($"[SocketIO] 🔍 ОТЛАДКА SendVisualEffect:");
+        Debug.Log($"[SocketIO] 🔍 effectType: '{effectType}'");
+        Debug.Log($"[SocketIO] 🔍 effectPrefabName: '{effectPrefabName}'");
+        Debug.Log($"[SocketIO] 🔍 targetSocketId: '{targetSocketId}'");
+        Debug.Log($"[SocketIO] 🔍 JSON для отправки: {json}");
         DebugLog($"✨ Отправка визуального эффекта: type={effectType}, prefab={effectPrefabName}, pos=({position.x:F1}, {position.y:F1}, {position.z:F1})");
         Emit("visual_effect_spawned", json);
     }
