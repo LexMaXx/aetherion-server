@@ -747,13 +747,21 @@ public class PlayerAttack : MonoBehaviour
         GameObject projectileObj = Instantiate(projectilePrefab, spawnPosition, Quaternion.identity);
 
         // Проверяем тип снаряда и инициализируем соответствующий компонент
-        // Новый CelestialProjectile имеет приоритет над старым Projectile
+        // Проверяем CelestialProjectile, ArrowProjectile, затем старый Projectile
         CelestialProjectile celestialProjectile = projectileObj.GetComponent<CelestialProjectile>();
+        ArrowProjectile arrowProjectile = projectileObj.GetComponent<ArrowProjectile>();
+
         if (celestialProjectile != null)
         {
-            // Новый улучшенный снаряд с автонаведением
+            // Мага - Celestial Ball с автонаведением
             celestialProjectile.Initialize(target.transform, damage, direction, this.gameObject);
             Debug.Log($"[PlayerAttack] ✨ CelestialProjectile создан: {projectilePrefab.name} → {target.GetEnemyName()} (Урон: {damage:F0}, Homing: ON)");
+        }
+        else if (arrowProjectile != null)
+        {
+            // Лучник - Arrow с автонаведением
+            arrowProjectile.Initialize(target.transform, damage, direction, this.gameObject);
+            Debug.Log($"[PlayerAttack] 🏹 ArrowProjectile создан: {projectilePrefab.name} → {target.GetEnemyName()} (Урон: {damage:F0}, Homing: ON)");
         }
         else
         {
@@ -767,7 +775,7 @@ public class PlayerAttack : MonoBehaviour
             }
             else
             {
-                Debug.LogError("[PlayerAttack] ❌ У префаба снаряда нет компонента Projectile или CelestialProjectile!");
+                Debug.LogError("[PlayerAttack] ❌ У префаба снаряда нет компонента Projectile, CelestialProjectile или ArrowProjectile!");
             }
         }
 

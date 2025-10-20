@@ -835,13 +835,21 @@ public class NetworkSyncManager : MonoBehaviour
                     }
                 }
 
-                // Настраиваем снаряд (проверяем сначала CelestialProjectile, потом Projectile)
+                // Настраиваем снаряд (проверяем CelestialProjectile, ArrowProjectile, затем Projectile)
                 CelestialProjectile celestialProjectile = projectileObj.GetComponent<CelestialProjectile>();
+                ArrowProjectile arrowProjectile = projectileObj.GetComponent<ArrowProjectile>();
+
                 if (celestialProjectile != null)
                 {
                     // ВАЖНО: isVisualOnly = true для сетевых снарядов
                     celestialProjectile.Initialize(target, 0f, direction, player.gameObject, null, isVisualOnly: true);
                     Debug.Log($"[NetworkSync] ✅ CelestialProjectile создан для {player.username} (визуальный режим)");
+                }
+                else if (arrowProjectile != null)
+                {
+                    // ВАЖНО: isVisualOnly = true для сетевых снарядов
+                    arrowProjectile.Initialize(target, 0f, direction, player.gameObject, null, isVisualOnly: true);
+                    Debug.Log($"[NetworkSync] ✅ ArrowProjectile создан для {player.username} (визуальный режим)");
                 }
                 else
                 {
@@ -854,7 +862,7 @@ public class NetworkSyncManager : MonoBehaviour
                     }
                     else
                     {
-                        Debug.LogWarning($"[NetworkSync] ⚠️ У префаба {projectilePrefab.name} нет компонента Projectile или CelestialProjectile!");
+                        Debug.LogWarning($"[NetworkSync] ⚠️ У префаба {projectilePrefab.name} нет компонента Projectile, CelestialProjectile или ArrowProjectile!");
                     }
                 }
             }
