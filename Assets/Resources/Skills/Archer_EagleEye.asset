@@ -32,7 +32,7 @@ MonoBehaviour:
   intelligenceScaling: 0
   strengthScaling: 0
   effects:
-  - effectType: 7
+  - effectType: 6
     duration: 15
     power: 2
     damageOrHealPerTick: 0
