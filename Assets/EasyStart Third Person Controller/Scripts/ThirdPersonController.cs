@@ -44,12 +44,14 @@ public class ThirdPersonController : MonoBehaviour
 
     Animator animator;
     CharacterController cc;
+    SkillManager skillManager; // Для проверки Root/Stun эффектов
 
 
     void Start()
     {
         cc = GetComponent<CharacterController>();
         animator = GetComponent<Animator>();
+        skillManager = GetComponent<SkillManager>(); // Получаем SkillManager для проверки эффектов
 
         // Message informing the user that they forgot to add an animator
         if (animator == null)
@@ -96,12 +98,13 @@ public class ThirdPersonController : MonoBehaviour
         if( animator != null )
             animator.SetBool("air", cc.isGrounded == false );
 
-        // Handle can jump or not
-        if ( inputJump && cc.isGrounded )
+        // Handle can jump or not (блокируется если Root активен)
+        bool canMove = skillManager == null || !skillManager.IsRooted();
+        if ( inputJump && cc.isGrounded && canMove )
         {
             isJumping = true;
             // Disable crounching when jumping
-            //isCrouching = false; 
+            //isCrouching = false;
         }
 
         HeadHittingDetect();
@@ -120,13 +123,16 @@ public class ThirdPersonController : MonoBehaviour
         if (isCrouching)
             velocityAdittion =  - (velocity * 0.50f); // -50% velocity
 
+        // Проверка Root/Stun эффектов - блокирует горизонтальное движение
+        bool isRooted = skillManager != null && skillManager.IsRooted();
+
         // Direction movement
-        float directionX = inputHorizontal * (velocity + velocityAdittion) * Time.deltaTime;
-        float directionZ = inputVertical * (velocity + velocityAdittion) * Time.deltaTime;
+        float directionX = isRooted ? 0 : inputHorizontal * (velocity + velocityAdittion) * Time.deltaTime;
+        float directionZ = isRooted ? 0 : inputVertical * (velocity + velocityAdittion) * Time.deltaTime;
         float directionY = 0;
 
-        // Jump handler
-        if ( isJumping )
+        // Jump handler (не работает если Root активен)
+        if ( isJumping && !isRooted )
         {
 
             // Apply inertia and smoothness when climbing the jump
@@ -140,6 +146,12 @@ public class ThirdPersonController : MonoBehaviour
                 isJumping = false;
                 jumpElapsedTime = 0;
             }
+        }
+        else if (isRooted && isJumping)
+        {
+            // Сбрасываем прыжок если Root активирован во время прыжка
+            isJumping = false;
+            jumpElapsedTime = 0;
         }
 
         // Add gravity to Y axis
