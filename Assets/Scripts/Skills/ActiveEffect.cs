@@ -46,24 +46,36 @@ public class ActiveEffect
             // НЕ создаём для NetworkPlayer (другие игроки)
             if (enemy != null || networkPlayer == null)
             {
-                particleInstance = Object.Instantiate(effect.particleEffectPrefab, target.position, Quaternion.identity, target);
-                Debug.Log($"[ActiveEffect] ✨ Визуальный эффект создан на {target.name}: {effect.particleEffectPrefab.name}, position: {target.position}");
+                // Создаём эффект с правильной ротацией (90 градусов по X) и позицией (1 метр вверх)
+                Vector3 effectPosition = target.position + Vector3.up * 1f;
+                Quaternion effectRotation = Quaternion.Euler(90f, 0f, 0f);
+
+                particleInstance = Object.Instantiate(effect.particleEffectPrefab, effectPosition, effectRotation, target);
+
+                // Устанавливаем локальную позицию для правильной привязки
+                particleInstance.transform.localPosition = Vector3.up * 1f;
+                particleInstance.transform.localRotation = effectRotation;
+
+                Debug.Log($"[ActiveEffect] ✨ Визуальный эффект создан на {target.name}: {effect.particleEffectPrefab.name}, position: {effectPosition}, rotation: (90,0,0)");
 
                 // СИНХРОНИЗАЦИЯ: Отправляем визуальный эффект на сервер (если это локальный игрок)
                 if (networkPlayer == null && SocketIOManager.Instance != null && SocketIOManager.Instance.IsConnected)
                 {
                     string effectName = effect.particleEffectPrefab.name;
-                    string effectType = GetEffectTypeString(effect.effectType);
+                    string effectTypeString = GetEffectTypeString(effect.effectType);
+
+                    // Получаем socketId локального игрока для привязки эффекта
+                    string localSocketId = SocketIOManager.Instance.GetSocketId();
 
                     SocketIOManager.Instance.SendVisualEffect(
-                        effectType, // тип эффекта ("buff", "debuff", "burn", "poison" и т.д.)
+                        effectTypeString, // тип эффекта ("buff", "debuff", "burn", "poison" и т.д.)
                         effectName, // название prefab
-                        target.position, // позиция
-                        Quaternion.identity, // ротация
-                        "", // TODO: можно привязать к socketId если нужно
+                        effectPosition, // позиция (с offset +1 вверх)
+                        effectRotation, // ротация (90, 0, 0)
+                        localSocketId, // привязываем к локальному игроку
                         effect.duration // длительность эффекта
                     );
-                    Debug.Log($"[ActiveEffect] ✨ Визуальный эффект {effectType} отправлен на сервер: {effectName}");
+                    Debug.Log($"[ActiveEffect] ✨ Визуальный эффект {effectTypeString} отправлен на сервер: {effectName}, targetSocketId={localSocketId}");
                 }
             }
             else

@@ -934,8 +934,13 @@ public class NetworkSyncManager : MonoBehaviour
             if (effectParent != null)
             {
                 // Привязываем к игроку (для аур, баффов)
-                effectObj = Instantiate(effectPrefab, effectParent.position, effectRotation, effectParent);
-                Debug.Log($"[NetworkSync] ✨ Эффект создан как child объект игрока");
+                effectObj = Instantiate(effectPrefab, effectPosition, effectRotation, effectParent);
+
+                // Устанавливаем локальную позицию и ротацию для правильной привязки
+                effectObj.transform.localPosition = Vector3.up * 1f; // 1 метр над головой
+                effectObj.transform.localRotation = effectRotation;
+
+                Debug.Log($"[NetworkSync] ✨ Эффект создан как child объект игрока, localPos=(0,1,0), localRot=(90,0,0)");
             }
             else
             {
