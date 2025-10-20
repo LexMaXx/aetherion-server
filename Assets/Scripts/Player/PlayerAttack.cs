@@ -718,7 +718,7 @@ public class PlayerAttack : MonoBehaviour
     }
 
     /// <summary>
-    /// Создать снаряд (стрела, огненный шар, осколки души)
+    /// Создать снаряд (стрела, огненный шар, осколки души, celestial ball)
     /// Теперь вызывается из Animation Event OnAttackHit()
     /// </summary>
     private void SpawnProjectile(Enemy target, float damage)
@@ -746,18 +746,63 @@ public class PlayerAttack : MonoBehaviour
         // Создаем снаряд
         GameObject projectileObj = Instantiate(projectilePrefab, spawnPosition, Quaternion.identity);
 
-        // Инициализируем снаряд
-        Projectile projectile = projectileObj.GetComponent<Projectile>();
-        if (projectile != null)
+        // Проверяем тип снаряда и инициализируем соответствующий компонент
+        // Новый CelestialProjectile имеет приоритет над старым Projectile
+        CelestialProjectile celestialProjectile = projectileObj.GetComponent<CelestialProjectile>();
+        if (celestialProjectile != null)
         {
-            // ВАЖНО: Передаём this.gameObject как owner чтобы снаряд не попадал в своего владельца
-            projectile.Initialize(target.transform, damage, direction, this.gameObject);
-            Debug.Log($"[PlayerAttack] ✅ Снаряд создан: {projectilePrefab.name} → {target.GetEnemyName()} (Урон: {damage:F0})");
+            // Новый улучшенный снаряд с автонаведением
+            celestialProjectile.Initialize(target.transform, damage, direction, this.gameObject);
+            Debug.Log($"[PlayerAttack] ✨ CelestialProjectile создан: {projectilePrefab.name} → {target.GetEnemyName()} (Урон: {damage:F0}, Homing: ON)");
         }
         else
         {
-            Debug.LogError("[PlayerAttack] ❌ У префаба снаряда нет компонента Projectile!");
+            // Старый базовый снаряд (Projectile)
+            Projectile projectile = projectileObj.GetComponent<Projectile>();
+            if (projectile != null)
+            {
+                // ВАЖНО: Передаём this.gameObject как owner чтобы снаряд не попадал в своего владельца
+                projectile.Initialize(target.transform, damage, direction, this.gameObject);
+                Debug.Log($"[PlayerAttack] ✅ Projectile создан: {projectilePrefab.name} → {target.GetEnemyName()} (Урон: {damage:F0})");
+            }
+            else
+            {
+                Debug.LogError("[PlayerAttack] ❌ У префаба снаряда нет компонента Projectile или CelestialProjectile!");
+            }
         }
+
+        // КРИТИЧЕСКОЕ: Отправляем снаряд на сервер для синхронизации с другими игроками
+        SendProjectileToServer(spawnPosition, direction, target);
+    }
+
+    /// <summary>
+    /// Отправить информацию о снаряде на сервер для синхронизации
+    /// </summary>
+    private void SendProjectileToServer(Vector3 spawnPosition, Vector3 direction, Enemy target)
+    {
+        // Проверяем что мы в мультиплеере
+        if (SocketIOManager.Instance == null || !SocketIOManager.Instance.IsConnected)
+        {
+            Debug.Log("[PlayerAttack] Не в мультиплеере - пропускаем отправку снаряда на сервер");
+            return;
+        }
+
+        // Получаем targetSocketId (если цель - другой игрок)
+        string targetSocketId = "";
+        if (target != null)
+        {
+            NetworkPlayer networkTarget = target.GetComponent<NetworkPlayer>();
+            if (networkTarget != null)
+            {
+                targetSocketId = networkTarget.socketId;
+            }
+        }
+
+        // Отправляем на сервер через событие attack с дополнительной информацией
+        // Используем skillId = 0 для обычной атаки
+        SocketIOManager.Instance.SendProjectileSpawned(0, spawnPosition, direction, targetSocketId);
+
+        Debug.Log($"[PlayerAttack] 🚀 Снаряд отправлен на сервер: pos={spawnPosition}, dir={direction}, target={target?.GetEnemyName() ?? "None"}");
     }
 
     /// <summary>

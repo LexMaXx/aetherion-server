@@ -771,24 +771,47 @@ public class NetworkSyncManager : MonoBehaviour
             {
                 Debug.Log($"[NetworkSync] 🚀 Создаём снаряд для {player.username}");
 
-                // Get the skill from SkillDatabase
-                SkillDatabase db = SkillDatabase.Instance;
-                if (db == null)
+                // Определяем префаб снаряда
+                GameObject projectilePrefab = null;
+                string projectileName = "";
+
+                if (data.skillId == 0)
                 {
-                    Debug.LogError($"[NetworkSync] ❌ SkillDatabase.Instance == null!");
-                    return;
+                    // skillId = 0 означает обычную атаку (не скилл)
+                    // Определяем префаб по классу персонажа
+                    string className = player.characterClass;
+                    projectileName = GetProjectilePrefabNameByClass(className);
+
+                    if (!string.IsNullOrEmpty(projectileName))
+                    {
+                        projectilePrefab = Resources.Load<GameObject>($"Projectiles/{projectileName}");
+                        Debug.Log($"[NetworkSync] 📦 Обычная атака {className}: загружаем {projectileName}");
+                    }
+                }
+                else
+                {
+                    // Это скилл - загружаем из SkillDatabase
+                    SkillDatabase db = SkillDatabase.Instance;
+                    if (db == null)
+                    {
+                        Debug.LogError($"[NetworkSync] ❌ SkillDatabase.Instance == null!");
+                        return;
+                    }
+
+                    SkillData skill = db.GetSkillById(data.skillId);
+                    if (skill == null)
+                    {
+                        Debug.LogWarning($"[NetworkSync] ⚠️ Скилл с ID {data.skillId} не найден в SkillDatabase");
+                        return;
+                    }
+
+                    projectilePrefab = skill.projectilePrefab;
+                    projectileName = skill.skillName;
                 }
 
-                SkillData skill = db.GetSkillById(data.skillId);
-                if (skill == null)
+                if (projectilePrefab == null)
                 {
-                    Debug.LogWarning($"[NetworkSync] ⚠️ Скилл с ID {data.skillId} не найден в SkillDatabase");
-                    return;
-                }
-
-                if (skill.projectilePrefab == null)
-                {
-                    Debug.LogWarning($"[NetworkSync] ⚠️ У скилла {skill.skillName} нет projectilePrefab");
+                    Debug.LogWarning($"[NetworkSync] ⚠️ Префаб снаряда не найден для {projectileName}");
                     return;
                 }
 
@@ -796,33 +819,43 @@ public class NetworkSyncManager : MonoBehaviour
                 Vector3 spawnPos = new Vector3(data.spawnPosition.x, data.spawnPosition.y, data.spawnPosition.z);
                 Vector3 direction = new Vector3(data.direction.x, data.direction.y, data.direction.z).normalized;
 
-                GameObject projectileObj = Instantiate(skill.projectilePrefab, spawnPos, Quaternion.LookRotation(direction));
+                GameObject projectileObj = Instantiate(projectilePrefab, spawnPos, Quaternion.LookRotation(direction));
 
-                // Настраиваем снаряд
-                Projectile projectile = projectileObj.GetComponent<Projectile>();
-                if (projectile != null)
+                // Определяем цель (если есть targetSocketId)
+                Transform target = null;
+                if (!string.IsNullOrEmpty(data.targetSocketId))
                 {
-                    // Определяем цель (если есть targetSocketId)
-                    Transform target = null;
-                    if (!string.IsNullOrEmpty(data.targetSocketId))
+                    if (networkPlayers.TryGetValue(data.targetSocketId, out NetworkPlayer targetPlayer))
                     {
-                        if (networkPlayers.TryGetValue(data.targetSocketId, out NetworkPlayer targetPlayer))
-                        {
-                            target = targetPlayer.transform;
-                        }
-                        else if (data.targetSocketId == localPlayerSocketId && localPlayer != null)
-                        {
-                            target = localPlayer.transform;
-                        }
+                        target = targetPlayer.transform;
                     }
+                    else if (data.targetSocketId == localPlayerSocketId && localPlayer != null)
+                    {
+                        target = localPlayer.transform;
+                    }
+                }
 
-                    // ВАЖНО: Для сетевого снаряда урон = 0 (визуальный)
-                    projectile.Initialize(target, 0f, direction, player.gameObject);
-                    Debug.Log($"[NetworkSync] ✅ Снаряд {skill.projectilePrefab.name} создан для {player.username}");
+                // Настраиваем снаряд (проверяем сначала CelestialProjectile, потом Projectile)
+                CelestialProjectile celestialProjectile = projectileObj.GetComponent<CelestialProjectile>();
+                if (celestialProjectile != null)
+                {
+                    // ВАЖНО: isVisualOnly = true для сетевых снарядов
+                    celestialProjectile.Initialize(target, 0f, direction, player.gameObject, null, isVisualOnly: true);
+                    Debug.Log($"[NetworkSync] ✅ CelestialProjectile создан для {player.username} (визуальный режим)");
                 }
                 else
                 {
-                    Debug.LogWarning($"[NetworkSync] ⚠️ У префаба {skill.projectilePrefab.name} нет компонента Projectile!");
+                    Projectile projectile = projectileObj.GetComponent<Projectile>();
+                    if (projectile != null)
+                    {
+                        // ВАЖНО: Для сетевого снаряда урон = 0 (визуальный)
+                        projectile.Initialize(target, 0f, direction, player.gameObject);
+                        Debug.Log($"[NetworkSync] ✅ Снаряд {projectilePrefab.name} создан для {player.username}");
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[NetworkSync] ⚠️ У префаба {projectilePrefab.name} нет компонента Projectile или CelestialProjectile!");
+                    }
                 }
             }
             else
@@ -1644,6 +1677,24 @@ public class NetworkSyncManager : MonoBehaviour
         }
 
         Debug.Log($"[NetworkSync] ✅ Все pending игроки заспавнены! Теперь сетевых игроков: {networkPlayers.Count}");
+    }
+
+    /// <summary>
+    /// Получить имя префаба снаряда по классу персонажа (для обычных атак)
+    /// </summary>
+    private string GetProjectilePrefabNameByClass(string className)
+    {
+        switch (className)
+        {
+            case "Archer":
+                return "ArrowProjectile";
+            case "Mage":
+                return "CelestialBallProjectile";
+            case "Rogue":
+                return "SoulShardsProjectile";
+            default:
+                return null; // Воин и Паладин - ближний бой, снарядов нет
+        }
     }
 
     void OnDestroy()
