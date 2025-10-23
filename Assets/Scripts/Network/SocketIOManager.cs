@@ -664,6 +664,47 @@ public class SocketIOManager : MonoBehaviour
     }
 
     /// <summary>
+    /// Отправить применение эффекта на сервер (EffectConfig)
+    /// NEW: Для EffectManager с EffectConfig
+    /// </summary>
+    public void SendEffectApplied(EffectConfig effect, string targetSocketId = null)
+    {
+        if (!isConnected)
+        {
+            DebugLog("⚠️ SendEffectApplied: Не подключен к серверу");
+            return;
+        }
+
+        // Отправляем только если эффект должен синхронизироваться
+        if (!effect.syncWithServer)
+        {
+            DebugLog($"⏭️ Эффект {effect.effectType} не требует синхронизации (syncWithServer=false)");
+            return;
+        }
+
+        // Получить имя prefab'а частиц (если есть)
+        string particlePrefabName = "";
+        if (effect.particleEffectPrefab != null)
+        {
+            particlePrefabName = effect.particleEffectPrefab.name;
+        }
+
+        var data = new
+        {
+            targetSocketId = targetSocketId ?? "", // Пустая строка = на себя
+            effectType = effect.effectType.ToString(),
+            duration = effect.duration,
+            power = effect.power,
+            tickInterval = effect.tickInterval,
+            particleEffectPrefabName = particlePrefabName
+        };
+
+        string json = JsonConvert.SerializeObject(data);
+        DebugLog($"✨ Отправка эффекта (EffectConfig): {effect.effectType}, цель={targetSocketId ?? "self"}, duration={effect.duration}с, power={effect.power}, particles={particlePrefabName}");
+        Emit("effect_applied", json);
+    }
+
+    /// <summary>
     /// Отправить начало игры на сервер (FALLBACK countdown завершился)
     /// Сервер должен разослать game_start всем игрокам в комнате
     /// </summary>
@@ -696,6 +737,61 @@ public class SocketIOManager : MonoBehaviour
         {
             Debug.Log($"[SocketIO] {message}");
         }
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // НОВАЯ СИСТЕМА СКИЛЛОВ (SkillConfig)
+    // ════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Отправить использование скилла на сервер (новая система)
+    /// </summary>
+    public void SendSkillCast(int skillId, string targetSocketId, Vector3 targetPosition)
+    {
+        var data = new
+        {
+            skillId = skillId,
+            targetSocketId = targetSocketId,
+            targetPosition = new { x = targetPosition.x, y = targetPosition.y, z = targetPosition.z },
+            timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+        };
+
+        Emit("player_skill_cast", JsonConvert.SerializeObject(data));
+        DebugLog($"📡 SendSkillCast: skillId={skillId}, target={targetSocketId}, pos={targetPosition}");
+    }
+
+    /// <summary>
+    /// Отправить применение эффекта на сервер
+    /// </summary>
+    public void SendEffectApplied(int skillId, int effectIndex, string targetSocketId, float duration, EffectType effectType)
+    {
+        var data = new
+        {
+            skillId = skillId,
+            effectIndex = effectIndex,
+            targetSocketId = targetSocketId,
+            duration = duration,
+            effectType = effectType.ToString()
+        };
+
+        Emit("effect_applied", JsonConvert.SerializeObject(data));
+        DebugLog($"📡 SendEffectApplied: effect={effectType}, target={targetSocketId}, duration={duration}");
+    }
+
+    /// <summary>
+    /// Отправить снятие эффекта на сервер
+    /// </summary>
+    public void SendEffectRemoved(int effectId, string targetSocketId, EffectType effectType)
+    {
+        var data = new
+        {
+            effectId = effectId,
+            targetSocketId = targetSocketId,
+            effectType = effectType.ToString()
+        };
+
+        Emit("effect_removed", JsonConvert.SerializeObject(data));
+        DebugLog($"📡 SendEffectRemoved: effect={effectType}, target={targetSocketId}");
     }
 
     // Data classes

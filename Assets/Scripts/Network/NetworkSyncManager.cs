@@ -88,6 +88,10 @@ public class NetworkSyncManager : MonoBehaviour
         if (!syncEnabled)
             return;
 
+        // КРИТИЧЕСКОЕ: Проверяем что локальный игрок установлен
+        if (localPlayer == null)
+            return;
+
         // Проверяем подключение перед отправкой
         if (SocketIOManager.Instance == null || !SocketIOManager.Instance.IsConnected)
             return;
@@ -122,6 +126,7 @@ public class NetworkSyncManager : MonoBehaviour
         SocketIOManager.Instance.On("player_used_skill", OnPlayerSkillUsed); // НОВОЕ: Синхронизация скиллов (ИСПРАВЛЕНО: было player_skill_used)
         SocketIOManager.Instance.On("projectile_spawned", OnProjectileSpawned); // НОВОЕ: Синхронизация снарядов (Fireball, Lightning и т.д.)
         SocketIOManager.Instance.On("visual_effect_spawned", OnVisualEffectSpawned); // НОВОЕ: Синхронизация визуальных эффектов (взрывы, ауры, горение и т.д.)
+        SocketIOManager.Instance.On("effect_applied", OnEffectApplied); // НОВОЕ: Синхронизация статус-эффектов (Stun, Root, Buffs, Debuffs)
         SocketIOManager.Instance.On("player_transformed", OnPlayerTransformed); // НОВОЕ: Синхронизация трансформации
         SocketIOManager.Instance.On("player_transformation_ended", OnPlayerTransformationEnded); // НОВОЕ: Окончание трансформации
         SocketIOManager.Instance.On("player_health_changed", OnHealthChanged);
@@ -140,6 +145,7 @@ public class NetworkSyncManager : MonoBehaviour
         SocketIOManager.Instance.On("game_start", OnGameStart);
 
         Debug.Log("[NetworkSync] ✅ Подписан на сетевые события");
+        Debug.Log("[NetworkSync] 🔍 ДИАГНОСТИКА: Подписка на 'game_start' зарегистрирована!");
     }
 
     /// <summary>
@@ -162,8 +168,7 @@ public class NetworkSyncManager : MonoBehaviour
     /// </summary>
     private void SyncLocalPlayerPosition()
     {
-        if (localPlayer == null || SocketIOManager.Instance == null || !SocketIOManager.Instance.IsConnected)
-            return;
+        // ПРИМЕЧАНИЕ: localPlayer и SocketIOManager уже проверены в Update()
 
         // Get velocity и позицию
         Vector3 velocity = Vector3.zero;
@@ -174,7 +179,11 @@ public class NetworkSyncManager : MonoBehaviour
         var controller = localPlayer.GetComponent<CharacterController>();
         if (controller != null)
         {
-            velocity = controller.velocity;
+            // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Берём ТОЛЬКО горизонтальную скорость (XZ plane)
+            // Исключаем Y компонент (гравитация/прыжки), т.к. сервер проверяет ГОРИЗОНТАЛЬНУЮ скорость
+            // CharacterController.velocity включает гравитацию, что может давать 420 m/s при падении
+            Vector3 fullVelocity = controller.velocity;
+            velocity = new Vector3(fullVelocity.x, 0f, fullVelocity.z); // Убираем Y компонент
             isGrounded = controller.isGrounded;
         }
         else
@@ -182,7 +191,9 @@ public class NetworkSyncManager : MonoBehaviour
             var rigidbody = localPlayer.GetComponent<Rigidbody>();
             if (rigidbody != null)
             {
-                velocity = rigidbody.linearVelocity;
+                // Также убираем Y компонент для Rigidbody
+                Vector3 fullVelocity = rigidbody.linearVelocity;
+                velocity = new Vector3(fullVelocity.x, 0f, fullVelocity.z);
             }
         }
 
@@ -207,7 +218,8 @@ public class NetworkSyncManager : MonoBehaviour
             // ДИАГНОСТИКА: Логируем каждую 20-ю отправку (1 раз в секунду при 20Hz)
             if (Time.frameCount % 20 == 0)
             {
-                Debug.Log($"[NetworkSync] 📤 Отправка позиции: pos=({position.x:F1}, {position.y:F1}, {position.z:F1}), vel=({velocity.x:F1}, {velocity.y:F1}, {velocity.z:F1}), rot={rotation.eulerAngles.y:F0}°");
+                float horizontalSpeed = new Vector2(velocity.x, velocity.z).magnitude; // Горизонтальная скорость
+                Debug.Log($"[NetworkSync] 📤 Отправка позиции: pos=({position.x:F1}, {position.y:F1}, {position.z:F1}), vel=({velocity.x:F1}, 0.0, {velocity.z:F1}), speed={horizontalSpeed:F1}m/s, rot={rotation.eulerAngles.y:F0}°, grounded={isGrounded}");
             }
         }
         // Если игрок стоит на месте - НЕ отправляем (экономим трафик)
@@ -218,24 +230,7 @@ public class NetworkSyncManager : MonoBehaviour
     /// </summary>
     private void SyncLocalPlayerAnimation()
     {
-        if (localPlayer == null)
-        {
-            Debug.LogWarning("[NetworkSync] ⚠️ SyncLocalPlayerAnimation: localPlayer == NULL!");
-            return;
-        }
-
-        if (SocketIOManager.Instance == null)
-        {
-            Debug.LogWarning("[NetworkSync] ⚠️ SyncLocalPlayerAnimation: SocketIOManager.Instance == NULL!");
-            return;
-        }
-
-        if (!SocketIOManager.Instance.IsConnected)
-        {
-            // Не спамим если не подключены
-            return;
-        }
-
+        // ПРИМЕЧАНИЕ: localPlayer и SocketIOManager уже проверены в Update()
         string currentState = GetLocalPlayerAnimationState();
 
         // ОПТИМИЗАЦИЯ: Отправляем анимацию ТОЛЬКО когда она ИЗМЕНИЛАСЬ!
@@ -375,6 +370,21 @@ public class NetworkSyncManager : MonoBehaviour
             else
             {
                 Debug.Log($"[NetworkSync] ⏳ Игра ещё НЕ началась (лобби или ожидание), НЕ спавним себя, ждем game_start");
+
+                // FALLBACK: Если 2+ игроков и лобби еще не запущено - запускаем его сами!
+                if (data.players.Length >= 2 && ArenaManager.Instance != null)
+                {
+                    var lobbyUI = GameObject.Find("LobbyUI");
+                    if (lobbyUI == null)
+                    {
+                        Debug.Log($"[NetworkSync] 🏁 FALLBACK: Запускаем лобби (игроков в комнате: {data.players.Length})");
+                        ArenaManager.Instance.OnLobbyStarted(17000); // 17 секунд как вы описали
+                    }
+                    else
+                    {
+                        Debug.Log($"[NetworkSync] ⏭️ LobbyUI уже существует");
+                    }
+                }
             }
 
             // Spawn all existing players
@@ -508,9 +518,35 @@ public class NetworkSyncManager : MonoBehaviour
                 vel = new Vector3(data.velocity.x, data.velocity.y, data.velocity.z);
             }
 
-            // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: НЕ СПАВНИМ pending игроков по player_moved!
-            // Они должны заспавниться ТОЛЬКО по событию game_start (после лобби и countdown)
-            // Раньше здесь был код который спавнил при первом player_moved - это НЕПРАВИЛЬНО!
+            // FALLBACK: Если game_start не пришёл, но игрок шлёт данные - спавним его!
+            // Это ВРЕМЕННОЕ решение на случай если game_start событие не работает
+            if (!networkPlayers.ContainsKey(data.socketId) && pendingPlayers.ContainsKey(data.socketId))
+            {
+                Debug.LogWarning($"[NetworkSync] 🆘 FALLBACK SPAWN TRIGGERED!");
+                Debug.LogWarning($"[NetworkSync] 🆘 Спавним игрока {data.socketId} по player_moved (game_start не пришёл!)");
+                Debug.LogWarning($"[NetworkSync] 🆘 Всего pending игроков: {pendingPlayers.Count}, сетевых игроков: {networkPlayers.Count}");
+
+                RoomPlayerInfo playerInfo = pendingPlayers[data.socketId];
+
+                // Используем spawnIndex из данных игрока (если есть)
+                Vector3 spawnPos = Vector3.zero;
+                if (ArenaManager.Instance != null && ArenaManager.Instance.MultiplayerSpawnPoints != null)
+                {
+                    int spawnIndex = playerInfo.spawnIndex;
+                    if (spawnIndex >= 0 && spawnIndex < ArenaManager.Instance.MultiplayerSpawnPoints.Length)
+                    {
+                        spawnPos = ArenaManager.Instance.MultiplayerSpawnPoints[spawnIndex].position;
+                        Debug.Log($"[NetworkSync] 📍 Используем spawn point #{spawnIndex}: {spawnPos}");
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[NetworkSync] ⚠️ Некорректный spawnIndex {spawnIndex}, используем (0,0,0)");
+                    }
+                }
+
+                SpawnNetworkPlayer(data.socketId, playerInfo.username, playerInfo.characterClass, spawnPos, playerInfo.stats);
+                pendingPlayers.Remove(data.socketId);
+            }
 
             if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer player))
             {
@@ -1024,6 +1060,116 @@ public class NetworkSyncManager : MonoBehaviour
     }
 
     /// <summary>
+    /// Обработать применение статус-эффекта (НОВОЕ - для синхронизации Stun, Root, Buffs, Debuffs)
+    /// </summary>
+    private void OnEffectApplied(string jsonData)
+    {
+        Debug.Log($"[NetworkSync] ✨ RAW effect_applied JSON: {jsonData}");
+
+        try
+        {
+            var data = JsonConvert.DeserializeObject<EffectAppliedEvent>(jsonData);
+            Debug.Log($"[NetworkSync] ✨ Эффект получен: caster={data.socketId}, target={data.targetSocketId}, type={data.effectType}, duration={data.duration}");
+
+            // Определяем кто цель эффекта
+            GameObject targetObject = null;
+            string targetName = "";
+
+            if (string.IsNullOrEmpty(data.targetSocketId))
+            {
+                // Пустая строка = эффект на кастера (самого себя)
+                Debug.Log($"[NetworkSync] 🎯 Цель эффекта: кастер (socketId={data.socketId})");
+
+                if (data.socketId == localPlayerSocketId)
+                {
+                    // Это наш локальный игрок
+                    targetObject = localPlayer;
+                    targetName = "Local Player (self)";
+                }
+                else if (networkPlayers.TryGetValue(data.socketId, out NetworkPlayer casterPlayer))
+                {
+                    // Это сетевой игрок
+                    targetObject = casterPlayer.gameObject;
+                    targetName = casterPlayer.username + " (self)";
+                }
+            }
+            else
+            {
+                // Эффект на другого игрока
+                Debug.Log($"[NetworkSync] 🎯 Цель эффекта: другой игрок (targetSocketId={data.targetSocketId})");
+
+                if (data.targetSocketId == localPlayerSocketId)
+                {
+                    // Эффект на нас!
+                    targetObject = localPlayer;
+                    targetName = "Local Player";
+                }
+                else if (networkPlayers.TryGetValue(data.targetSocketId, out NetworkPlayer targetPlayer))
+                {
+                    // Эффект на другого сетевого игрока
+                    targetObject = targetPlayer.gameObject;
+                    targetName = targetPlayer.username;
+                }
+            }
+
+            if (targetObject == null)
+            {
+                Debug.LogWarning($"[NetworkSync] ⚠️ Цель эффекта не найдена! targetSocketId={data.targetSocketId}");
+                return;
+            }
+
+            Debug.Log($"[NetworkSync] ✨ Применяем эффект {data.effectType} к {targetName}");
+
+            // Получаем EffectManager цели
+            EffectManager effectManager = targetObject.GetComponent<EffectManager>();
+            if (effectManager == null)
+            {
+                Debug.LogWarning($"[NetworkSync] ⚠️ У {targetName} нет EffectManager!");
+                return;
+            }
+
+            // Создаём временный EffectConfig из данных события
+            // EffectConfig - это обычный класс (не ScriptableObject), создаём через new
+            EffectConfig tempConfig = new EffectConfig();
+
+            // Парсим EffectType из строки
+            if (System.Enum.TryParse<EffectType>(data.effectType, out EffectType effectType))
+            {
+                tempConfig.effectType = effectType;
+            }
+            else
+            {
+                Debug.LogError($"[NetworkSync] ❌ Неизвестный тип эффекта: {data.effectType}");
+                return;
+            }
+
+            tempConfig.duration = data.duration;
+            tempConfig.power = data.power;
+            tempConfig.tickInterval = data.tickInterval;
+            tempConfig.syncWithServer = false; // НЕ отправляем обратно на сервер!
+
+            // Загружаем prefab частиц если указан
+            if (!string.IsNullOrEmpty(data.particleEffectPrefabName))
+            {
+                GameObject particlePrefab = TryLoadEffectPrefab(data.particleEffectPrefabName);
+                if (particlePrefab != null)
+                {
+                    tempConfig.particleEffectPrefab = particlePrefab;
+                }
+            }
+
+            // Применяем эффект (только визуально, урон/лечение идёт на сервере)
+            effectManager.ApplyEffectVisual(tempConfig, data.duration);
+
+            Debug.Log($"[NetworkSync] ✅ Эффект {data.effectType} применён к {targetName}");
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[NetworkSync] ❌ Ошибка в OnEffectApplied: {ex.Message}\nJSON: {jsonData}");
+        }
+    }
+
+    /// <summary>
     /// Обработать трансформацию игрока (НОВОЕ)
     /// </summary>
     private void OnPlayerTransformed(string jsonData)
@@ -1230,6 +1376,8 @@ public class NetworkSyncManager : MonoBehaviour
     /// </summary>
     private void OnLobbyCreated(string jsonData)
     {
+        Debug.Log($"[NetworkSync] 📥 RAW lobby_created JSON: {jsonData}");
+
         var data = JsonUtility.FromJson<LobbyCreatedEvent>(jsonData);
         Debug.Log($"[NetworkSync] 🏁 LOBBY CREATED! Ожидание {data.waitTime}ms перед стартом");
 
@@ -1246,6 +1394,8 @@ public class NetworkSyncManager : MonoBehaviour
     /// </summary>
     private void OnGameCountdown(string jsonData)
     {
+        Debug.Log($"[NetworkSync] 📥 RAW game_countdown JSON: {jsonData}");
+
         var data = JsonUtility.FromJson<GameCountdownEvent>(jsonData);
         Debug.Log($"[NetworkSync] ⏱️ COUNTDOWN: {data.count}");
 
@@ -1261,11 +1411,31 @@ public class NetworkSyncManager : MonoBehaviour
     /// </summary>
     private void OnGameStart(string jsonData)
     {
-        Debug.Log($"[NetworkSync] 🎮 GAME START! JSON: {jsonData}");
+        Debug.Log($"[NetworkSync] 🎮 GAME START EVENT RECEIVED!");
+        Debug.Log($"[NetworkSync] 🎮 JSON Length: {jsonData?.Length ?? 0}");
+        Debug.Log($"[NetworkSync] 🎮 JSON: {jsonData}");
 
         try
         {
+            if (string.IsNullOrEmpty(jsonData))
+            {
+                Debug.LogError("[NetworkSync] ❌ game_start JSON is NULL or EMPTY!");
+                return;
+            }
+
             var data = JsonUtility.FromJson<GameStartEvent>(jsonData);
+
+            if (data == null)
+            {
+                Debug.LogError("[NetworkSync] ❌ Failed to deserialize game_start JSON!");
+                return;
+            }
+
+            if (data.players == null)
+            {
+                Debug.LogError("[NetworkSync] ❌ game_start data.players is NULL!");
+                return;
+            }
 
             Debug.Log($"[NetworkSync] 🎮 Получено {data.players.Length} игроков для синхронного спавна");
 
@@ -1331,6 +1501,32 @@ public class NetworkSyncManager : MonoBehaviour
         playerObj.name = $"NetworkPlayer_{username}";
         playerObj.layer = LayerMask.NameToLayer("Character");
 
+        // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Включаем ВСЕ Renderer'ы для видимости!
+        Renderer[] renderers = playerObj.GetComponentsInChildren<Renderer>();
+        Debug.Log($"[NetworkSync] 🎨 Найдено Renderer'ов для {username}: {renderers.Length}");
+        int enabledCount = 0;
+        foreach (Renderer r in renderers)
+        {
+            if (!r.enabled)
+            {
+                Debug.LogWarning($"[NetworkSync]   ❌ {r.name}: DISABLED! Включаем...");
+                r.enabled = true;
+            }
+            else
+            {
+                enabledCount++;
+                Debug.Log($"[NetworkSync]   ✅ {r.name}: enabled=true");
+            }
+        }
+        if (enabledCount == 0 && renderers.Length > 0)
+        {
+            Debug.LogError($"[NetworkSync] ⚠️ ВСЕ Renderer'ы были выключены для {username}! Игрок был НЕВИДИМ!");
+        }
+        else
+        {
+            Debug.Log($"[NetworkSync] ✅ Включено {renderers.Length} Renderer'ов для {username} - игрок ВИДИМ!");
+        }
+
         // КРИТИЧЕСКОЕ: Применяем SPECIAL stats от сервера СРАЗУ после спавна!
         if (stats != null)
         {
@@ -1371,12 +1567,20 @@ public class NetworkSyncManager : MonoBehaviour
             Debug.Log($"[NetworkSync] ✅ Отключен PlayerController на {pc.gameObject.name} для {username}");
         }
 
-        // Отключаем PlayerAttack чтобы NetworkPlayer не атаковал локально
+        // Отключаем PlayerAttack (старая система) чтобы NetworkPlayer не атаковал локально
         PlayerAttack[] allPlayerAttacks = playerObj.GetComponentsInChildren<PlayerAttack>(true);
         foreach (var pa in allPlayerAttacks)
         {
             pa.enabled = false;
-            Debug.Log($"[NetworkSync] ✅ Отключен PlayerAttack на {pa.gameObject.name} для {username}");
+            Debug.Log($"[NetworkSync] ✅ Отключен PlayerAttack (старый) на {pa.gameObject.name} для {username}");
+        }
+
+        // Отключаем PlayerAttackNew (новая система) чтобы NetworkPlayer не атаковал локально
+        PlayerAttackNew[] allPlayerAttacksNew = playerObj.GetComponentsInChildren<PlayerAttackNew>(true);
+        foreach (var pan in allPlayerAttacksNew)
+        {
+            pan.enabled = false;
+            Debug.Log($"[NetworkSync] ✅ Отключен PlayerAttackNew на {pan.gameObject.name} для {username}");
         }
 
         // Отключаем TargetSystem чтобы NetworkPlayer не таргетил
@@ -2058,5 +2262,22 @@ public class VisualEffectSpawnedEvent
     public Vector3Data rotation;
     public string targetSocketId; // Если эффект привязан к игроку (пустая строка = world space)
     public float duration; // Длительность эффекта (0 = автоматически)
+    public long timestamp;
+}
+
+/// <summary>
+/// Effect applied event (НОВОЕ - для синхронизации статус-эффектов: Stun, Root, Buffs, Debuffs)
+/// </summary>
+[Serializable]
+public class EffectAppliedEvent
+{
+    public string socketId; // Кто применил эффект (кастер)
+    public string casterUsername; // Имя кастера
+    public string targetSocketId; // На кого применён эффект (пустая строка = на себя)
+    public string effectType; // Тип эффекта (Stun, Root, IncreaseAttack и т.д.)
+    public float duration; // Длительность эффекта в секундах
+    public float power; // Сила эффекта (процент для баффов/дебаффов, урон для DoT)
+    public float tickInterval; // Интервал тика для DoT/HoT
+    public string particleEffectPrefabName; // Название prefab'а частиц (если есть)
     public long timestamp;
 }
