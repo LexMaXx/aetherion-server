@@ -2,8 +2,8 @@ using UnityEngine;
 using System.Collections.Generic;
 
 /// <summary>
-/// Управляет Skill Bar в Arena Scene (3 иконки внизу справа)
-/// Загружает экипированные скиллы и обрабатывает хоткеи (1, 2, 3)
+/// Управляет Skill Bar в Arena Scene (5 иконок внизу справа)
+/// Загружает экипированные скиллы и обрабатывает хоткеи (1, 2, 3, 4, 5)
 /// </summary>
 public class SkillBarUI : MonoBehaviour
 {
@@ -19,13 +19,13 @@ public class SkillBarUI : MonoBehaviour
         // Находим все слоты
         skillSlots = GetComponentsInChildren<SkillSlotBar>();
 
-        if (skillSlots.Length != 3)
+        if (skillSlots.Length != 5)
         {
-            Debug.LogError($"[SkillBarUI] Должно быть ровно 3 слота! Найдено: {skillSlots.Length}");
+            Debug.LogError($"[SkillBarUI] Должно быть ровно 5 слотов! Найдено: {skillSlots.Length}");
         }
         else
         {
-            Debug.Log("[SkillBarUI] ✅ Найдено 3 слота скиллов");
+            Debug.Log("[SkillBarUI] ✅ Найдено 5 слотов скиллов");
         }
     }
 
@@ -54,6 +54,7 @@ public class SkillBarUI : MonoBehaviour
     /// <summary>
     /// Загрузить экипированные скиллы из PlayerPrefs
     /// (сохраняются в Character Selection Scene)
+    /// NEW SYSTEM: Использует SkillConfig напрямую из Resources/Skills/
     /// </summary>
     private void LoadEquippedSkills()
     {
@@ -75,19 +76,30 @@ public class SkillBarUI : MonoBehaviour
 
             Debug.Log($"[SkillBarUI] Загружено {equippedSkillIds.Count} экипированных скиллов: [{string.Join(", ", equippedSkillIds)}]");
 
-            // Устанавливаем скиллы в слоты
+            // NEW SYSTEM: Загружаем SkillConfig напрямую из Resources/Skills/ по ID
             for (int i = 0; i < skillSlots.Length && i < equippedSkillIds.Count; i++)
             {
-                SkillData skill = skillDatabase.GetSkillById(equippedSkillIds[i]);
+                // Используем SkillConfigLoader для загрузки по ID
+                SkillConfig skillConfig = SkillConfigLoader.LoadSkillById(equippedSkillIds[i]);
 
-                if (skill != null)
+                if (skillConfig != null)
                 {
-                    skillSlots[i].SetSkill(skill);
-                    Debug.Log($"[SkillBarUI] Слот {i + 1}: {skill.skillName}");
+                    // Конвертируем SkillConfig в SkillData для UI (временно, пока не переделаем UI)
+                    SkillData skillData = SkillDataConverter.ConvertToSkillData(skillConfig);
+
+                    if (skillData != null)
+                    {
+                        skillSlots[i].SetSkill(skillData);
+                        Debug.Log($"[SkillBarUI] ✅ Слот {i + 1}: {skillConfig.skillName} (ID: {skillConfig.skillId})");
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[SkillBarUI] ⚠️ Не удалось конвертировать SkillConfig ID {equippedSkillIds[i]} в SkillData!");
+                    }
                 }
                 else
                 {
-                    Debug.LogWarning($"[SkillBarUI] ⚠️ Скилл с ID {equippedSkillIds[i]} не найден!");
+                    Debug.LogWarning($"[SkillBarUI] ⚠️ Скилл с ID {equippedSkillIds[i]} не найден в Resources/Skills/!");
                 }
             }
         }
@@ -128,7 +140,7 @@ public class SkillBarUI : MonoBehaviour
 
         Debug.Log($"[SkillBarUI] 🧪 Загружаю тестовые скиллы для {playerClass}...");
 
-        // Получаем первые 3 скилла класса игрока
+        // Получаем все 5 скиллов класса игрока
         List<SkillData> classSkills = skillDatabase.GetSkillsForClass(playerClass);
 
         if (classSkills == null || classSkills.Count == 0)
@@ -229,8 +241,25 @@ public class SkillBarUI : MonoBehaviour
                 }
             }
 
-            // Используем скилл через SkillManager
-            bool success = skillManager.UseSkill(skill, target);
+            // Находим индекс скилла по skillId
+            int skillIndex = -1;
+            for (int i = 0; i < skillManager.equippedSkills.Count; i++)
+            {
+                if (skillManager.equippedSkills[i] != null && skillManager.equippedSkills[i].skillId == skill.skillId)
+                {
+                    skillIndex = i;
+                    break;
+                }
+            }
+
+            if (skillIndex < 0)
+            {
+                Debug.LogWarning($"[SkillBarUI] ❌ Скилл ID {skill.skillId} не найден в equippedSkills!");
+                return false;
+            }
+
+            // Используем скилл через SkillManager (по индексу)
+            bool success = skillManager.UseSkill(skillIndex, target);
             if (success)
             {
                 Debug.Log($"[SkillBarUI] ✅ Скилл '{skill.skillName}' применён через SkillManager");

@@ -1,0 +1,45 @@
+357,369c357,389
+<         // Добавляем систему скиллов (КРИТИЧЕСКОЕ!)
+<         SkillManager skillManager = modelTransform.GetComponent<SkillManager>();
+<         if (skillManager == null)
+<         {
+<             skillManager = modelTransform.gameObject.AddComponent<SkillManager>();
+<             Debug.Log("✓ Добавлен SkillManager");
+<         }
+< 
+<         // КРИТИЧЕСКОЕ: Загружаем скиллы из SkillDatabase для класса
+<         LoadSkillsForClass(skillManager);
+< 
+<         // КРИТИЧЕСКОЕ: Загружаем экипированные скиллы из PlayerPrefs
+<         LoadEquippedSkillsFromPlayerPrefs(skillManager);
+---
+>         // СИСТЕМА СКИЛЛОВ: EffectManager + SkillExecutor + SkillManager
+> 
+>         // 1. Добавляем EffectManager (управление эффектами: Root, Stun, Slow и т.д.)
+>         EffectManager effectManager = modelTransform.GetComponent<EffectManager>();
+>         if (effectManager == null)
+>         {
+>             effectManager = modelTransform.gameObject.AddComponent<EffectManager>();
+>             Debug.Log("✓ Добавлен EffectManager");
+>         }
+> 
+>         // 2. Добавляем SkillExecutor (КРИТИЧЕСКОЕ! Должен быть ПЕРЕД SkillManager)
+>         SkillExecutor skillExecutor = modelTransform.GetComponent<SkillExecutor>();
+>         if (skillExecutor == null)
+>         {
+>             skillExecutor = modelTransform.gameObject.AddComponent<SkillExecutor>();
+>             Debug.Log("✓ Добавлен SkillExecutor");
+>         }
+> 
+>         // 3. Добавляем SkillManager (управление списком скиллов)
+>         SkillManager skillManager = modelTransform.GetComponent<SkillManager>();
+>         if (skillManager == null)
+>         {
+>             skillManager = modelTransform.gameObject.AddComponent<SkillManager>();
+>             Debug.Log("✓ Добавлен SkillManager");
+>         }
+> 
+>         // 4. АВТОМАТИЧЕСКАЯ ЗАГРУЗКА из Resources/Skills/ по классу персонажа
+>         string selectedClass = PlayerPrefs.GetString("SelectedCharacterClass", "Warrior");
+>         Debug.Log($"[ArenaManager] 🔄 Автоматическая загрузка скиллов для класса {selectedClass} из Resources/Skills/...");
+>         LoadAllSkillsToManager(skillManager, selectedClass);

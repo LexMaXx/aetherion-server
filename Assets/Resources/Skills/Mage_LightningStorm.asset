@@ -9,68 +9,72 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 6e79cfd8b12443c408c3d4a9fbdce0c8, type: 3}
+  m_Script: {fileID: 11500000, guid: 93ea6d4f751c12e48a5c2881809ebb04, type: 3}
   m_Name: Mage_LightningStorm
   m_EditorClassIdentifier: 
-  skillId: 206
+  skillId: 205
   skillName: Lightning Storm
-  description: "\u0412\u044B\u0437\u044B\u0432\u0430\u0435\u0442 \u0433\u0440\u043E\u0437\u0443,
-    \u043F\u0435\u0440\u0438\u043E\u0434\u0438\u0447\u0435\u0441\u043A\u0438\u0439
-    \u0443\u0440\u043E\u043D"
-  icon: {fileID: 21300000, guid: 1870d858f3a71394293f6c7813718197, type: 3}
+  description: "\u0412\u044B\u0437\u044B\u0432\u0430\u0435\u0442 \u0448\u0442\u043E\u0440\u043C
+    \u043C\u043E\u043B\u043D\u0438\u0439, \u043F\u043E\u0440\u0430\u0436\u0430\u044E\u0449\u0438\u0439
+    \u0432\u0441\u0435\u0445 \u0432\u0440\u0430\u0433\u043E\u0432 \u0432 \u0440\u0430\u0434\u0438\u0443\u0441\u0435.
+    \u041C\u043E\u043B\u043D\u0438\u0438 \u043F\u0435\u0440\u0435\u043F\u0440\u044B\u0433\u0438\u0432\u0430\u044E\u0442
+    \u043D\u0430 \u0441\u043E\u0441\u0435\u0434\u043D\u0438\u0445 \u0432\u0440\u0430\u0433\u043E\u0432."
+  icon: {fileID: 21300000, guid: d6e04b0d62f0bde48bad73927dc95284, type: 3}
   characterClass: 1
-  cooldown: 20
-  manaCost: 55
-  castRange: 20
-  castTime: 1.5
-  canUseWhileMoving: 1
-  skillType: 0
-  targetType: 1
-  requiresTarget: 1
+  cooldown: 12
+  manaCost: 60
+  castRange: 0
+  castTime: 0
+  canUseWhileMoving: 0
+  skillType: 2
+  targetType: 4
+  requiresTarget: 0
   canTargetAllies: 0
   canTargetEnemies: 1
-  baseDamageOrHeal: 30
-  intelligenceScaling: 15
+  baseDamageOrHeal: 60
   strengthScaling: 0
-  effects:
-  - effectType: 10
-    duration: 5
-    power: 0
-    damageOrHealPerTick: 15
-    tickInterval: 1
-    particleEffectPrefab: {fileID: 9027514048236820045, guid: effb650189dc5714e9e9801b1cfb3991, type: 3}
-    applySound: {fileID: 0}
-    removeSound: {fileID: 0}
-    canBeDispelled: 0
-    canStack: 0
-    maxStacks: 1
-    syncWithServer: 1
-  aoeRadius: 0
-  maxTargets: 1
+  intelligenceScaling: 2.5
+  lifeStealPercent: 0
+  effects: []
+  aoeRadius: 10
+  maxTargets: 5
+  projectilePrefab: {fileID: 0}
+  projectileSpeed: 20
+  projectileLifetime: 5
+  projectileHoming: 1
+  homingSpeed: 10
+  homingRadius: 20
+  castEffectPrefab: {fileID: 1141330259687333427, guid: 99e5e1fb4bc6cc74e9881c077ced5291, type: 3}
+  hitEffectPrefab: {fileID: 1141330259687333427, guid: 99e5e1fb4bc6cc74e9881c077ced5291, type: 3}
+  aoeEffectPrefab: {fileID: 8771972552311404799, guid: 4e09fdbe591fd5c439f1f2feb2009a7c, type: 3}
+  casterEffectPrefab: {fileID: 0}
   animationTrigger: Attack
   animationSpeed: 1
-  blockMovementDuringCast: 0
-  movementBlockDuration: 0
+  projectileSpawnTiming: 0.5
+  castSound: {fileID: 0}
+  hitSound: {fileID: 0}
+  soundVolume: 0.7
   enableMovement: 0
   movementType: 0
   movementDistance: 5
   movementSpeed: 10
-  movementAnimationTrigger: 
   movementDirection: 0
-  visualEffectPrefab: {fileID: 5783867479430382836, guid: 6718dc24203da53468af9ada8fef7d6d, type: 3}
-  casterEffectPrefab: {fileID: 0}
-  projectilePrefab: {fileID: 8845667390123456789, guid: bb7f9e4c2a1d4f8fa9e5d6c3b8a1e2f4, type: 3}
-  projectileHitEffectPrefab: {fileID: 100000, guid: b10f0a773262b9c478542ff2d1a04863, type: 3}
-  projectileSpeed: 20
-  projectileHoming: 1
-  projectileLifetime: 5
-  castSound: {fileID: 0}
-  impactSound: {fileID: 0}
-  projectileHitSound: {fileID: 0}
   summonPrefab: {fileID: 0}
   summonCount: 1
   summonDuration: 30
   transformationModel: {fileID: 0}
   transformationDuration: 30
   hpBonusPercent: 0
-  physicalDamageBonusPercent: 0
+  damageBonusPercent: 0
+  syncProjectiles: 1
+  syncHitEffects: 1
+  syncStatusEffects: 1
+  customData:
+    chainCount: 3
+    chainRadius: 8
+    chainDamageMultiplier: 0.7
+    hitCount: 1
+    hitDelay: 0.1
+    manaRestorePercent: 0
+    piercing: 0
+    maxPierceTargets: 3

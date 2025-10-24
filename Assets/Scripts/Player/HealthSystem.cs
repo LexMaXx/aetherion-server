@@ -14,6 +14,9 @@ public class HealthSystem : MonoBehaviour
     [Header("Health Regeneration")]
     [SerializeField] private float healthRegenRate = 0.2f; // HP/сек когда стоит на месте (ЗАМЕДЛЕНО в 10 раз)
 
+    [Header("Damage Reduction")]
+    [SerializeField] private float damageReduction = 0f; // Снижение урона в процентах (0-100)
+
     // Интеграция с CharacterStats
     private CharacterStats characterStats;
 
@@ -131,8 +134,26 @@ public class HealthSystem : MonoBehaviour
     /// Получить урон
     /// </summary>
     public void TakeDamage(float damage)
-    {
-        if (!IsAlive) return;
+{
+    if (!IsAlive) return;
+
+    // Проверяем неуязвимость
+EffectManager effectManager = GetComponent<EffectManager>();
+if (effectManager != null && effectManager.HasInvulnerability())
+{
+    Debug.Log($"[HealthSystem] 🛡️ НЕУЯЗВИМОСТЬ! Урон {damage:F0} заблокирован");
+    return;
+}
+
+
+    // Применяем снижение урона
+    float originalDamage = damage;
+        if (damageReduction > 0)
+        {
+            float reduction = damage * (damageReduction / 100f);
+            damage -= reduction;
+            Debug.Log($"[HealthSystem] 🛡️ Снижение урона: {originalDamage:F1} → {damage:F1} (-{reduction:F1}, {damageReduction}%)");
+        }
 
         currentHealth -= damage;
         currentHealth = Mathf.Max(0, currentHealth);
@@ -226,6 +247,26 @@ public class HealthSystem : MonoBehaviour
         currentHealth = Mathf.Min(currentHealth, maxHealth); // Текущее HP не может превышать максимум
         Debug.Log($"[HealthSystem] -{amount:F0} Временное Max HP. Текущее: {currentHealth:F0}/{maxHealth:F0}");
         OnHealthChanged?.Invoke(currentHealth, maxHealth);
+    }
+
+    /// <summary>
+    /// Добавить снижение урона (для защитных баффов)
+    /// </summary>
+    public void AddDamageReduction(float percent)
+    {
+        damageReduction += percent;
+        damageReduction = Mathf.Clamp(damageReduction, 0f, 100f); // Максимум 100%
+        Debug.Log($"[HealthSystem] 🛡️ Снижение урона: {(percent > 0 ? "+" : "")}{percent}% (итого: {damageReduction}%)");
+    }
+
+    /// <summary>
+    /// Убрать снижение урона (окончание защитного баффа)
+    /// </summary>
+    public void RemoveDamageReduction(float percent)
+    {
+        damageReduction -= percent;
+        damageReduction = Mathf.Max(damageReduction, 0f); // Минимум 0%
+        Debug.Log($"[HealthSystem] 🛡️ Снижение урона: -{percent}% (итого: {damageReduction}%)");
     }
 
     private void OnDestroy()

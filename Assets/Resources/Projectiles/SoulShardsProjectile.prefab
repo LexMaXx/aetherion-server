@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 2385046219398285258}
   - component: {fileID: 6636755278546201280}
   - component: {fileID: 3176654750483504437}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: Shard3
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -97,7 +97,7 @@ GameObject:
   - component: {fileID: 7370949136365907646}
   - component: {fileID: 1472733260915036313}
   - component: {fileID: 2395147708478957217}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: Shard2
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -187,7 +187,7 @@ GameObject:
   - component: {fileID: 1992743504322966476}
   - component: {fileID: 5115279089324624289}
   - component: {fileID: 6743956417722539039}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: SoulShardsProjectile
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -491,7 +491,7 @@ GameObject:
   - component: {fileID: 9175118613020353262}
   - component: {fileID: 3227214232632970449}
   - component: {fileID: 2678859344117849720}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: Shard4
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -577,7 +577,7 @@ GameObject:
   - component: {fileID: 4985113145368301950}
   - component: {fileID: 4670806821919419245}
   - component: {fileID: 759807140963161503}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: Shard0
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -661,7 +661,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 8696536162437346214}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: ShardsVisual
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -699,7 +699,7 @@ GameObject:
   - component: {fileID: 5093061111328445375}
   - component: {fileID: 132352353173980379}
   - component: {fileID: 2523854933627862020}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: Shard1
   m_TagString: Untagged
   m_Icon: {fileID: 0}

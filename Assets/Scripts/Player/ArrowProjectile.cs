@@ -35,10 +35,12 @@ public class ArrowProjectile : MonoBehaviour
     // Runtime variables
     private Transform target;
     private float damage;
+    private bool isCritical = false;
     private Vector3 direction;
     private float spawnTime;
     private GameObject owner;
-    private List<SkillEffect> effects;
+    private List<EffectConfig> effects; // Эффекты скилла
+    private CharacterStats casterStats; // Статы кастера для эффектов
     private float currentSpeed;
     private bool hasHit = false;
     private AudioSource audioSource;
@@ -47,10 +49,11 @@ public class ArrowProjectile : MonoBehaviour
     /// Инициализация снаряда
     /// </summary>
     /// <param name="isVisualOnly">Если true, снаряд чисто визуальный (без коллизии, автонаведения, урона)</param>
-    public void Initialize(Transform targetTransform, float projectileDamage, Vector3 initialDirection, GameObject projectileOwner = null, List<SkillEffect> skillEffects = null, bool isVisualOnly = false)
+    public void Initialize(Transform targetTransform, float projectileDamage, Vector3 initialDirection, GameObject projectileOwner = null, List<EffectConfig> skillEffects = null, bool isVisualOnly = false, bool isCrit = false)
     {
         target = targetTransform;
         damage = projectileDamage;
+        isCritical = isCrit;
         direction = initialDirection.normalized;
         spawnTime = Time.time;
         owner = projectileOwner;
@@ -93,6 +96,33 @@ public class ArrowProjectile : MonoBehaviour
         AutoFindComponents();
 
         Debug.Log($"[ArrowProjectile] ✨ Создан! Target: {target?.name ?? "None"}, Damage: {damage}, Homing: {enableHoming}, Visual: {isVisualOnly}");
+    }
+
+    /// <summary>
+    /// Инициализация снаряда с новой системой эффектов (EffectConfig)
+    /// </summary>
+    public void InitializeWithEffects(Transform targetTransform, float projectileDamage, Vector3 initialDirection, GameObject projectileOwner, List<EffectConfig> skillEffectConfigs, CharacterStats stats, bool isVisualOnly = false, bool isCrit = false)
+    {
+        // Вызываем базовую инициализацию
+        Initialize(targetTransform, projectileDamage, initialDirection, projectileOwner, null, isVisualOnly, isCrit);
+
+        // Сохраняем эффекты новой системы
+        effects = skillEffectConfigs;
+        casterStats = stats;
+
+        if (effects != null && effects.Count > 0)
+        {
+            Debug.Log("[ArrowProjectile] Initialized with " + effects.Count + " effects (new system)");
+        }
+    }
+
+    /// <summary>
+    /// Установить эффект попадания из BasicAttackConfig
+    /// </summary>
+    public void SetHitEffect(ParticleSystem effect)
+    {
+        hitEffect = effect;
+        Debug.Log($"[ArrowProjectile] 🎨 Hit effect установлен: {effect?.name ?? "None"}");
     }
 
     /// <summary>
@@ -228,6 +258,7 @@ public class ArrowProjectile : MonoBehaviour
         {
             // Проверяем тип цели
             Enemy enemy = target.GetComponent<Enemy>();
+            DummyEnemy dummy = target.GetComponent<DummyEnemy>();
             NetworkPlayer networkTarget = target.GetComponent<NetworkPlayer>();
 
             if (enemy != null && enemy.IsAlive() && networkTarget == null)
@@ -235,11 +266,49 @@ public class ArrowProjectile : MonoBehaviour
                 // Обычный NPC враг - наносим урон локально
                 enemy.TakeDamage(damage);
                 Debug.Log($"[ArrowProjectile] ✅ Урон нанесен NPC: {damage}");
+
+                // Показываем цифру урона
+                if (DamageNumberManager.Instance != null)
+                {
+                    DamageNumberManager.Instance.ShowDamage(target.position, damage, isCritical);
+                }
+            }
+            else if (dummy != null && dummy.IsAlive())
+            {
+                // DummyEnemy - тестовый враг
+                dummy.TakeDamage(damage);
+                Debug.Log($"[ArrowProjectile] ✅ Урон нанесен DummyEnemy: {damage}");
+
+                // Показываем цифру урона
+                if (DamageNumberManager.Instance != null)
+                {
+                    DamageNumberManager.Instance.ShowDamage(target.position, damage, isCritical);
+                }
             }
             else if (networkTarget != null)
             {
-                // Сетевой игрок - урон наносится через сервер (в NetworkCombatSync)
-                Debug.Log($"[ArrowProjectile] 🌐 Попадание в сетевого игрока - урон через сервер");
+                // КРИТИЧЕСКОЕ ИЗМЕНЕНИЕ: Отправляем урон через NetworkCombatSync!
+                Debug.Log($"[ArrowProjectile] 🎯 Попадание в игрока {networkTarget.username}! Отправляем урон на сервер...");
+
+                // Находим владельца снаряда (того кто его выпустил)
+                if (owner != null)
+                {
+                    NetworkCombatSync ownerSync = owner.GetComponent<NetworkCombatSync>();
+                    if (ownerSync != null)
+                    {
+                        // Отправляем урон на сервер (сервер рассчитает урон с учетом SPECIAL stats)
+                        ownerSync.SendAttack(target.gameObject, damage, "skill");
+                        Debug.Log($"[ArrowProjectile] ✅ Урон от скилла отправлен на сервер через NetworkCombatSync!");
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[ArrowProjectile] ⚠️ NetworkCombatSync не найден у владельца снаряда!");
+                    }
+                }
+                else
+                {
+                    Debug.LogWarning($"[ArrowProjectile] ⚠️ Владелец снаряда (owner) не установлен!");
+                }
             }
 
             // Применяем эффекты скилла (если есть)
@@ -258,6 +327,24 @@ public class ArrowProjectile : MonoBehaviour
                 else
                 {
                     Debug.LogWarning($"[ArrowProjectile] ⚠️ У цели {target.name} нет SkillManager для применения эффектов!");
+                }
+            }
+
+            // Новая система эффектов (EffectConfig + EffectManager)
+            if (effects != null && effects.Count > 0)
+            {
+                EffectManager targetEffectManager = target.GetComponent<EffectManager>();
+                if (targetEffectManager != null)
+                {
+                    foreach (var effectConfig in effects)
+                    {
+                        targetEffectManager.ApplyEffect(effectConfig, casterStats);
+                    }
+                    Debug.Log("[ArrowProjectile] Applied " + effects.Count + " effects (new system)");
+                }
+                else
+                {
+                    Debug.LogWarning("[ArrowProjectile] Target " + target.name + " has no EffectManager!");
                 }
             }
         }
@@ -375,6 +462,12 @@ public class ArrowProjectile : MonoBehaviour
         if (enemy != null)
         {
             return enemy.IsAlive();
+        }
+
+        DummyEnemy dummy = target.GetComponent<DummyEnemy>();
+        if (dummy != null)
+        {
+            return dummy.IsAlive();
         }
 
         // Сетевой игрок всегда валиден (проверка HP на его стороне)

@@ -3,14 +3,16 @@ using UnityEngine;
 /// <summary>
 /// Синхронизирует боевые действия локального игрока с сервером
 /// Перехватывает события атаки и отправляет их через WebSocket
+/// ОБНОВЛЕНО: Поддерживает PlayerAttack (старый) И PlayerAttackNew (новый)
 /// </summary>
-[RequireComponent(typeof(PlayerAttack))]
 public class NetworkCombatSync : MonoBehaviour
 {
     [Header("Settings")]
     [SerializeField] private bool enableSync = true;
 
-    private PlayerAttack playerAttack;
+    // ОБНОВЛЕНО: Поддерживаем обе системы атаки
+    private PlayerAttack playerAttack;           // Старая система (legacy)
+    private PlayerAttackNew playerAttackNew;     // НОВАЯ система с BasicAttackConfig
     private HealthSystem healthSystem;
     private ManaSystem manaSystem;
     private bool isMultiplayer = false;
@@ -35,7 +37,24 @@ public class NetworkCombatSync : MonoBehaviour
             return;
         }
 
-        playerAttack = GetComponent<PlayerAttack>();
+        // ОБНОВЛЕНО: Находим обе системы атаки
+        playerAttack = GetComponent<PlayerAttack>();       // Старая (может быть null)
+        playerAttackNew = GetComponent<PlayerAttackNew>(); // НОВАЯ (может быть null)
+
+        // Проверяем какая система используется
+        if (playerAttackNew != null)
+        {
+            Debug.Log("[NetworkCombatSync] ✅ Обнаружена НОВАЯ система атаки (PlayerAttackNew)");
+        }
+        else if (playerAttack != null)
+        {
+            Debug.Log("[NetworkCombatSync] ⚠️ Обнаружена СТАРАЯ система атаки (PlayerAttack)");
+        }
+        else
+        {
+            Debug.LogWarning("[NetworkCombatSync] ❌ НЕТ системы атаки! Ни PlayerAttack, ни PlayerAttackNew не найдены!");
+        }
+
         healthSystem = GetComponent<HealthSystem>();
         manaSystem = GetComponent<ManaSystem>();
 
@@ -133,14 +152,26 @@ public class NetworkCombatSync : MonoBehaviour
             return;
         }
 
-        if (playerAttack == null)
+        // ОБНОВЛЕНО: Получаем базовый урон из НОВОЙ или старой системы
+        float baseDamage = 0f;
+
+        if (playerAttackNew != null && playerAttackNew.attackConfig != null)
         {
-            Debug.LogError("[NetworkCombatSync] ❌ PlayerAttack не найден! Не могу получить базовый урон.");
+            // НОВАЯ система - берём из BasicAttackConfig
+            baseDamage = playerAttackNew.attackConfig.baseDamage;
+            Debug.Log($"[NetworkCombatSync] ✅ Используем НОВУЮ систему (PlayerAttackNew), базовый урон: {baseDamage}");
+        }
+        else if (playerAttack != null)
+        {
+            // СТАРАЯ система - берём из PlayerAttack
+            baseDamage = playerAttack.BaseDamage;
+            Debug.Log($"[NetworkCombatSync] ⚠️ Используем СТАРУЮ систему (PlayerAttack), базовый урон: {baseDamage}");
+        }
+        else
+        {
+            Debug.LogError("[NetworkCombatSync] ❌ НЕТ системы атаки! Ни PlayerAttackNew, ни PlayerAttack не найдены!");
             return;
         }
-
-        // Получаем базовый урон оружия (БЕЗ бонусов от статов)
-        float baseDamage = playerAttack.BaseDamage;
 
         // Отправляем атаку на сервер с SPECIAL stats (сервер сам рассчитает урон и криты!)
         Vector3 attackPosition = transform.position;

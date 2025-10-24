@@ -826,23 +826,46 @@ public class NetworkSyncManager : MonoBehaviour
                 }
                 else
                 {
-                    // Это скилл - загружаем из SkillDatabase
-                    SkillDatabase db = SkillDatabase.Instance;
-                    if (db == null)
+                    // Это скилл - пробуем загрузить из SkillConfig (приоритет) или SkillDatabase (fallback)
+                    SkillConfig[] allSkills = Resources.LoadAll<SkillConfig>("Skills");
+                    SkillConfig skillConfig = null;
+
+                    foreach (SkillConfig s in allSkills)
                     {
-                        Debug.LogError($"[NetworkSync] ❌ SkillDatabase.Instance == null!");
-                        return;
+                        if (s.skillId == data.skillId)
+                        {
+                            skillConfig = s;
+                            break;
+                        }
                     }
 
-                    SkillData skill = db.GetSkillById(data.skillId);
-                    if (skill == null)
+                    if (skillConfig != null && skillConfig.projectilePrefab != null)
                     {
-                        Debug.LogWarning($"[NetworkSync] ⚠️ Скилл с ID {data.skillId} не найден в SkillDatabase");
-                        return;
+                        projectilePrefab = skillConfig.projectilePrefab;
+                        projectileName = skillConfig.skillName;
+                        Debug.Log($"[NetworkSync] 📦 Скилл загружен из SkillConfig: {projectileName}");
                     }
+                    else
+                    {
+                        // Fallback: SkillDatabase
+                        SkillDatabase db = SkillDatabase.Instance;
+                        if (db != null)
+                        {
+                            SkillData skill = db.GetSkillById(data.skillId);
+                            if (skill != null)
+                            {
+                                projectilePrefab = skill.projectilePrefab;
+                                projectileName = skill.skillName;
+                                Debug.Log($"[NetworkSync] 📦 Скилл загружен из SkillDatabase: {projectileName}");
+                            }
+                        }
 
-                    projectilePrefab = skill.projectilePrefab;
-                    projectileName = skill.skillName;
+                        if (projectilePrefab == null)
+                        {
+                            Debug.LogWarning($"[NetworkSync] ⚠️ Скилл с ID {data.skillId} не найден ни в SkillConfig, ни в SkillDatabase");
+                            return;
+                        }
+                    }
                 }
 
                 if (projectilePrefab == null)

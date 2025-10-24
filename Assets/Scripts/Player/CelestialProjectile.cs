@@ -36,22 +36,28 @@ public class CelestialProjectile : MonoBehaviour
     // Runtime variables
     private Transform target;
     private float damage;
+    private bool isCritical = false;
     private Vector3 direction;
     private float spawnTime;
     private GameObject owner;
-    private List<SkillEffect> effects;
+    private List<EffectConfig> effects;
     private float currentSpeed;
     private bool hasHit = false;
     private AudioSource audioSource;
+
+    // Life Steal (для Soul Drain и других вампирических скиллов)
+    private float lifeStealPercent = 0f;       // Процент вампиризма (0-100)
+    private GameObject casterEffectPrefab;     // Эффект на кастере при лечении
 
     /// <summary>
     /// Инициализация снаряда
     /// </summary>
     /// <param name="isVisualOnly">Если true, снаряд чисто визуальный (без коллизии, автонаведения, урона)</param>
-    public void Initialize(Transform targetTransform, float projectileDamage, Vector3 initialDirection, GameObject projectileOwner = null, List<SkillEffect> skillEffects = null, bool isVisualOnly = false)
+    public void Initialize(Transform targetTransform, float projectileDamage, Vector3 initialDirection, GameObject projectileOwner = null, List<EffectConfig> skillEffects = null, bool isVisualOnly = false, bool isCrit = false)
     {
         target = targetTransform;
         damage = projectileDamage;
+        isCritical = isCrit;
         direction = initialDirection.normalized;
         spawnTime = Time.time;
         owner = projectileOwner;
@@ -94,6 +100,25 @@ public class CelestialProjectile : MonoBehaviour
         AutoFindComponents();
 
         Debug.Log($"[CelestialProjectile] ✨ Создан! Target: {target?.name ?? "None"}, Damage: {damage}, Homing: {enableHoming}, Visual: {isVisualOnly}");
+    }
+
+    /// <summary>
+    /// Установить эффект попадания из BasicAttackConfig
+    /// </summary>
+    public void SetHitEffect(ParticleSystem effect)
+    {
+        hitEffect = effect;
+        Debug.Log($"[CelestialProjectile] 🎨 Hit effect установлен: {effect?.name ?? "None"}");
+    }
+
+    /// <summary>
+    /// Установить Life Steal для вампирических скиллов (Soul Drain)
+    /// </summary>
+    public void SetLifeSteal(float percent, GameObject casterEffect = null)
+    {
+        lifeStealPercent = percent;
+        casterEffectPrefab = casterEffect;
+        Debug.Log($"[CelestialProjectile] 🧛 Life Steal установлен: {percent}%");
     }
 
     /// <summary>
@@ -231,6 +256,7 @@ public class CelestialProjectile : MonoBehaviour
         {
             // Проверяем тип цели
             Enemy enemy = target.GetComponent<Enemy>();
+            DummyEnemy dummy = target.GetComponent<DummyEnemy>();
             NetworkPlayer networkTarget = target.GetComponent<NetworkPlayer>();
 
             if (enemy != null && enemy.IsAlive() && networkTarget == null)
@@ -238,11 +264,49 @@ public class CelestialProjectile : MonoBehaviour
                 // Обычный NPC враг - наносим урон локально
                 enemy.TakeDamage(damage);
                 Debug.Log($"[CelestialProjectile] ✅ Урон нанесен NPC: {damage}");
+
+                // Показываем цифру урона
+                if (DamageNumberManager.Instance != null)
+                {
+                    DamageNumberManager.Instance.ShowDamage(target.position, damage, isCritical);
+                }
+            }
+            else if (dummy != null && dummy.IsAlive())
+            {
+                // DummyEnemy - тестовый враг
+                dummy.TakeDamage(damage);
+                Debug.Log($"[CelestialProjectile] ✅ Урон нанесен DummyEnemy: {damage}");
+
+                // Показываем цифру урона
+                if (DamageNumberManager.Instance != null)
+                {
+                    DamageNumberManager.Instance.ShowDamage(target.position, damage, isCritical);
+                }
             }
             else if (networkTarget != null)
             {
-                // Сетевой игрок - урон наносится через сервер (в NetworkCombatSync)
-                Debug.Log($"[CelestialProjectile] 🌐 Попадание в сетевого игрока - урон через сервер");
+                // КРИТИЧЕСКОЕ ИЗМЕНЕНИЕ: Отправляем урон через NetworkCombatSync!
+                Debug.Log($"[CelestialProjectile] 🎯 Попадание в игрока {networkTarget.username}! Отправляем урон на сервер...");
+
+                // Находим владельца снаряда (того кто его выпустил)
+                if (owner != null)
+                {
+                    NetworkCombatSync ownerSync = owner.GetComponent<NetworkCombatSync>();
+                    if (ownerSync != null)
+                    {
+                        // Отправляем урон на сервер (сервер рассчитает урон с учетом SPECIAL stats)
+                        ownerSync.SendAttack(target.gameObject, damage, "skill");
+                        Debug.Log($"[CelestialProjectile] ✅ Урон от скилла отправлен на сервер через NetworkCombatSync!");
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[CelestialProjectile] ⚠️ NetworkCombatSync не найден у владельца снаряда!");
+                    }
+                }
+                else
+                {
+                    Debug.LogWarning($"[CelestialProjectile] ⚠️ Владелец снаряда (owner) не установлен!");
+                }
             }
 
             // Применяем эффекты скилла (если есть)
@@ -261,6 +325,31 @@ public class CelestialProjectile : MonoBehaviour
                 else
                 {
                     Debug.LogWarning($"[CelestialProjectile] ⚠️ У цели {target.name} нет SkillManager для применения эффектов!");
+                }
+            }
+
+            // Life Steal: Лечим владельца снаряда
+            if (lifeStealPercent > 0 && owner != null)
+            {
+                float healAmount = damage * (lifeStealPercent / 100f);
+                HealthSystem ownerHealth = owner.GetComponent<HealthSystem>();
+
+                if (ownerHealth != null)
+                {
+                    ownerHealth.Heal(healAmount);
+                    Debug.Log($"[CelestialProjectile] 🧛 Life Steal: +{healAmount:F1} HP ({lifeStealPercent}% от {damage:F1} урона)");
+
+                    // Визуальный эффект лечения на кастере
+                    if (casterEffectPrefab != null)
+                    {
+                        GameObject healEffect = Instantiate(casterEffectPrefab, owner.transform.position + Vector3.up * 1.5f, Quaternion.identity);
+                        Destroy(healEffect, 2f);
+                        Debug.Log($"[CelestialProjectile] ✨ Эффект лечения на кастере: {casterEffectPrefab.name}");
+                    }
+                }
+                else
+                {
+                    Debug.LogWarning($"[CelestialProjectile] ⚠️ У владельца {owner.name} нет HealthSystem для лечения!");
                 }
             }
         }
@@ -378,6 +467,12 @@ public class CelestialProjectile : MonoBehaviour
         if (enemy != null)
         {
             return enemy.IsAlive();
+        }
+
+        DummyEnemy dummy = target.GetComponent<DummyEnemy>();
+        if (dummy != null)
+        {
+            return dummy.IsAlive();
         }
 
         // Сетевой игрок всегда валиден (проверка HP на его стороне)

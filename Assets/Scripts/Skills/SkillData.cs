@@ -45,7 +45,7 @@ public class SkillData : ScriptableObject
     public SkillType skillType;
 
     [Header("Целевая система")]
-    public SkillTargetType targetType;
+    public OldSkillTargetType targetType;
 
     [Tooltip("Нужна ли цель для применения")]
     public bool requiresTarget = true;
@@ -95,7 +95,7 @@ public class SkillData : ScriptableObject
     public bool enableMovement = false;
 
     [Tooltip("Тип движения")]
-    public MovementType movementType = MovementType.None;
+    public OldMovementType movementType = OldMovementType.None;
 
     [Tooltip("Дистанция перемещения (метры)")]
     public float movementDistance = 5f;
@@ -107,7 +107,7 @@ public class SkillData : ScriptableObject
     public string movementAnimationTrigger = "";
 
     [Tooltip("Направление движения")]
-    public MovementDirection movementDirection = MovementDirection.Forward;
+    public OldMovementDirection movementDirection = OldMovementDirection.Forward;
 
     [Header("Визуальные эффекты")]
     [Tooltip("Префаб визуального эффекта каста (вспышка, круг на земле)")]
@@ -208,9 +208,9 @@ public enum SkillType
 }
 
 /// <summary>
-/// Тип цели
+/// Тип цели (СТАРАЯ СИСТЕМА - используется в SkillData)
 /// </summary>
-public enum SkillTargetType
+public enum OldSkillTargetType
 {
     Self,             // На себя
     SingleTarget,     // Одна цель
@@ -220,9 +220,9 @@ public enum SkillTargetType
 }
 
 /// <summary>
-/// Тип движения при использовании скилла
+/// Тип движения при использовании скилла (СТАРАЯ СИСТЕМА - используется в SkillData)
 /// </summary>
-public enum MovementType
+public enum OldMovementType
 {
     None,           // Нет движения
     Dash,           // Рывок вперёд (быстро)
@@ -234,9 +234,9 @@ public enum MovementType
 }
 
 /// <summary>
-/// Направление движения
+/// Направление движения (СТАРАЯ СИСТЕМА - используется в SkillData)
 /// </summary>
-public enum MovementDirection
+public enum OldMovementDirection
 {
     Forward,        // Вперёд
     Backward,       // Назад
@@ -253,7 +253,7 @@ public class SkillEffect
 {
     [Header("Основные параметры")]
     [Tooltip("Тип эффекта")]
-    public EffectType effectType;
+    public OldEffectType effectType;
 
     [Tooltip("Длительность (секунды)")]
     public float duration = 5f;
@@ -294,9 +294,9 @@ public class SkillEffect
 }
 
 /// <summary>
-/// Типы эффектов
+/// Типы эффектов (СТАРАЯ СИСТЕМА - используется в SkillData)
 /// </summary>
-public enum EffectType
+public enum OldEffectType
 {
     // Баффы
     IncreaseAttack,      // Увеличение атаки

@@ -1,0 +1,58 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6e79cfd8b12443c408c3d4a9fbdce0c8, type: 3}
+  m_Name: Paladin_LayonHands
+  m_EditorClassIdentifier: 
+  skillId: 504
+  skillName: Lay on Hands
+  description: "\u041D\u0430\u043B\u043E\u0436\u0435\u043D\u0438\u0435 \u0440\u0443\u043A
+    - \u043C\u043E\u0449\u043D\u043E\u0435 \u0446\u0435\u043B\u0435\u0431\u043D\u043E\u0435
+    \u043A\u0430\u0441\u0430\u043D\u0438\u0435, \u0438\u0441\u0446\u0435\u043B\u044F\u044E\u0449\u0435\u0435
+    \u0441\u043E\u044E\u0437\u043D\u0438\u043A\u0430 \u0441\u0432\u044F\u0442\u043E\u0439
+    \u043C\u0430\u0433\u0438\u0435\u0439"
+  icon: {fileID: 21300000, guid: 875d497851c2e6d479d80ba913789bed, type: 3}
+  characterClass: 4
+  cooldown: 20
+  manaCost: 50
+  castRange: 10
+  castTime: 1
+  canUseWhileMoving: 0
+  skillType: 1
+  targetType: 1
+  requiresTarget: 1
+  canTargetAllies: 1
+  canTargetEnemies: 0
+  baseDamageOrHeal: 120
+  intelligenceScaling: 35
+  strengthScaling: 0
+  effects:
+  - effectType: 19
+    duration: 5
+    power: 10
+    damageOrHealPerTick: 10
+    tickInterval: 1
+    particleEffectPrefab: {fileID: 1590415177872986601, guid: acdb90624a404aa438447006f1026065, type: 3}
+    canBeDispelled: 1
+  aoeRadius: 0
+  maxTargets: 1
+  animationTrigger: Cast
+  visualEffectPrefab: {fileID: 7305185502956871417, guid: 85b062a5517cf8345bb6784ffbed4877, type: 3}
+  projectilePrefab: {fileID: 0}
+  castSound: {fileID: 0}
+  impactSound: {fileID: 0}
+  summonPrefab: {fileID: 0}
+  summonCount: 1
+  summonDuration: 30
+  transformationModel: {fileID: 0}
+  transformationDuration: 30
+  hpBonusPercent: 0
+  physicalDamageBonusPercent: 0

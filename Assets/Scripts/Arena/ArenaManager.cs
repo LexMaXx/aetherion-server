@@ -39,6 +39,22 @@ public class ArenaManager : MonoBehaviour
     private bool spawnIndexReceived = false; // Флаг получения spawnIndex от сервера
     private bool gameStarted = false; // LOBBY SYSTEM: Флаг старта игры
 
+    /// <summary>
+    /// Проверить началась ли игра (прошел ли countdown)
+    /// </summary>
+    public bool IsGameStarted()
+    {
+        return gameStarted;
+    }
+
+    /// <summary>
+    /// Получить массив точек спавна для мультиплеера
+    /// </summary>
+    public Transform[] MultiplayerSpawnPoints
+    {
+        get { return multiplayerSpawnPoints; }
+    }
+
     void Start()
     {
         // Проверяем мультиплеер режим
@@ -352,9 +368,27 @@ public class ArenaManager : MonoBehaviour
         {
             actionPointsSystem = modelTransform.gameObject.AddComponent<ActionPointsSystem>();
             Debug.Log("✓ Добавлен ActionPointsSystem");
+
+        }
+        // СИСТЕМА СКИЛЛОВ: EffectManager + SkillExecutor + SkillManager
+
+        // 1. Добавляем EffectManager (управление эффектами: Root, Stun, Slow и т.д.)
+        EffectManager effectManager = modelTransform.GetComponent<EffectManager>();
+        if (effectManager == null)
+        {
+            effectManager = modelTransform.gameObject.AddComponent<EffectManager>();
+            Debug.Log("✓ Добавлен EffectManager");
         }
 
-        // Добавляем систему скиллов (КРИТИЧЕСКОЕ!)
+        // 2. Добавляем SkillExecutor (КРИТИЧЕСКОЕ! Должен быть ПЕРЕД SkillManager)
+        SkillExecutor skillExecutor = modelTransform.GetComponent<SkillExecutor>();
+        if (skillExecutor == null)
+        {
+            skillExecutor = modelTransform.gameObject.AddComponent<SkillExecutor>();
+            Debug.Log("✓ Добавлен SkillExecutor");
+        }
+
+        // 3. Добавляем SkillManager (управление списком скиллов)
         SkillManager skillManager = modelTransform.GetComponent<SkillManager>();
         if (skillManager == null)
         {
@@ -362,11 +396,10 @@ public class ArenaManager : MonoBehaviour
             Debug.Log("✓ Добавлен SkillManager");
         }
 
-        // КРИТИЧЕСКОЕ: Загружаем скиллы из SkillDatabase для класса
-        LoadSkillsForClass(skillManager);
-
-        // КРИТИЧЕСКОЕ: Загружаем экипированные скиллы из PlayerPrefs
-        LoadEquippedSkillsFromPlayerPrefs(skillManager);
+        // 4. АВТОМАТИЧЕСКАЯ ЗАГРУЗКА из Resources/Skills/ по классу персонажа
+        string selectedClass = PlayerPrefs.GetString("SelectedCharacterClass", "Warrior");
+        Debug.Log($"[ArenaManager] 🔄 Автоматическая загрузка скиллов для класса {selectedClass} из Resources/Skills/...");
+        LoadAllSkillsToManager(skillManager, selectedClass);
 
         // Добавляем туман войны (Fog of War)
         FogOfWar fogOfWar = modelTransform.GetComponent<FogOfWar>();
@@ -382,7 +415,6 @@ public class ArenaManager : MonoBehaviour
         // MULTIPLAYER: Регистрируем локального игрока в NetworkSyncManager
         if (isMultiplayer && NetworkSyncManager.Instance != null)
         {
-            string selectedClass = PlayerPrefs.GetString("SelectedCharacterClass", "");
             NetworkSyncManager.Instance.SetLocalPlayer(modelTransform.gameObject, selectedClass);
             Debug.Log("[ArenaManager] ✅ Локальный игрок зарегистрирован в NetworkSyncManager");
 
@@ -1190,104 +1222,191 @@ public class ArenaManager : MonoBehaviour
     /// <summary>
     /// Загрузить все доступные скиллы класса из SkillDatabase
     /// </summary>
-    private void LoadSkillsForClass(SkillManager skillManager)
-    {
-        if (skillManager == null)
-        {
-            Debug.LogError("[ArenaManager] ❌ SkillManager is NULL!");
-            return;
-        }
-
-        // Получаем класс персонажа
-        string selectedClass = PlayerPrefs.GetString("SelectedCharacterClass", "");
-        if (string.IsNullOrEmpty(selectedClass))
-        {
-            Debug.LogError("[ArenaManager] ❌ SelectedCharacterClass пуст!");
-            return;
-        }
-
-        // Загружаем SkillDatabase
-        SkillDatabase skillDatabase = SkillDatabase.Instance;
-        if (skillDatabase == null)
-        {
-            Debug.LogError("[ArenaManager] ❌ SkillDatabase не найдена! Создайте через Assets → Create → Skill Database");
-            return;
-        }
-
-        // Конвертируем string класса в CharacterClass enum
-        CharacterClass characterClass;
-        if (!System.Enum.TryParse(selectedClass, out characterClass))
-        {
-            Debug.LogError($"[ArenaManager] ❌ Неизвестный класс: {selectedClass}");
-            return;
-        }
-
-        // Получаем все скиллы класса
-        var classSkills = skillDatabase.GetSkillsForClass(characterClass);
-        if (classSkills == null || classSkills.Count == 0)
-        {
-            Debug.LogWarning($"[ArenaManager] ⚠️ Нет скиллов для класса {selectedClass} в SkillDatabase!");
-            return;
-        }
-
-        // Загружаем в allAvailableSkills
-        skillManager.allAvailableSkills.Clear();
-        skillManager.allAvailableSkills.AddRange(classSkills);
-
-        Debug.Log($"[ArenaManager] ✅ Загружено {classSkills.Count} скиллов для класса {selectedClass}:");
-        foreach (var skill in classSkills)
-        {
-            Debug.Log($"  - {skill.skillName} (ID: {skill.skillId})");
-        }
-    }
-
-    /// <summary>
-    /// Загрузить экипированные скиллы из PlayerPrefs
-    /// </summary>
-    private void LoadEquippedSkillsFromPlayerPrefs(SkillManager skillManager)
-    {
-        if (skillManager == null)
-        {
-            Debug.LogError("[ArenaManager] ❌ SkillManager is NULL!");
-            return;
-        }
-
-        // Загружаем из PlayerPrefs
-        string equipJson = PlayerPrefs.GetString("EquippedSkills", "");
-        if (string.IsNullOrEmpty(equipJson))
-        {
-            Debug.LogWarning("[ArenaManager] ⚠️ EquippedSkills пуст в PlayerPrefs! Используем первые 3 скилла по умолчанию.");
-
-            // Автоэкипировка первых 3 скиллов
-            List<int> defaultSkillIds = new List<int>();
-            for (int i = 0; i < System.Math.Min(3, skillManager.allAvailableSkills.Count); i++)
-            {
-                defaultSkillIds.Add(skillManager.allAvailableSkills[i].skillId);
-            }
-            skillManager.LoadEquippedSkills(defaultSkillIds);
-            return;
-        }
-
-        // Парсим JSON
-        EquippedSkillsData data = JsonUtility.FromJson<EquippedSkillsData>(equipJson);
-        if (data == null || data.skillIds == null || data.skillIds.Count == 0)
-        {
-            Debug.LogWarning("[ArenaManager] ⚠️ Не удалось распарсить EquippedSkills JSON!");
-            return;
-        }
-
-        // Загружаем скиллы в SkillManager
-        skillManager.LoadEquippedSkills(data.skillIds);
-
-        Debug.Log($"[ArenaManager] ✅ Экипировано скиллов из PlayerPrefs: {data.skillIds.Count}");
-    }
-
-    /// <summary>
-    /// Вспомогательный класс для сериализации экипированных скиллов
-    /// </summary>
+// DEPRECATED:     private void LoadSkillsForClass(SkillManager skillManager)
+// DEPRECATED:     {
+// DEPRECATED:         if (skillManager == null)
+// DEPRECATED:         {
+// DEPRECATED:             Debug.LogError("[ArenaManager] ❌ SkillManager is NULL!");
+// DEPRECATED:             return;
+// DEPRECATED:         }
+// DEPRECATED: 
+// DEPRECATED:         // Получаем класс персонажа
+// DEPRECATED:         string selectedClass = PlayerPrefs.GetString("SelectedCharacterClass", "");
+// DEPRECATED:         if (string.IsNullOrEmpty(selectedClass))
+// DEPRECATED:         {
+// DEPRECATED:             Debug.LogError("[ArenaManager] ❌ SelectedCharacterClass пуст!");
+// DEPRECATED:             return;
+// DEPRECATED:         }
+// DEPRECATED: 
+// DEPRECATED:         // Загружаем SkillDatabase
+// DEPRECATED:         SkillDatabase skillDatabase = SkillDatabase.Instance;
+// DEPRECATED:         if (skillDatabase == null)
+// DEPRECATED:         {
+// DEPRECATED:             Debug.LogError("[ArenaManager] ❌ SkillDatabase не найдена! Создайте через Assets → Create → Skill Database");
+// DEPRECATED:             return;
+// DEPRECATED:         }
+// DEPRECATED: 
+// DEPRECATED:         // Конвертируем string класса в CharacterClass enum
+// DEPRECATED:         CharacterClass characterClass;
+// DEPRECATED:         if (!System.Enum.TryParse(selectedClass, out characterClass))
+// DEPRECATED:         {
+// DEPRECATED:             Debug.LogError($"[ArenaManager] ❌ Неизвестный класс: {selectedClass}");
+// DEPRECATED:             return;
+// DEPRECATED:         }
+// DEPRECATED: 
+// DEPRECATED:         // Получаем все скиллы класса
+// DEPRECATED:         var classSkills = skillDatabase.GetSkillsForClass(characterClass);
+// DEPRECATED:         if (classSkills == null || classSkills.Count == 0)
+// DEPRECATED:         {
+// DEPRECATED:             Debug.LogWarning($"[ArenaManager] ⚠️ Нет скиллов для класса {selectedClass} в SkillDatabase!");
+// DEPRECATED:             return;
+// DEPRECATED:         }
+// DEPRECATED: 
+// DEPRECATED:         // Загружаем в allAvailableSkills
+// DEPRECATED:         skillManager.allAvailableSkills.Clear();
+// DEPRECATED:         skillManager.allAvailableSkills.AddRange(classSkills);
+// DEPRECATED: 
+// DEPRECATED:         Debug.Log($"[ArenaManager] ✅ Загружено {classSkills.Count} скиллов для класса {selectedClass}:");
+// DEPRECATED:         foreach (var skill in classSkills)
+// DEPRECATED:         {
+// DEPRECATED:             Debug.Log($"  - {skill.skillName} (ID: {skill.skillId})");
+// DEPRECATED:         }
+// DEPRECATED:     }
+// DEPRECATED: 
+// DEPRECATED:     /// <summary>
+// DEPRECATED:     /// Загрузить экипированные скиллы из PlayerPrefs
+// DEPRECATED:     /// </summary>
+// DEPRECATED:     private void LoadEquippedSkillsFromPlayerPrefs(SkillManager skillManager)
+// DEPRECATED:     {
+// DEPRECATED:         if (skillManager == null)
+// DEPRECATED:         {
+// DEPRECATED:             Debug.LogError("[ArenaManager] ❌ SkillManager is NULL!");
+// DEPRECATED:             return;
+// DEPRECATED:         }
+// DEPRECATED: 
+// DEPRECATED:         // Загружаем из PlayerPrefs
+// DEPRECATED:         string equipJson = PlayerPrefs.GetString("EquippedSkills", "");
+// DEPRECATED:         if (string.IsNullOrEmpty(equipJson))
+// DEPRECATED:         {
+// DEPRECATED:             Debug.LogWarning("[ArenaManager] ⚠️ EquippedSkills пуст в PlayerPrefs! Используем первые 3 скилла по умолчанию.");
+// DEPRECATED: 
+// DEPRECATED:             // Автоэкипировка первых 3 скиллов
+// DEPRECATED:             List<int> defaultSkillIds = new List<int>();
+// DEPRECATED:             for (int i = 0; i < System.Math.Min(3, skillManager.allAvailableSkills.Count); i++)
+// DEPRECATED:             {
+// DEPRECATED:                 defaultSkillIds.Add(skillManager.allAvailableSkills[i].skillId);
+// DEPRECATED:             }
+// DEPRECATED:             skillManager.LoadEquippedSkills(defaultSkillIds);
+// DEPRECATED:             return;
+// DEPRECATED:         }
+// DEPRECATED: 
+// DEPRECATED:         // Парсим JSON
+// DEPRECATED:         EquippedSkillsData data = JsonUtility.FromJson<EquippedSkillsData>(equipJson);
+// DEPRECATED:         if (data == null || data.skillIds == null || data.skillIds.Count == 0)
+// DEPRECATED:         {
+// DEPRECATED:             Debug.LogWarning("[ArenaManager] ⚠️ Не удалось распарсить EquippedSkills JSON!");
+// DEPRECATED:             return;
+// DEPRECATED:         }
+// DEPRECATED: 
+// DEPRECATED:         // Загружаем скиллы в SkillManager
+// DEPRECATED:         skillManager.LoadEquippedSkills(data.skillIds);
+// DEPRECATED: 
+// DEPRECATED:         Debug.Log($"[ArenaManager] ✅ Экипировано скиллов из PlayerPrefs: {data.skillIds.Count}");
+// DEPRECATED:     }
+// DEPRECATED: 
+// DEPRECATED:     /// <summary>
+// DEPRECATED:     /// Вспомогательный класс для сериализации экипированных скиллов
+// DEPRECATED:     /// </summary>
     [System.Serializable]
     private class EquippedSkillsData
     {
         public List<int> skillIds;
+    }
+
+    /// <summary>
+    /// АВТОМАТИЧЕСКАЯ ЗАГРУЗКА: Загружает ВСЕ 5 скиллов класса из Resources/Skills/
+    /// по префиксу имени файла (например Archer_XXX.asset для лучника)
+    /// </summary>
+    private void LoadAllSkillsToManager(SkillManager skillManager, string characterClass)
+    {
+        if (skillManager == null)
+        {
+            Debug.LogError("[ArenaManager] ❌ SkillManager is NULL!");
+            return;
+        }
+
+        Debug.Log($"[ArenaManager] 📚 Загрузка 5 скиллов для класса: {characterClass}");
+
+        // НОВАЯ СИСТЕМА: Загружаем из PlayerPrefs в том порядке как выбрал игрок в SkillSelectionPanel
+        string equippedSkillsJson = PlayerPrefs.GetString("EquippedSkills", "");
+
+        if (!string.IsNullOrEmpty(equippedSkillsJson))
+        {
+            try
+            {
+                // Парсим JSON с порядком скиллов из Character Selection
+                EquippedSkillsData data = JsonUtility.FromJson<EquippedSkillsData>(equippedSkillsJson);
+                List<int> skillIds = data.skillIds;
+
+                Debug.Log($"[ArenaManager] ✅ Загружено {skillIds.Count} скиллов из PlayerPrefs (порядок из SkillSelectionPanel): [{string.Join(", ", skillIds)}]");
+
+                // ВАЖНО: Используем LoadEquippedSkills с порядком из PlayerPrefs
+                // Это автоматически вызовет TransferSkillsToExecutor() внутри SkillManager
+                skillManager.LoadEquippedSkills(skillIds);
+
+                Debug.Log($"[ArenaManager] ✅ Скиллы загружены в SkillManager В ТОМ ЖЕ ПОРЯДКЕ как в SkillSelectionPanel!");
+                Debug.Log($"[ArenaManager] ✅ Скиллы автоматически переданы в SkillExecutor через SkillManager.TransferSkillsToExecutor()");
+                return;
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning($"[ArenaManager] ⚠️ Ошибка парсинга EquippedSkills из PlayerPrefs: {e.Message}");
+                Debug.LogWarning($"[ArenaManager] ⚠️ Использую запасной вариант - загрузка по алфавиту");
+            }
+        }
+        else
+        {
+            Debug.LogWarning($"[ArenaManager] ⚠️ PlayerPrefs 'EquippedSkills' пуст!");
+            Debug.LogWarning($"[ArenaManager] ⚠️ Использую запасной вариант - загрузка всех скиллов класса по skillId");
+        }
+
+        // ЗАПАСНОЙ ВАРИАНТ: Если нет данных в PlayerPrefs - загружаем все скиллы класса по ID
+        string skillPrefix = $"{characterClass}_";
+        SkillConfig[] allSkills = Resources.LoadAll<SkillConfig>("Skills");
+
+        List<SkillConfig> classSkills = new List<SkillConfig>();
+        foreach (SkillConfig skill in allSkills)
+        {
+            if (skill.name.StartsWith(skillPrefix))
+            {
+                classSkills.Add(skill);
+                Debug.Log($"[ArenaManager] ✅ Найден скилл: {skill.name} ({skill.skillName}, ID: {skill.skillId})");
+            }
+        }
+
+        if (classSkills.Count == 0)
+        {
+            Debug.LogError($"[ArenaManager] ❌ Не найдено скиллов для класса {characterClass}! Проверь что файлы называются {skillPrefix}XXX.asset в Resources/Skills/");
+            return;
+        }
+
+        // Сортируем скиллы по skillId (запасной порядок)
+        classSkills.Sort((a, b) => a.skillId.CompareTo(b.skillId));
+
+        Debug.Log($"[ArenaManager] 📊 Скиллы отсортированы по ID (запасной порядок):");
+        foreach (var skill in classSkills)
+        {
+            Debug.Log($"  - ID {skill.skillId}: {skill.skillName}");
+        }
+
+        // Создаём список ID скиллов для загрузки
+        List<int> skillIds2 = new List<int>();
+        foreach (SkillConfig skill in classSkills)
+        {
+            skillIds2.Add(skill.skillId);
+        }
+
+        skillManager.LoadEquippedSkills(skillIds2);
+        Debug.Log($"[ArenaManager] ✅ Загружено {classSkills.Count} скиллов для {characterClass} (запасной вариант)");
     }
 }

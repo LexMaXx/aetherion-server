@@ -23,12 +23,12 @@ public class Projectile : MonoBehaviour
     private float spawnTime; // Время создания
     private Transform visualTransform; // Трансформ визуальной части (для вращения)
     private GameObject owner; // Владелец снаряда (кто его выпустил) - для игнорирования коллизий
-    private List<SkillEffect> effects; // Эффекты скилла (горение, отравление и т.д.)
+    private List<EffectConfig> effects; // Эффекты скилла (горение, отравление и т.д.)
 
     /// <summary>
     /// Инициализация снаряда
     /// </summary>
-    public void Initialize(Transform targetTransform, float projectileDamage, Vector3 initialDirection, GameObject projectileOwner = null, List<SkillEffect> skillEffects = null)
+    public void Initialize(Transform targetTransform, float projectileDamage, Vector3 initialDirection, GameObject projectileOwner = null, List<EffectConfig> skillEffects = null)
     {
         target = targetTransform;
         damage = projectileDamage;
@@ -51,6 +51,15 @@ public class Projectile : MonoBehaviour
     }
 
     /// <summary>
+    /// Установить эффект попадания из BasicAttackConfig
+    /// </summary>
+    public void SetHitEffect(GameObject effect)
+    {
+        hitEffect = effect;
+        Debug.Log($"[Projectile] 🎨 Hit effect установлен: {effect?.name ?? "None"}");
+    }
+
+    /// <summary>
     /// Инициализация снаряда с настройками из SkillData (НОВОЕ)
     /// </summary>
     public void InitializeFromSkill(SkillData skill, Transform targetTransform, Vector3 initialDirection, GameObject projectileOwner = null)
@@ -60,7 +69,7 @@ public class Projectile : MonoBehaviour
         direction = initialDirection.normalized;
         spawnTime = Time.time;
         owner = projectileOwner;
-        effects = skill.effects;
+        effects = null; // Старая система SkillData не поддерживает новые эффекты
 
         // Применяем настройки из SkillData
         speed = skill.projectileSpeed;
@@ -138,23 +147,71 @@ public class Projectile : MonoBehaviour
         if (target != null)
         {
             Enemy enemy = target.GetComponent<Enemy>();
-            if (enemy != null && enemy.IsAlive())
-            {
-                // ВАЖНО: В мультиплеере НЕ наносим урон NetworkPlayer локально!
-                NetworkPlayer networkTarget = target.GetComponent<NetworkPlayer>();
-                if (networkTarget == null)
-                {
-                    // Это обычный NPC враг - наносим урон локально
-                    enemy.TakeDamage(damage);
-                    Debug.Log($"[Projectile] Попадание в NPC! Урон: {damage}");
+            DummyEnemy dummy = target.GetComponent<DummyEnemy>();
+            NetworkPlayer networkTarget = target.GetComponent<NetworkPlayer>();
 
-                    // Применяем эффекты (горение, отравление и т.д.)
-                    ApplyEffects(target);
+            // КРИТИЧЕСКОЕ ИЗМЕНЕНИЕ: Проверяем, это NetworkPlayer (другой игрок)?
+            if (networkTarget != null)
+            {
+                // Это другой игрок в мультиплеере - отправляем урон через NetworkCombatSync!
+                Debug.Log($"[Projectile] 🎯 Попадание в игрока {networkTarget.username}! Отправляем урон на сервер...");
+
+                // Находим владельца снаряда (того кто его выпустил)
+                if (owner != null)
+                {
+                    NetworkCombatSync ownerSync = owner.GetComponent<NetworkCombatSync>();
+                    if (ownerSync != null)
+                    {
+                        // Отправляем урон на сервер (сервер рассчитает урон с учетом SPECIAL stats)
+                        ownerSync.SendAttack(target.gameObject, damage, "skill");
+                        Debug.Log($"[Projectile] ✅ Урон от скилла отправлен на сервер через NetworkCombatSync!");
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[Projectile] ⚠️ NetworkCombatSync не найден у владельца снаряда!");
+                    }
                 }
                 else
                 {
-                    // Это NetworkPlayer - урон уже отправлен на сервер через PlayerAttack
-                    Debug.Log($"[Projectile] Попадание в NetworkPlayer {networkTarget.username}! Урон применит сервер");
+                    Debug.LogWarning($"[Projectile] ⚠️ Владелец снаряда (owner) не установлен!");
+                }
+            }
+            else if (enemy != null && enemy.IsAlive())
+            {
+                // Это обычный NPC враг - наносим урон локально
+                enemy.TakeDamage(damage);
+                Debug.Log($"[Projectile] Попадание в NPC! Урон: {damage}");
+
+                // Применяем эффекты через ProjectileEffectApplier (новая система) или ApplyEffects (старая система)
+                ProjectileEffectApplier effectApplier = GetComponent<ProjectileEffectApplier>();
+                if (effectApplier != null)
+                {
+                    Debug.Log($"[Projectile] ⏭️ Применяем эффекты через ProjectileEffectApplier (новая система)");
+                    effectApplier.ApplyEffects(target);
+                }
+                else
+                {
+                    // Старая система: SkillEffect через SkillManager
+                    ApplyEffects(target);
+                }
+            }
+            else if (dummy != null && dummy.IsAlive())
+            {
+                // DummyEnemy - тестовый враг (локальный урон)
+                dummy.TakeDamage(damage);
+                Debug.Log($"[Projectile] Попадание в DummyEnemy! Урон: {damage}");
+
+                // Применяем эффекты через ProjectileEffectApplier (новая система) или ApplyEffects (старая система)
+                ProjectileEffectApplier effectApplier = GetComponent<ProjectileEffectApplier>();
+                if (effectApplier != null)
+                {
+                    Debug.Log($"[Projectile] ⏭️ Применяем эффекты через ProjectileEffectApplier (новая система)");
+                    effectApplier.ApplyEffects(target);
+                }
+                else
+                {
+                    // Старая система: SkillEffect через SkillManager
+                    ApplyEffects(target);
                 }
             }
         }
@@ -199,25 +256,31 @@ public class Projectile : MonoBehaviour
         }
 
         // Игнорируем коллизии с землёй и другими не-целевыми объектами
-        if (other.CompareTag("Ground") || other.CompareTag("Terrain"))
+        // Безопасная проверка тегов (не вызываем ошибку если тег не определён)
+        if (other.tag == "Ground" || other.tag == "Terrain" || other.gameObject.layer == LayerMask.NameToLayer("Ground"))
         {
             Debug.Log($"[Projectile] ⏭️ Игнорируем землю/терейн");
             return;
         }
 
-        // Попадание во врага (Enemy tag) или NetworkPlayer
+        // Попадание во врага (Enemy tag) или NetworkPlayer или DummyEnemy
         NetworkPlayer networkTarget = other.GetComponent<NetworkPlayer>();
         Enemy enemy = other.GetComponent<Enemy>();
+        DummyEnemy dummy = other.GetComponent<DummyEnemy>();
 
-        Debug.Log($"[Projectile] 🎯 NetworkPlayer: {networkTarget != null}, Enemy: {enemy != null}");
+        Debug.Log($"[Projectile] 🎯 NetworkPlayer: {networkTarget != null}, Enemy: {enemy != null}, DummyEnemy: {dummy != null}");
 
-        if (networkTarget != null || enemy != null)
+        if (networkTarget != null || enemy != null || dummy != null)
         {
             // Проверяем живой ли враг
             bool isAlive = true;
             if (enemy != null)
             {
                 isAlive = enemy.IsAlive();
+            }
+            else if (dummy != null)
+            {
+                isAlive = dummy.IsAlive();
             }
             else if (networkTarget != null)
             {
@@ -226,21 +289,51 @@ public class Projectile : MonoBehaviour
 
             if (isAlive)
             {
-                // Наносим урон только NPC врагам (NetworkPlayer получает урон через сервер)
-                if (networkTarget == null && enemy != null)
+                // КРИТИЧЕСКОЕ ИЗМЕНЕНИЕ: Проверяем тип цели и отправляем урон правильно
+                if (networkTarget != null)
                 {
+                    // Это другой игрок в мультиплеере - отправляем урон через NetworkCombatSync!
+                    Debug.Log($"[Projectile] 🎯 OnTriggerEnter: Попадание в игрока {networkTarget.username}! Отправляем урон на сервер...");
+
+                    // Находим владельца снаряда (того кто его выпустил)
+                    if (owner != null)
+                    {
+                        NetworkCombatSync ownerSync = owner.GetComponent<NetworkCombatSync>();
+                        if (ownerSync != null)
+                        {
+                            // Отправляем урон на сервер (сервер рассчитает урон с учетом SPECIAL stats)
+                            ownerSync.SendAttack(other.gameObject, damage, "skill");
+                            Debug.Log($"[Projectile] ✅ Урон от скилла отправлен на сервер через NetworkCombatSync!");
+                        }
+                        else
+                        {
+                            Debug.LogWarning($"[Projectile] ⚠️ NetworkCombatSync не найден у владельца снаряда!");
+                        }
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[Projectile] ⚠️ Владелец снаряда (owner) не установлен!");
+                    }
+
+                    // Применяем визуальные эффекты (горение и т.д.) на NetworkPlayer
+                    ApplyEffects(other.transform);
+                }
+                else if (enemy != null)
+                {
+                    // Наносим урон только NPC врагам (локальный урон)
                     enemy.TakeDamage(damage);
                     Debug.Log($"[Projectile] 💥 Попадание в NPC! Урон: {damage}");
 
                     // Применяем эффекты (горение, отравление и т.д.)
                     ApplyEffects(other.transform);
                 }
-                else if (networkTarget != null)
+                else if (dummy != null)
                 {
-                    // NetworkPlayer - урон применит сервер, но визуальные эффекты применяем локально!
-                    Debug.Log($"[Projectile] 💥 Попадание в NetworkPlayer {networkTarget.username}! Урон применит сервер");
+                    // DummyEnemy - тестовый враг (локальный урон)
+                    dummy.TakeDamage(damage);
+                    Debug.Log($"[Projectile] 💥 Попадание в DummyEnemy! Урон: {damage}");
 
-                    // Применяем визуальные эффекты (горение и т.д.) на NetworkPlayer
+                    // Применяем эффекты (горение, отравление и т.д.)
                     ApplyEffects(other.transform);
                 }
 
@@ -292,7 +385,7 @@ public class Projectile : MonoBehaviour
             Debug.Log($"[Projectile] ➕ Добавлен SkillManager к {targetTransform.name}");
         }
 
-        foreach (SkillEffect effect in effects)
+        foreach (EffectConfig effect in effects)
         {
             Debug.Log($"[Projectile] 🔥 Применяем эффект {effect.effectType}, particleEffectPrefab: {(effect.particleEffectPrefab != null ? effect.particleEffectPrefab.name : "NULL")}");
             skillManager.AddEffect(effect, targetTransform);

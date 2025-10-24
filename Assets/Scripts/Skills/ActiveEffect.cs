@@ -2,8 +2,9 @@ using UnityEngine;
 
 /// <summary>
 /// Активный эффект на персонаже (баф/дебаф/контроль)
+/// СТАРАЯ СИСТЕМА - используется в SkillManager
 /// </summary>
-public class ActiveEffect
+public class OldActiveEffect
 {
     public SkillEffect effectData;
     public float remainingDuration;
@@ -21,7 +22,7 @@ public class ActiveEffect
     public bool isInvulnerable = false;
     public float shieldAmount = 0f; // Щит (поглощает урон)
 
-    public ActiveEffect(SkillEffect effect, Transform target)
+    public OldActiveEffect(SkillEffect effect, Transform target)
     {
         this.effectData = effect;
         this.remainingDuration = effect.duration;
@@ -30,15 +31,15 @@ public class ActiveEffect
 
         // Создаём визуальный эффект если есть
         // КРИТИЧЕСКОЕ: Создаём эффекты для врагов (Enemy) и локального игрока, НО НЕ для NetworkPlayer
-        Debug.Log($"[ActiveEffect] 🔍 Проверка эффекта {effect.effectType} для {target.name}");
-        Debug.Log($"[ActiveEffect] 🔍 particleEffectPrefab: {(effect.particleEffectPrefab != null ? effect.particleEffectPrefab.name : "NULL")}");
+        Debug.Log($"[OldActiveEffect] 🔍 Проверка эффекта {effect.effectType} для {target.name}");
+        Debug.Log($"[OldActiveEffect] 🔍 particleEffectPrefab: {(effect.particleEffectPrefab != null ? effect.particleEffectPrefab.name : "NULL")}");
 
         if (effect.particleEffectPrefab != null && target != null)
         {
             NetworkPlayer networkPlayer = target.GetComponent<NetworkPlayer>();
             Enemy enemy = target.GetComponent<Enemy>();
 
-            Debug.Log($"[ActiveEffect] 🔍 Enemy: {enemy != null}, NetworkPlayer: {networkPlayer != null}");
+            Debug.Log($"[OldActiveEffect] 🔍 Enemy: {enemy != null}, NetworkPlayer: {networkPlayer != null}");
 
             // Создаём эффект если это:
             // 1. Враг (Enemy) - всегда показываем эффекты на врагах
@@ -56,7 +57,7 @@ public class ActiveEffect
                 particleInstance.transform.localPosition = Vector3.up * 1f;
                 particleInstance.transform.localRotation = effectRotation;
 
-                Debug.Log($"[ActiveEffect] ✨ Визуальный эффект создан на {target.name}: {effect.particleEffectPrefab.name}, position: {effectPosition}, rotation: (90,0,0)");
+                Debug.Log($"[OldActiveEffect] ✨ Визуальный эффект создан на {target.name}: {effect.particleEffectPrefab.name}, position: {effectPosition}, rotation: (90,0,0)");
 
                 // СИНХРОНИЗАЦИЯ: Отправляем визуальный эффект на сервер (если это локальный игрок)
                 if (networkPlayer == null && SocketIOManager.Instance != null && SocketIOManager.Instance.IsConnected)
@@ -75,17 +76,17 @@ public class ActiveEffect
                         localSocketId, // привязываем к локальному игроку
                         effect.duration // длительность эффекта
                     );
-                    Debug.Log($"[ActiveEffect] ✨ Визуальный эффект {effectTypeString} отправлен на сервер: {effectName}, targetSocketId={localSocketId}");
+                    Debug.Log($"[OldActiveEffect] ✨ Визуальный эффект {effectTypeString} отправлен на сервер: {effectName}, targetSocketId={localSocketId}");
                 }
             }
             else
             {
-                Debug.Log($"[ActiveEffect] ⏭️ NetworkPlayer detected - пропускаем визуальный эффект {effect.effectType}");
+                Debug.Log($"[OldActiveEffect] ⏭️ NetworkPlayer detected - пропускаем визуальный эффект {effect.effectType}");
             }
         }
         else
         {
-            Debug.Log($"[ActiveEffect] ⚠️ Нет particleEffectPrefab или target для эффекта {effect.effectType}");
+            Debug.Log($"[OldActiveEffect] ⚠️ Нет particleEffectPrefab или target для эффекта {effect.effectType}");
         }
 
         // Применяем эффект
@@ -94,21 +95,21 @@ public class ActiveEffect
         // Устанавливаем флаги контроля
         switch (effect.effectType)
         {
-            case EffectType.Stun:
+            case OldEffectType.Stun:
                 isStunned = true;
                 break;
-            case EffectType.Root:
+            case OldEffectType.Root:
                 isRooted = true;
                 break;
-            case EffectType.Sleep:
+            case OldEffectType.Sleep:
                 isSleeping = true;
                 break;
-            case EffectType.Silence:
+            case OldEffectType.Silence:
                 isSilenced = true;
                 break;
-            case EffectType.Invulnerability:
+            case OldEffectType.Invulnerability:
                 isInvulnerable = true;
-                Debug.Log("[ActiveEffect] 🛡️ НЕУЯЗВИМОСТЬ активирована!");
+                Debug.Log("[OldActiveEffect] 🛡️ НЕУЯЗВИМОСТЬ активирована!");
                 break;
         }
     }
@@ -179,25 +180,25 @@ public class ActiveEffect
 
         switch (effectData.effectType)
         {
-            case EffectType.IncreaseAttack:
+            case OldEffectType.IncreaseAttack:
                 float attackBonus = stats.physicalDamage * bonusValue;
                 stats.ModifyPhysicalDamage(attackBonus);
                 Debug.Log($"[ActiveEffect] ⚔️ Атака увеличена на {effectData.power}% (+{attackBonus:F0})");
                 break;
 
-            case EffectType.IncreaseDefense:
+            case OldEffectType.IncreaseDefense:
                 float defenseBonus = stats.physicalDefense * bonusValue;
                 stats.ModifyPhysicalDefense(defenseBonus);
                 Debug.Log($"[ActiveEffect] 🛡️ Защита увеличена на {effectData.power}% (+{defenseBonus:F0})");
                 break;
 
-            case EffectType.IncreaseSpeed:
+            case OldEffectType.IncreaseSpeed:
                 float speedBonus = stats.movementSpeed * bonusValue;
                 stats.ModifyMovementSpeed(speedBonus);
                 Debug.Log($"[ActiveEffect] 🏃 Скорость увеличена на {effectData.power}% (+{speedBonus:F1})");
                 break;
 
-            case EffectType.IncreasePerception:
+            case OldEffectType.IncreasePerception:
                 int perceptionBonus = Mathf.RoundToInt(effectData.power); // power = прямое значение (не процент)
                 Debug.Log($"[ActiveEffect] 🔍 ОТЛАДКА PERCEPTION:");
                 Debug.Log($"[ActiveEffect] 🔍 effectData.power: {effectData.power}");
@@ -208,25 +209,25 @@ public class ActiveEffect
                 Debug.Log($"[ActiveEffect] 👁️ Восприятие увеличено на {perceptionBonus}");
                 break;
 
-            case EffectType.DecreaseAttack:
+            case OldEffectType.DecreaseAttack:
                 float attackPenalty = -stats.physicalDamage * bonusValue;
                 stats.ModifyPhysicalDamage(attackPenalty);
                 Debug.Log($"[ActiveEffect] ⚔️ Атака уменьшена на {effectData.power}% ({attackPenalty:F0})");
                 break;
 
-            case EffectType.DecreaseDefense:
+            case OldEffectType.DecreaseDefense:
                 float defensePenalty = -stats.physicalDefense * bonusValue;
                 stats.ModifyPhysicalDefense(defensePenalty);
                 Debug.Log($"[ActiveEffect] 🛡️ Защита уменьшена на {effectData.power}% ({defensePenalty:F0})");
                 break;
 
-            case EffectType.DecreaseSpeed:
+            case OldEffectType.DecreaseSpeed:
                 float speedPenalty = -stats.movementSpeed * bonusValue;
                 stats.ModifyMovementSpeed(speedPenalty);
                 Debug.Log($"[ActiveEffect] 🏃 Скорость уменьшена на {effectData.power}% ({speedPenalty:F1})");
                 break;
 
-            case EffectType.Shield:
+            case OldEffectType.Shield:
                 shieldAmount = effectData.power; // power = количество HP щита
                 Debug.Log($"[ActiveEffect] 🛡️ Щит активирован: {shieldAmount:F0} HP");
                 break;
@@ -267,49 +268,49 @@ public class ActiveEffect
 
         switch (effectData.effectType)
         {
-            case EffectType.IncreaseAttack:
+            case OldEffectType.IncreaseAttack:
                 float attackBonus = stats.physicalDamage * bonusValue;
                 stats.ModifyPhysicalDamage(-attackBonus); // Убираем бонус
                 Debug.Log($"[ActiveEffect] ⚔️ Бонус атаки снят (-{attackBonus:F0})");
                 break;
 
-            case EffectType.IncreaseDefense:
+            case OldEffectType.IncreaseDefense:
                 float defenseBonus = stats.physicalDefense * bonusValue;
                 stats.ModifyPhysicalDefense(-defenseBonus);
                 Debug.Log($"[ActiveEffect] 🛡️ Бонус защиты снят (-{defenseBonus:F0})");
                 break;
 
-            case EffectType.IncreaseSpeed:
+            case OldEffectType.IncreaseSpeed:
                 float speedBonus = stats.movementSpeed * bonusValue;
                 stats.ModifyMovementSpeed(-speedBonus);
                 Debug.Log($"[ActiveEffect] 🏃 Бонус скорости снят (-{speedBonus:F1})");
                 break;
 
-            case EffectType.IncreasePerception:
+            case OldEffectType.IncreasePerception:
                 int perceptionBonus = Mathf.RoundToInt(effectData.power);
                 stats.ModifyPerception(-perceptionBonus); // Убираем бонус
                 Debug.Log($"[ActiveEffect] 👁️ Бонус восприятия снят (-{perceptionBonus})");
                 break;
 
-            case EffectType.DecreaseAttack:
+            case OldEffectType.DecreaseAttack:
                 float attackPenalty = -stats.physicalDamage * bonusValue;
                 stats.ModifyPhysicalDamage(-attackPenalty); // Убираем пенальти
                 Debug.Log($"[ActiveEffect] ⚔️ Пенальти атаки снят (+{-attackPenalty:F0})");
                 break;
 
-            case EffectType.DecreaseDefense:
+            case OldEffectType.DecreaseDefense:
                 float defensePenalty = -stats.physicalDefense * bonusValue;
                 stats.ModifyPhysicalDefense(-defensePenalty);
                 Debug.Log($"[ActiveEffect] 🛡️ Пенальти защиты снят (+{-defensePenalty:F0})");
                 break;
 
-            case EffectType.DecreaseSpeed:
+            case OldEffectType.DecreaseSpeed:
                 float speedPenalty = -stats.movementSpeed * bonusValue;
                 stats.ModifyMovementSpeed(-speedPenalty);
                 Debug.Log($"[ActiveEffect] 🏃 Пенальти скорости снят (+{-speedPenalty:F1})");
                 break;
 
-            case EffectType.Shield:
+            case OldEffectType.Shield:
                 shieldAmount = 0f; // Щит удаляется
                 Debug.Log($"[ActiveEffect] 🛡️ Щит снят");
                 break;
@@ -347,7 +348,7 @@ public class ActiveEffect
     /// </summary>
     public void OnDamageTaken()
     {
-        if (effectData.effectType == EffectType.Sleep)
+        if (effectData.effectType == OldEffectType.Sleep)
         {
             remainingDuration = 0f; // Прерываем сон
             Debug.Log("[ActiveEffect] Сон прерван при получении урона");
@@ -357,35 +358,35 @@ public class ActiveEffect
     /// <summary>
     /// Получить строковое представление типа эффекта для сервера
     /// </summary>
-    private string GetEffectTypeString(EffectType effectType)
+    private string GetEffectTypeString(OldEffectType effectType)
     {
         switch (effectType)
         {
-            case EffectType.Burn:
-            case EffectType.Poison:
-            case EffectType.Bleed:
+            case OldEffectType.Burn:
+            case OldEffectType.Poison:
+            case OldEffectType.Bleed:
                 return "dot"; // Damage Over Time
 
-            case EffectType.IncreaseAttack:
-            case EffectType.IncreaseDefense:
-            case EffectType.IncreaseSpeed:
-            case EffectType.IncreaseHPRegen:
-            case EffectType.IncreaseMPRegen:
-            case EffectType.IncreasePerception:
-            case EffectType.HealOverTime:
-            case EffectType.Shield:
-            case EffectType.Invulnerability:
+            case OldEffectType.IncreaseAttack:
+            case OldEffectType.IncreaseDefense:
+            case OldEffectType.IncreaseSpeed:
+            case OldEffectType.IncreaseHPRegen:
+            case OldEffectType.IncreaseMPRegen:
+            case OldEffectType.IncreasePerception:
+            case OldEffectType.HealOverTime:
+            case OldEffectType.Shield:
+            case OldEffectType.Invulnerability:
                 return "buff";
 
-            case EffectType.DecreaseAttack:
-            case EffectType.DecreaseDefense:
-            case EffectType.DecreaseSpeed:
-            case EffectType.Stun:
-            case EffectType.Root:
-            case EffectType.Silence:
-            case EffectType.Sleep:
-            case EffectType.Fear:
-            case EffectType.Taunt:
+            case OldEffectType.DecreaseAttack:
+            case OldEffectType.DecreaseDefense:
+            case OldEffectType.DecreaseSpeed:
+            case OldEffectType.Stun:
+            case OldEffectType.Root:
+            case OldEffectType.Silence:
+            case OldEffectType.Sleep:
+            case OldEffectType.Fear:
+            case OldEffectType.Taunt:
                 return "debuff";
 
             default:

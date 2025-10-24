@@ -1,0 +1,97 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 93ea6d4f751c12e48a5c2881809ebb04, type: 3}
+  m_Name: Warrior_DefensiveStance
+  m_EditorClassIdentifier: 
+  skillId: 403
+  skillName: Defensive Stance
+  description: "\u0412\u043E\u0438\u043D \u043F\u0440\u0438\u043D\u0438\u043C\u0430\u0435\u0442
+    \u0437\u0430\u0449\u0438\u0442\u043D\u0443\u044E \u0441\u0442\u043E\u0439\u043A\u0443,
+    \u043E\u043A\u0440\u0443\u0436\u0430\u044F \u0441\u0435\u0431\u044F \u043C\u0430\u0433\u0438\u0447\u0435\u0441\u043A\u0438\u043C
+    \u0449\u0438\u0442\u043E\u043C. \u041F\u043E\u043B\u0443\u0447\u0430\u0435\u043C\u044B\u0439
+    \u0443\u0440\u043E\u043D \u0443\u043C\u0435\u043D\u044C\u0448\u0430\u0435\u0442\u0441\u044F
+    \u043D\u0430 50% \u0432 \u0442\u0435\u0447\u0435\u043D\u0438\u0435 10 \u0441\u0435\u043A\u0443\u043D\u0434."
+  icon: {fileID: 21300000, guid: 4e655aa3476f66b428481e10ff01b83b, type: 3}
+  characterClass: 0
+  cooldown: 20
+  manaCost: 40
+  castRange: 20
+  castTime: 0
+  canUseWhileMoving: 1
+  skillType: 5
+  targetType: 0
+  requiresTarget: 0
+  canTargetAllies: 0
+  canTargetEnemies: 1
+  baseDamageOrHeal: 0
+  strengthScaling: 0
+  intelligenceScaling: 0
+  lifeStealPercent: 0
+  effects:
+  - effectType: 1
+    duration: 10
+    power: 50
+    damageOrHealPerTick: 0
+    tickInterval: 1
+    intelligenceScaling: 0
+    strengthScaling: 0
+    particleEffectPrefab: {fileID: 4772634663576830964, guid: 150723ff1e13a8d42bab936efcd66e11, type: 3}
+    applySound: {fileID: 0}
+    removeSound: {fileID: 0}
+    soundVolume: 0.5
+    canBeDispelled: 1
+    canStack: 0
+    maxStacks: 1
+    breakOnDamage: 0
+    syncWithServer: 1
+  aoeRadius: 0
+  maxTargets: 1
+  projectilePrefab: {fileID: 0}
+  projectileSpeed: 20
+  projectileLifetime: 5
+  projectileHoming: 1
+  homingSpeed: 10
+  homingRadius: 20
+  castEffectPrefab: {fileID: 8771972552311404799, guid: 4e09fdbe591fd5c439f1f2feb2009a7c, type: 3}
+  hitEffectPrefab: {fileID: 0}
+  aoeEffectPrefab: {fileID: 0}
+  casterEffectPrefab: {fileID: 0}
+  animationTrigger: Skill
+  animationSpeed: 1
+  projectileSpawnTiming: 0.5
+  castSound: {fileID: 0}
+  hitSound: {fileID: 0}
+  soundVolume: 0.7
+  enableMovement: 0
+  movementType: 0
+  movementDistance: 5
+  movementSpeed: 10
+  movementDirection: 0
+  summonPrefab: {fileID: 0}
+  summonCount: 1
+  summonDuration: 30
+  transformationModel: {fileID: 0}
+  transformationDuration: 30
+  hpBonusPercent: 0
+  damageBonusPercent: 0
+  syncProjectiles: 1
+  syncHitEffects: 1
+  syncStatusEffects: 1
+  customData:
+    chainCount: 0
+    chainRadius: 8
+    chainDamageMultiplier: 0.7
+    hitCount: 1
+    hitDelay: 0.1
+    manaRestorePercent: 0
+    piercing: 0
+    maxPierceTargets: 3

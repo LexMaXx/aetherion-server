@@ -1,0 +1,235 @@
+=============================================================================
+КОПИРУЙТЕ И ВСТАВЛЯЙТЕ ЭТОТ КОД В ФАЙЛЫ
+=============================================================================
+
+═══════════════════════════════════════════════════════════════════════════
+ФАЙЛ 1: Assets/Scripts/Network/NetworkCombatSync.cs
+═══════════════════════════════════════════════════════════════════════════
+
+НАЙДИТЕ метод OnDestroy() (в конце файла) и ПЕРЕД НИМ вставьте:
+
+    /// <summary>
+    /// ✅ НОВЫЙ МЕТОД: Отправить использование скилла на сервер с полными данными
+    /// Вызывается из PlayerAttack.UseSkillDirectly() после успешного UseSkill()
+    /// </summary>
+    public void SendSkillUsed(int skillId, string animationTrigger, Vector3 targetPosition, float castTime)
+    {
+        if (!enableSync || !isMultiplayer || SocketIOManager.Instance == null)
+        {
+            Debug.Log("[NetworkCombatSync] SendSkillUsed пропущен (не мультиплеер)");
+            return;
+        }
+
+        if (!SocketIOManager.Instance.IsConnected)
+        {
+            Debug.LogWarning("[NetworkCombatSync] SendSkillUsed пропущен - нет подключения к серверу");
+            return;
+        }
+
+        // Отправляем полные данные скилла для синхронизации
+        SocketIOManager.Instance.SendSkillUsed(skillId, animationTrigger, targetPosition, castTime);
+
+        Debug.Log($"[NetworkCombatSync] 📡 Скилл отправлен на сервер: ID={skillId}, trigger={animationTrigger}, castTime={castTime}с");
+    }
+
+
+═══════════════════════════════════════════════════════════════════════════
+ФАЙЛ 2: Assets/Scripts/Network/SocketIOManager.cs
+═══════════════════════════════════════════════════════════════════════════
+
+НАЙДИТЕ метод SendProjectileSpawned() (около строки 489) и ПОСЛЕ НЕГО вставьте:
+
+    /// <summary>
+    /// Отправить использование скилла на сервер
+    /// </summary>
+    public void SendSkillUsed(int skillId, string animationTrigger, Vector3 targetPosition, float castTime)
+    {
+        if (!IsConnected)
+        {
+            DebugLog("⚠️ SendSkillUsed: Не подключены к серверу");
+            return;
+        }
+
+        var data = new
+        {
+            skillId = skillId,
+            animationTrigger = animationTrigger,
+            targetPosition = new { x = targetPosition.x, y = targetPosition.y, z = targetPosition.z },
+            castTime = castTime,
+            timestamp = GetTimestamp()
+        };
+
+        string json = JsonConvert.SerializeObject(data);
+        Emit("player_used_skill", json);
+
+        DebugLog($"⚡ Отправка скилла: ID={skillId}, trigger={animationTrigger}, castTime={castTime}с");
+    }
+
+
+═══════════════════════════════════════════════════════════════════════════
+ФАЙЛ 3: Assets/Scripts/Player/PlayerAttack.cs
+═══════════════════════════════════════════════════════════════════════════
+
+НАЙДИТЕ метод UseSkillDirectly() (около строки 1120) и ЗАМЕНИТЕ блок:
+
+    if (success)
+    {
+        Debug.Log($"[PlayerAttack] ⚡ Скилл {skill.skillName} УСПЕШНО использован!");
+    }
+
+НА ЭТОТ КОД:
+
+    if (success)
+    {
+        Debug.Log($"[PlayerAttack] ⚡ Скилл {skill.skillName} УСПЕШНО использован!");
+
+        // ✅ КРИТИЧЕСКОЕ: Отправляем на сервер для синхронизации
+        NetworkCombatSync networkSync = GetComponent<NetworkCombatSync>();
+        if (networkSync != null && networkSync.enabled)
+        {
+            Vector3 targetPos = target != null ? target.position : transform.position + transform.forward * 10f;
+            networkSync.SendSkillUsed(skill.skillId, skill.animationTrigger, targetPos, skill.castTime);
+            Debug.Log($"[PlayerAttack] 📡 Скилл {skill.skillName} (ID:{skill.skillId}) отправлен на сервер");
+        }
+    }
+
+
+═══════════════════════════════════════════════════════════════════════════
+ФАЙЛ 4: Assets/Scripts/Skills/EffectManager.cs
+═══════════════════════════════════════════════════════════════════════════
+
+НАЙДИТЕ метод SendEffectToServer() (около строки 620-630) и ЗАМЕНИТЕ его на:
+
+    /// <summary>
+    /// Отправить эффект на сервер для синхронизации с другими игроками
+    /// </summary>
+    private void SendEffectToServer(ActiveEffect effect)
+    {
+        if (SocketIOManager.Instance != null && SocketIOManager.Instance.IsConnected)
+        {
+            // ✅ ИСПРАВЛЕНО: Определяем targetSocketId корректно
+            string targetSocketId = GetMySocketId();
+
+            // Отправляем эффект с правильным targetSocketId
+            SocketIOManager.Instance.SendEffectApplied(effect.config, targetSocketId);
+            Log($"📡 Эффект {effect.config.effectType} отправлен на сервер (target={targetSocketId})");
+        }
+    }
+
+    /// <summary>
+    /// Получить мой socketId
+    /// </summary>
+    private string GetMySocketId()
+    {
+        if (NetworkSyncManager.Instance != null)
+        {
+            return NetworkSyncManager.Instance.GetLocalPlayerSocketId();
+        }
+        return "";
+    }
+
+
+═══════════════════════════════════════════════════════════════════════════
+ФАЙЛ 5: Assets/Scripts/Network/NetworkSyncManager.cs (ДВА ИЗМЕНЕНИЯ)
+═══════════════════════════════════════════════════════════════════════════
+
+ИЗМЕНЕНИЕ 1: Добавить публичный метод GetLocalPlayerSocketId()
+
+НАЙДИТЕ метод SetLocalPlayer() (около строки 154) и ПОСЛЕ НЕГО добавьте:
+
+    /// <summary>
+    /// Получить socketId локального игрока (для других скриптов)
+    /// </summary>
+    public string GetLocalPlayerSocketId()
+    {
+        return localPlayerSocketId;
+    }
+
+
+ИЗМЕНЕНИЕ 2: Улучшить метод OnEffectApplied()
+
+НАЙДИТЕ метод OnEffectApplied() (около строки 1067) и внутри блока:
+
+    if (targetTransform != null)
+    {
+        // ... существующий код ...
+
+В КОНЕЦ ЭТОГО БЛОКА (перед закрывающей скобкой) добавьте:
+
+            // ✅ НОВОЕ: СОЗДАЁМ ВИЗУАЛЬНУЮ АУРУ
+            if (!string.IsNullOrEmpty(data.particleEffectPrefabName))
+            {
+                GameObject particlePrefab = Resources.Load<GameObject>($"Effects/{data.particleEffectPrefabName}");
+
+                if (particlePrefab != null)
+                {
+                    // Создаём ауру как child объект игрока
+                    GameObject aura = Instantiate(particlePrefab, targetTransform);
+                    aura.transform.localPosition = Vector3.up * 1f; // 1 метр над головой
+                    aura.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f); // Поворот вниз
+
+                    // Удаляем через duration секунд
+                    Destroy(aura, data.duration);
+
+                    Debug.Log($"[NetworkSync] ✨ Аура {data.effectType} создана для {targetTransform.name} на {data.duration} секунд");
+                }
+                else
+                {
+                    Debug.LogWarning($"[NetworkSync] ⚠️ Particle prefab не найден: Effects/{data.particleEffectPrefabName}");
+                }
+            }
+
+
+═══════════════════════════════════════════════════════════════════════════
+ДОПОЛНИТЕЛЬНОЕ ИСПРАВЛЕНИЕ: Animator параметр для Eagle Eye
+═══════════════════════════════════════════════════════════════════════════
+
+ВАРИАНТ 1: Изменить animationTrigger в SkillConfig
+
+1. Откройте Assets/Resources/Skills/Archer_EagleEye.asset в Inspector
+2. Найдите поле "Animation Trigger: Skill"
+3. Измените на "Attack" (или другой существующий параметр из ArcherAnimator)
+4. Сохраните (Ctrl+S)
+
+
+ВАРИАНТ 2: Добавить параметр "Skill" в Animator
+
+1. Откройте Assets/Animations/Controllers/ArcherAnimator.controller
+2. В окне Parameters добавьте новый Trigger с именем "Skill"
+3. Создайте transition: Any State → CastAnimation с условием Skill
+
+
+═══════════════════════════════════════════════════════════════════════════
+ИНСТРУКЦИИ ПО ПРИМЕНЕНИЮ:
+═══════════════════════════════════════════════════════════════════════════
+
+1. ЗАКРОЙТЕ Unity Editor
+2. Откройте каждый файл в текстовом редакторе (VS Code, Notepad++)
+3. Скопируйте соответствующий код из этого файла
+4. Вставьте в нужное место (следуйте инструкциям НАЙДИТЕ/ЗАМЕНИТЕ)
+5. Сохраните все файлы (Ctrl+S)
+6. Откройте Unity Editor
+7. Дождитесь перекомпиляции (Build Succeeded)
+8. Тестируйте с 2 клиентами!
+
+
+═══════════════════════════════════════════════════════════════════════════
+ОЖИДАЕМЫЕ ЛОГИ ПОСЛЕ ИСПРАВЛЕНИЙ:
+═══════════════════════════════════════════════════════════════════════════
+
+Клиент 1 (Игрок A):
+[PlayerAttack] 📡 Скилл Eagle Eye (ID:303) отправлен на сервер
+[NetworkCombatSync] 📡 Скилл отправлен на сервер: ID=303, trigger=Skill
+[SocketIO] ⚡ Отправка скилла: ID=303, trigger=Skill, castTime=0с
+[EffectManager] 📡 Эффект IncreasePerception отправлен на сервер (target=xyz...)
+
+Клиент 2 (Игрок B):
+[NetworkSync] ⚡ RAW player_used_skill JSON: {...}
+[NetworkSync] ⚡ Скилл получен: socketId=xyz, skillId=303
+[NetworkSync] 🎬 Анимация 'Skill' запущена для PlayerA
+[NetworkSync] ✨ Аура IncreasePerception создана для PlayerA на 15 секунд
+
+
+═══════════════════════════════════════════════════════════════════════════
+ГОТОВО! ВСЕ СКИЛЛЫ БУДУТ СИНХРОНИЗИРОВАНЫ! 🚀
+═══════════════════════════════════════════════════════════════════════════

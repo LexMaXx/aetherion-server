@@ -29,6 +29,13 @@ public class CharacterStats : MonoBehaviour
     [SerializeField] private float visionRadius;
     [SerializeField] private float critChance;
 
+    [Header("Temporary Modifiers")]
+    [SerializeField] private float critDamageModifier = 0f; // Модификатор критического урона в процентах
+    [SerializeField] private float attackModifier = 0f; // Модификатор урона в процентах
+
+    // Сохранение оригинального Perception для проклятий
+    private int originalPerception = -1; // -1 = не сохранено
+
     // События для уведомления других систем об изменении характеристик
     public event Action OnStatsChanged;
 
@@ -40,6 +47,8 @@ public class CharacterStats : MonoBehaviour
     public float ActionPointsRegen => actionPointsRegen;
     public float VisionRadius => visionRadius;
     public float CritChance => critChance;
+    public float CritDamageModifier => critDamageModifier; // Доступ к модификатору критического урона
+    public float AttackModifier => attackModifier; // Доступ к модификатору урона
     public StatsFormulas Formulas => formulas;
     public string ClassName => classPreset != null ? classPreset.className : "Unknown";
 
@@ -199,12 +208,30 @@ public class CharacterStats : MonoBehaviour
     }
 
     /// <summary>
-    /// Применить критический множитель
+    /// Применить критический множитель (с учётом модификаторов)
     /// </summary>
     public float ApplyCriticalDamage(float baseDamage)
     {
         if (formulas == null) return baseDamage;
-        return formulas.ApplyCriticalDamage(baseDamage);
+
+        // Базовый критический урон
+        float critDamage = formulas.ApplyCriticalDamage(baseDamage);
+
+        Debug.Log($"[CharacterStats] 💥 КРИТ DEBUG: baseDamage={baseDamage:F1}, базовый крит={critDamage:F1}, модификатор={critDamageModifier}%");
+
+        // Применяем модификатор критического урона (например, +40% от Deadly Precision)
+        if (critDamageModifier > 0)
+        {
+            float bonus = baseDamage * (critDamageModifier / 100f);
+            critDamage += bonus;
+            Debug.Log($"[CharacterStats] 💥 С модификатором: {critDamage:F1} (базовый: {formulas.ApplyCriticalDamage(baseDamage):F1} + бонус: {bonus:F1})");
+        }
+        else
+        {
+            Debug.Log($"[CharacterStats] 💥 БЕЗ модификатора (модификатор = {critDamageModifier}%)");
+        }
+
+        return critDamage;
     }
 
     /// <summary>
@@ -289,6 +316,78 @@ public class CharacterStats : MonoBehaviour
         perception += amount;
         RecalculateStats(); // Пересчитываем visionRadius
         Debug.Log($"[CharacterStats] Perception изменено на {amount} (total: {perception}, visionRadius: {visionRadius}м)");
+    }
+
+    /// <summary>
+    /// Добавить модификатор критического урона (для баффа Deadly Precision)
+    /// </summary>
+    public void AddCritDamageModifier(float percentModifier)
+    {
+        critDamageModifier += percentModifier;
+        Debug.Log($"[CharacterStats] 💥 Крит урон изменён: {(percentModifier > 0 ? "+" : "")}{percentModifier}% (итого: +{critDamageModifier}%)");
+    }
+
+    /// <summary>
+    /// Убрать модификатор критического урона
+    /// </summary>
+    public void RemoveCritDamageModifier(float percentModifier)
+    {
+        critDamageModifier -= percentModifier;
+        Debug.Log($"[CharacterStats] 💥 Модификатор крит урона снят: {percentModifier}% (итого: +{critDamageModifier}%)");
+    }
+
+    /// <summary>
+    /// Добавить модификатор урона (для баффа Battle Rage)
+    /// </summary>
+    public void AddAttackModifier(float percentModifier)
+    {
+        attackModifier += percentModifier;
+        Debug.Log($"[CharacterStats] ⚔️ Урон изменён: {(percentModifier > 0 ? "+" : "")}{percentModifier}% (итого: +{attackModifier}%)");
+    }
+
+    /// <summary>
+    /// Убрать модификатор урона
+    /// </summary>
+    public void RemoveAttackModifier(float percentModifier)
+    {
+        attackModifier -= percentModifier;
+        Debug.Log($"[CharacterStats] ⚔️ Модификатор урона снят: {percentModifier}% (итого: +{attackModifier}%)");
+    }
+
+    /// <summary>
+    /// Установить Perception в указанное значение (для проклятий)
+    /// Сохраняет оригинальное значение для последующего восстановления
+    /// </summary>
+    public void SetPerception(int value)
+    {
+        // Сохраняем оригинальное значение если ещё не сохранено
+        if (originalPerception == -1)
+        {
+            originalPerception = perception;
+            Debug.Log($"[CharacterStats] 💾 Оригинальный Perception сохранён: {originalPerception}");
+        }
+
+        perception = value;
+        RecalculateStats(); // Пересчитываем visionRadius
+        Debug.Log($"[CharacterStats] 👁️ Perception установлен в {value} (было: {originalPerception}, visionRadius: {visionRadius}м)");
+    }
+
+    /// <summary>
+    /// Восстановить оригинальный Perception (снятие проклятия)
+    /// </summary>
+    public void RestorePerception()
+    {
+        if (originalPerception != -1)
+        {
+            perception = originalPerception;
+            RecalculateStats();
+            Debug.Log($"[CharacterStats] 🔄 Perception восстановлен: {perception} (visionRadius: {visionRadius}м)");
+            originalPerception = -1; // Сброс
+        }
+        else
+        {
+            Debug.LogWarning("[CharacterStats] ⚠️ Нет сохранённого Perception для восстановления!");
+        }
     }
 
     // Для отладки в Inspector

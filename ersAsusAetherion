@@ -1,0 +1,55 @@
+[1mdiff --git a/SERVER_CODE/multiplayer.js b/SERVER_CODE/multiplayer.js[m
+[1mindex 9dd823f..0846c04 100644[m
+[1m--- a/SERVER_CODE/multiplayer.js[m
+[1m+++ b/SERVER_CODE/multiplayer.js[m
+[36m@@ -943,6 +943,50 @@[m [mmodule.exports = (io) => {[m
+       });[m
+     });[m
+ [m
+[32m+[m[32m    // ═══════════════════════════════════════════[m
+[32m+[m[32m    // ВИЗУАЛЬНЫЕ ЭФФЕКТЫ (взрывы, ауры, горение, баффы и т.д.)[m
+[32m+[m[32m    // ═══════════════════════════════════════════[m
+[32m+[m[32m    socket.on('visual_effect_spawned', (data) => {[m
+[32m+[m[32m      const player = activePlayers.get(socket.id);[m
+[32m+[m[32m      if (!player) {[m
+[32m+[m[32m        console.warn('[Visual Effect] ⚠️ Player not found for socket:', socket.id);[m
+[32m+[m[32m        return;[m
+[32m+[m[32m      }[m
+[32m+[m
+[32m+[m[32m      // Парсим data если пришла строка[m
+[32m+[m[32m      let parsedData = data;[m
+[32m+[m[32m      if (typeof data === 'string') {[m
+[32m+[m[32m        try {[m
+[32m+[m[32m          parsedData = JSON.parse(data);[m
+[32m+[m[32m        } catch (e) {[m
+[32m+[m[32m          console.error('[Visual Effect] ❌ Failed to parse JSON:', e.message);[m
+[32m+[m[32m          return;[m
+[32m+[m[32m        }[m
+[32m+[m[32m      }[m
+[32m+[m
+[32m+[m[32m      console.log('[Visual Effect] ✨ Получен эффект:', {[m
+[32m+[m[32m        socketId: socket.id,[m
+[32m+[m[32m        username: player.username,[m
+[32m+[m[32m        type: parsedData.effectType,[m
+[32m+[m[32m        prefab: parsedData.effectPrefabName,[m
+[32m+[m[32m        position: parsedData.position[m
+[32m+[m[32m      });[m
+[32m+[m
+[32m+[m[32m      // Рассылаем ВСЕМ игрокам в комнате (включая отправителя для других клиентов)[m
+[32m+[m[32m      io.to(player.roomId).emit('visual_effect_spawned', {[m
+[32m+[m[32m        socketId: socket.id,[m
+[32m+[m[32m        effectType: parsedData.effectType,[m
+[32m+[m[32m        effectPrefabName: parsedData.effectPrefabName,[m
+[32m+[m[32m        position: parsedData.position,[m
+[32m+[m[32m        rotation: parsedData.rotation,[m
+[32m+[m[32m        targetSocketId: parsedData.targetSocketId || '',[m
+[32m+[m[32m        duration: parsedData.duration || 0,[m
+[32m+[m[32m        timestamp: Date.now()[m
+[32m+[m[32m      });[m
+[32m+[m
+[32m+[m[32m      console.log('[Visual Effect] 📡 Эффект разослан всем игрокам в комнате', player.roomId);[m
+[32m+[m[32m    });[m
+[32m+[m
+     // ═══════════════════════════════════════════[m
+     // LOBBY SYSTEM - CLIENT-SIDE EVENTS[m
+     // ═══════════════════════════════════════════[m

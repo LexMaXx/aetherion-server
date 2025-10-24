@@ -8,7 +8,8 @@ using UnityEngine;
 public class SimpleTransformation : MonoBehaviour
 {
     private GameObject transformedModel; // Визуальная модель (медведь)
-    private SkinnedMeshRenderer playerRenderer; // Renderer паладина
+    private SkinnedMeshRenderer playerRenderer; // Renderer паладина (для настоящих моделей)
+    private MeshRenderer playerMeshRenderer; // Fallback для TestPlayer (капсула)
     private bool isTransformed = false;
 
     private Animator playerAnimator; // Аниматор паладина (источник)
@@ -32,12 +33,25 @@ public class SimpleTransformation : MonoBehaviour
             return false;
         }
 
-        // Находим renderer паладина
+        // Находим renderer паладина (пробуем SkinnedMeshRenderer, потом MeshRenderer)
         playerRenderer = GetComponentInChildren<SkinnedMeshRenderer>();
         if (playerRenderer == null)
         {
-            Debug.LogError("[SimpleTransformation] ❌ SkinnedMeshRenderer паладина не найден!");
-            return false;
+            Debug.LogWarning("[SimpleTransformation] ⚠️ SkinnedMeshRenderer не найден, пробуем MeshRenderer (TestPlayer mode)");
+
+            // Fallback для TestPlayer - ищем обычный MeshRenderer
+            playerMeshRenderer = GetComponentInChildren<MeshRenderer>();
+            if (playerMeshRenderer == null)
+            {
+                Debug.LogError("[SimpleTransformation] ❌ Ни SkinnedMeshRenderer, ни MeshRenderer не найдены!");
+                return false;
+            }
+
+            Debug.Log($"[SimpleTransformation] ✅ Использую MeshRenderer: {playerMeshRenderer.gameObject.name}");
+        }
+        else
+        {
+            Debug.Log($"[SimpleTransformation] ✅ Использую SkinnedMeshRenderer: {playerRenderer.gameObject.name}");
         }
 
         // НАХОДИМ АНИМАТОР ПАЛАДИНА ДО создания медведя!
@@ -62,8 +76,16 @@ public class SimpleTransformation : MonoBehaviour
         }
 
         // СКРЫВАЕМ паладина (делаем невидимым)
-        playerRenderer.enabled = false;
-        Debug.Log("[SimpleTransformation] 👻 Паладин скрыт (renderer.enabled = false)");
+        if (playerRenderer != null)
+        {
+            playerRenderer.enabled = false;
+            Debug.Log("[SimpleTransformation] 👻 Паладин скрыт (SkinnedMeshRenderer.enabled = false)");
+        }
+        else if (playerMeshRenderer != null)
+        {
+            playerMeshRenderer.enabled = false;
+            Debug.Log("[SimpleTransformation] 👻 TestPlayer скрыт (MeshRenderer.enabled = false)");
+        }
 
         // СОЗДАЁМ визуальную модель трансформации как child
         transformedModel = Instantiate(transformationPrefab, transform);
@@ -290,7 +312,12 @@ public class SimpleTransformation : MonoBehaviour
         if (playerRenderer != null)
         {
             playerRenderer.enabled = true;
-            Debug.Log("[SimpleTransformation] ✅ Паладин восстановлен (renderer.enabled = true)");
+            Debug.Log("[SimpleTransformation] ✅ Паладин восстановлен (SkinnedMeshRenderer.enabled = true)");
+        }
+        else if (playerMeshRenderer != null)
+        {
+            playerMeshRenderer.enabled = true;
+            Debug.Log("[SimpleTransformation] ✅ TestPlayer восстановлен (MeshRenderer.enabled = true)");
         }
 
         transformedModel = null;
@@ -321,6 +348,55 @@ public class SimpleTransformation : MonoBehaviour
     public Animator GetBearAnimator()
     {
         return bearAnimator;
+    }
+
+    /// <summary>
+    /// Установить триггер на аниматоре (для атаки)
+    /// Если трансформирован - устанавливает на медведя
+    /// Если нет - на паладина
+    /// </summary>
+    public void SetAnimatorTrigger(string triggerName)
+    {
+        if (isTransformed && bearAnimator != null)
+        {
+            bearAnimator.SetTrigger(triggerName);
+            Debug.Log($"[SimpleTransformation] ⚡ Триггер '{triggerName}' установлен на медведя");
+        }
+        else if (playerAnimator != null)
+        {
+            playerAnimator.SetTrigger(triggerName);
+            Debug.Log($"[SimpleTransformation] ⚡ Триггер '{triggerName}' установлен на паладина");
+        }
+    }
+
+    /// <summary>
+    /// Установить bool параметр на аниматоре
+    /// </summary>
+    public void SetAnimatorBool(string paramName, bool value)
+    {
+        if (isTransformed && bearAnimator != null)
+        {
+            bearAnimator.SetBool(paramName, value);
+        }
+        else if (playerAnimator != null)
+        {
+            playerAnimator.SetBool(paramName, value);
+        }
+    }
+
+    /// <summary>
+    /// Установить float параметр на аниматоре
+    /// </summary>
+    public void SetAnimatorFloat(string paramName, float value)
+    {
+        if (isTransformed && bearAnimator != null)
+        {
+            bearAnimator.SetFloat(paramName, value);
+        }
+        else if (playerAnimator != null)
+        {
+            playerAnimator.SetFloat(paramName, value);
+        }
     }
 
     void LateUpdate()
@@ -416,7 +492,29 @@ public class SimpleTransformation : MonoBehaviour
                         break;
 
                     case AnimatorControllerParameterType.Trigger:
-                        // Триггеры не копируем - они сбрасываются автоматически
+                        // Проверяем активен ли триггер у паладина
+                        // Unity не даёт напрямую проверить триггер, но мы можем проверить через AnimatorStateInfo
+                        // Для атаки просто копируем все триггеры которые были установлены
+                        bool triggerActive = false;
+
+                        // Проверяем текущее состояние аниматора паладина
+                        AnimatorStateInfo currentState = playerAnimator.GetCurrentAnimatorStateInfo(0);
+
+                        // Если это атака и параметр называется Attack
+                        if (param.name == "Attack" && currentState.IsName("Attack"))
+                        {
+                            triggerActive = true;
+                        }
+
+                        if (triggerActive)
+                        {
+                            bearAnimator.SetTrigger(param.name);
+
+                            if (shouldLog)
+                            {
+                                Debug.Log($"[SimpleTransformation] ⚡ Trigger скопирован: {param.name}");
+                            }
+                        }
                         break;
                 }
             }

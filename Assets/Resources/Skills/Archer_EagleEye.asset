@@ -9,67 +9,90 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 6e79cfd8b12443c408c3d4a9fbdce0c8, type: 3}
+  m_Script: {fileID: 11500000, guid: 93ea6d4f751c12e48a5c2881809ebb04, type: 3}
   m_Name: Archer_EagleEye
   m_EditorClassIdentifier: 
-  skillId: 304
+  skillId: 303
   skillName: Eagle Eye
-  description: "\u0423\u0432\u0435\u043B\u0438\u0447\u0438\u0432\u0430\u0435\u0442
-    \u0434\u0430\u043B\u044C\u043D\u043E\u0441\u0442\u044C \u0438 \u0442\u043E\u0447\u043D\u043E\u0441\u0442\u044C"
+  description: "\u041B\u0443\u0447\u043D\u0438\u043A \u043E\u0431\u043E\u0441\u0442\u0440\u044F\u0435\u0442
+    \u0441\u0432\u043E\u0451 \u0437\u0440\u0435\u043D\u0438\u0435 \u0434\u043E \u043E\u0440\u043B\u0438\u043D\u043E\u0433\u043E,
+    \u0443\u0432\u0435\u043B\u0438\u0447\u0438\u0432\u0430\u044F \u0432\u043E\u0441\u043F\u0440\u0438\u044F\u0442\u0438\u0435
+    \u043D\u0430 +2 \u043D\u0430 15 \u0441\u0435\u043A\u0443\u043D\u0434. \u041F\u043E\u0437\u0432\u043E\u043B\u044F\u0435\u0442
+    \u0432\u0438\u0434\u0435\u0442\u044C \u0434\u0430\u043B\u044C\u0448\u0435 \u0438
+    \u0442\u043E\u0447\u043D\u0435\u0435 \u0437\u0430\u043C\u0435\u0447\u0430\u0442\u044C
+    \u0432\u0440\u0430\u0433\u043E\u0432."
   icon: {fileID: 21300000, guid: 745ab7837ec491543b4bd05159c7447d, type: 3}
-  characterClass: 2
-  cooldown: 25
-  manaCost: 30
-  castRange: 0
+  characterClass: 0
+  cooldown: 30
+  manaCost: 40
+  castRange: 20
   castTime: 0
   canUseWhileMoving: 1
-  skillType: 2
+  skillType: 5
   targetType: 0
-  requiresTarget: 0
+  requiresTarget: 1
   canTargetAllies: 0
   canTargetEnemies: 1
   baseDamageOrHeal: 0
-  intelligenceScaling: 0
   strengthScaling: 0
+  intelligenceScaling: 0
+  lifeStealPercent: 0
   effects:
   - effectType: 6
     duration: 15
     power: 2
     damageOrHealPerTick: 0
     tickInterval: 1
-    particleEffectPrefab: {fileID: 1318935079978438865, guid: 48168ba0d3aecea4a92343f556f6496b, type: 3}
+    intelligenceScaling: 0
+    strengthScaling: 0
+    particleEffectPrefab: {fileID: 3280519133390621005, guid: 980d1f7173bb0b549b94ddfa38f60153, type: 3}
     applySound: {fileID: 0}
     removeSound: {fileID: 0}
+    soundVolume: 0.5
     canBeDispelled: 1
     canStack: 0
     maxStacks: 1
+    breakOnDamage: 0
     syncWithServer: 1
   aoeRadius: 0
   maxTargets: 1
-  animationTrigger: 
+  projectilePrefab: {fileID: 0}
+  projectileSpeed: 20
+  projectileLifetime: 5
+  projectileHoming: 1
+  homingSpeed: 10
+  homingRadius: 20
+  castEffectPrefab: {fileID: 8771972552311404799, guid: 4e09fdbe591fd5c439f1f2feb2009a7c, type: 3}
+  hitEffectPrefab: {fileID: 0}
+  aoeEffectPrefab: {fileID: 0}
+  casterEffectPrefab: {fileID: 0}
+  animationTrigger: Skill
   animationSpeed: 1
-  blockMovementDuringCast: 0
-  movementBlockDuration: 0
+  projectileSpawnTiming: 0.5
+  castSound: {fileID: 0}
+  hitSound: {fileID: 0}
+  soundVolume: 0.7
   enableMovement: 0
   movementType: 0
   movementDistance: 5
   movementSpeed: 10
-  movementAnimationTrigger: 
   movementDirection: 0
-  visualEffectPrefab: {fileID: 8771972552311404799, guid: 06e5eacd3c47acc40836ba8ed0db5834, type: 3}
-  casterEffectPrefab: {fileID: 0}
-  projectilePrefab: {fileID: 0}
-  projectileHitEffectPrefab: {fileID: 0}
-  projectileSpeed: 20
-  projectileHoming: 0
-  projectileLifetime: 5
-  castSound: {fileID: 0}
-  impactSound: {fileID: 0}
-  projectileHitSound: {fileID: 0}
   summonPrefab: {fileID: 0}
   summonCount: 1
   summonDuration: 30
   transformationModel: {fileID: 0}
   transformationDuration: 30
   hpBonusPercent: 0
-  physicalDamageBonusPercent: 0
+  damageBonusPercent: 0
+  syncProjectiles: 1
+  syncHitEffects: 1
+  syncStatusEffects: 1
+  customData:
+    chainCount: 0
+    chainRadius: 8
+    chainDamageMultiplier: 0.7
+    hitCount: 1
+    hitDelay: 0.1
+    manaRestorePercent: 0
+    piercing: 0
+    maxPierceTargets: 3

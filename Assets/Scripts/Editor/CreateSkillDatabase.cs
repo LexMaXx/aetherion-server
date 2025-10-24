@@ -242,7 +242,7 @@ public class CreateSkillDatabase : EditorWindow
         skill.requiresTarget = requiresTarget;
         skill.canTargetAllies = canTargetAllies;
         skill.canTargetEnemies = canTargetEnemies;
-        skill.targetType = requiresTarget ? SkillTargetType.SingleTarget : SkillTargetType.Self;
+        skill.targetType = requiresTarget ? OldSkillTargetType.SingleTarget : OldSkillTargetType.Self;
 
         AssetDatabase.CreateAsset(skill, path);
         db.AddSkill(skill);

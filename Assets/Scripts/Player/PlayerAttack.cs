@@ -6,7 +6,11 @@ using UnityEngine;
 /// </summary>
 public class PlayerAttack : MonoBehaviour
 {
-    [Header("Attack Settings")]
+    [Header("⚔️ BASIC ATTACK CONFIG")]
+    [Tooltip("Конфигурация базовой атаки (ScriptableObject). Если назначена - приоритет над ручными настройками.")]
+    [SerializeField] private BasicAttackConfig attackConfig;
+
+    [Header("Attack Settings (Legacy - используется если attackConfig = null)")]
     [SerializeField] private float attackCooldown = 1.0f; // Кулдаун между атаками
     [SerializeField] private float attackRange = 3.0f; // Дальность атаки
     [SerializeField] private float attackDamage = 25f; // Урон атаки
@@ -14,8 +18,8 @@ public class PlayerAttack : MonoBehaviour
     [SerializeField] private float attackRotationOffset = 45f; // Поворот во время атаки (градусы)
 
     // Public properties для NetworkCombatSync
-    public float BaseDamage => attackDamage;
-    public bool IsRangedAttack => isRangedAttack;
+    public float BaseDamage => GetBaseDamage();
+    public bool IsRangedAttack => GetIsRangedAttack();
 
     [Header("Projectile Settings")]
     [SerializeField] private GameObject projectilePrefab; // Префаб снаряда (стрела, шар, осколки)
@@ -56,9 +60,76 @@ public class PlayerAttack : MonoBehaviour
     private int attackStateHash;
     private const string ATTACK_STATE_NAME = "WarriorAttack"; // Имя состояния атаки
 
+    // ============================================================
+    // HELPER METHODS: Получение значений из BasicAttackConfig или legacy полей
+    // ============================================================
+
+    private float GetBaseDamage()
+    {
+        return attackConfig != null ? attackConfig.baseDamage : attackDamage;
+    }
+
+    private bool GetIsRangedAttack()
+    {
+        return attackConfig != null ? (attackConfig.attackType == AttackType.Ranged) : isRangedAttack;
+    }
+
+    private float GetAttackRange()
+    {
+        return attackConfig != null ? attackConfig.attackRange : attackRange;
+    }
+
+    private float GetAttackCooldown()
+    {
+        return attackConfig != null ? attackConfig.attackCooldown : attackCooldown;
+    }
+
+    private GameObject GetProjectilePrefab()
+    {
+        return attackConfig != null ? attackConfig.projectilePrefab : projectilePrefab;
+    }
+
+    private float GetProjectileSpeed()
+    {
+        return attackConfig != null ? attackConfig.projectileSpeed : projectileSpeed;
+    }
+
+    private string GetAnimationTrigger()
+    {
+        return attackConfig != null ? attackConfig.animationTrigger : "Attack";
+    }
+
+    private float GetAnimationSpeed()
+    {
+        return attackConfig != null ? attackConfig.animationSpeed : attackAnimationSpeed;
+    }
+
+    private float GetManaCostPerAttack()
+    {
+        return attackConfig != null ? attackConfig.manaCostPerAttack : manaCostPerShot;
+    }
+
     void Start()
     {
         Debug.Log($"[PlayerAttack] ========== START вызван для {gameObject.name} ==========");
+
+        // ПРИОРИТЕТ: BasicAttackConfig
+        if (attackConfig != null)
+        {
+            Debug.Log($"[PlayerAttack] ✅ Используется BasicAttackConfig: {attackConfig.name}");
+            Debug.Log($"[PlayerAttack] 📊 Config: Damage={attackConfig.baseDamage}, Range={attackConfig.attackRange}m, Type={attackConfig.attackType}");
+
+            // Валидация конфига
+            string validationError;
+            if (!attackConfig.Validate(out validationError))
+            {
+                Debug.LogError($"[PlayerAttack] ❌ ОШИБКА ВАЛИДАЦИИ BasicAttackConfig: {validationError}");
+            }
+        }
+        else
+        {
+            Debug.LogWarning($"[PlayerAttack] ⚠️ BasicAttackConfig НЕ НАЗНАЧЕН! Используются legacy настройки.");
+        }
 
         animator = GetComponent<Animator>();
         characterController = GetComponent<CharacterController>();
@@ -75,13 +146,13 @@ public class PlayerAttack : MonoBehaviour
             Debug.Log($"[PlayerAttack] ✅ Интеграция с CharacterStats активирована (Класс: {characterStats.ClassName})");
 
             // Проверяем тип атаки
-            if (isRangedAttack)
+            if (GetIsRangedAttack())
             {
                 bool isMagicalAttack = (characterStats.ClassName == "Mage" || characterStats.ClassName == "Rogue");
                 if (isMagicalAttack && manaSystem != null)
                 {
                     string classType = characterStats.ClassName == "Mage" ? "Маг" : "Некромант (Rogue)";
-                    Debug.Log($"[PlayerAttack] 🔮 МАГИЧЕСКАЯ дальняя атака ({classType}) - тратит {manaCostPerShot} маны за выстрел");
+                    Debug.Log($"[PlayerAttack] 🔮 МАГИЧЕСКАЯ дальняя атака ({classType}) - тратит {GetManaCostPerAttack()} маны за выстрел");
                 }
                 else
                 {
@@ -387,24 +458,26 @@ public class PlayerAttack : MonoBehaviour
 
         // === СИСТЕМА УПРАВЛЕНИЯ СКИЛЛАМИ ===
 
-        // Клавиши 1/2/3 - выбор скилла
+        // Клавиши 1/2/3/4/5 - ПРЯМОЕ использование скиллов (БЕЗ ПКМ)
         if (Input.GetKeyDown(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Keypad1))
         {
-            SelectSkill(0);
+            UseSkillDirectly(0);
         }
         else if (Input.GetKeyDown(KeyCode.Alpha2) || Input.GetKeyDown(KeyCode.Keypad2))
         {
-            SelectSkill(1);
+            UseSkillDirectly(1);
         }
         else if (Input.GetKeyDown(KeyCode.Alpha3) || Input.GetKeyDown(KeyCode.Keypad3))
         {
-            SelectSkill(2);
+            UseSkillDirectly(2);
         }
-
-        // ПКМ - использовать выбранный скилл
-        if (Input.GetMouseButtonDown(1))
+        else if (Input.GetKeyDown(KeyCode.Alpha4) || Input.GetKeyDown(KeyCode.Keypad4))
         {
-            TryUseSelectedSkill();
+            UseSkillDirectly(3);
+        }
+        else if (Input.GetKeyDown(KeyCode.Alpha5) || Input.GetKeyDown(KeyCode.Keypad5))
+        {
+            UseSkillDirectly(4);
         }
 
         // ЛКМ - обычная атака
@@ -488,9 +561,10 @@ public class PlayerAttack : MonoBehaviour
 
         // ПРОВЕРЯЕМ дистанцию до цели
         float distanceToTarget = Vector3.Distance(transform.position, target.transform.position);
-        if (distanceToTarget > attackRange)
+        float currentAttackRange = GetAttackRange();
+        if (distanceToTarget > currentAttackRange)
         {
-            Debug.Log($"[PlayerAttack] Цель слишком далеко: {distanceToTarget:F1}m (макс: {attackRange}m)");
+            Debug.Log($"[PlayerAttack] Цель слишком далеко: {distanceToTarget:F1}m (макс: {currentAttackRange}m)");
             return;
         }
 
@@ -503,19 +577,21 @@ public class PlayerAttack : MonoBehaviour
 
         // ПРОВЕРЯЕМ наличие маны для МАГИЧЕСКИХ дальних атак (Mage и Rogue/Некромант)
         // Лучник стреляет физическими стрелами без затрат маны
-        bool isMagicalAttack = isRangedAttack && characterStats != null &&
+        bool isMagicalAttack = GetIsRangedAttack() && characterStats != null &&
                                (characterStats.ClassName == "Mage" || characterStats.ClassName == "Rogue");
+        float manaCost = GetManaCostPerAttack();
         if (isMagicalAttack && manaSystem != null)
         {
-            if (manaSystem.CurrentMana < manaCostPerShot)
+            if (manaSystem.CurrentMana < manaCost)
             {
-                Debug.Log($"[PlayerAttack] ❌ Недостаточно маны для магической атаки! Нужно {manaCostPerShot}, доступно {manaSystem.CurrentMana:F0}");
+                Debug.Log($"[PlayerAttack] ❌ Недостаточно маны для магической атаки! Нужно {manaCost}, доступно {manaSystem.CurrentMana:F0}");
                 return;
             }
         }
 
         // Проверяем кулдаун
-        if (Time.time - lastAttackTime < attackCooldown)
+        float currentCooldown = GetAttackCooldown();
+        if (Time.time - lastAttackTime < currentCooldown)
         {
             Debug.Log("[PlayerAttack] Кулдаун атаки еще не закончился");
             return;
@@ -538,15 +614,15 @@ public class PlayerAttack : MonoBehaviour
             }
         }
 
-        // ТРАТИМ ману для МАГИЧЕСКИХ дальних атак (используем уже вычисленное значение isMagicalAttack)
+        // ТРАТИМ ману для МАГИЧЕСКИХ дальних атак (используем уже вычисленное значение isMagicalAttack и manaCost)
         if (isMagicalAttack && manaSystem != null)
         {
-            if (!manaSystem.SpendMana(manaCostPerShot))
+            if (!manaSystem.SpendMana(manaCost))
             {
                 Debug.LogWarning("[PlayerAttack] Не удалось потратить ману!");
                 return;
             }
-            Debug.Log($"[PlayerAttack] 💧 Потрачено {manaCostPerShot} маны. Осталось: {manaSystem.CurrentMana:F0}/{manaSystem.MaxMana:F0}");
+            Debug.Log($"[PlayerAttack] 💧 Потрачено {manaCost} маны. Осталось: {manaSystem.CurrentMana:F0}/{manaSystem.MaxMana:F0}");
         }
 
         // Выполняем атаку
@@ -596,7 +672,14 @@ public class PlayerAttack : MonoBehaviour
         Debug.Log($"[PlayerAttack] Атака на {target.GetEnemyName()}! Персонаж остановлен.");
 
         // 4. Запускаем анимацию атаки
-        if (animator != null)
+        // Если трансформирован (медведь) - используем SimpleTransformation
+        SimpleTransformation transformation = GetComponent<SimpleTransformation>();
+        if (transformation != null && transformation.IsTransformed())
+        {
+            transformation.SetAnimatorTrigger("Attack");
+            Debug.Log($"[PlayerAttack] ⚡ Анимация атаки запущена на медведя через SimpleTransformation");
+        }
+        else if (animator != null)
         {
             animator.SetTrigger("Attack");
             // animator.speed уже установлен в ApplyAnimationSpeed() в Start()
@@ -648,7 +731,8 @@ public class PlayerAttack : MonoBehaviour
         float finalDamage = CalculateFinalDamage();
 
         // Дальняя атака - создаём снаряд
-        if (isRangedAttack && projectilePrefab != null)
+        GameObject currentProjectilePrefab = GetProjectilePrefab();
+        if (GetIsRangedAttack() && currentProjectilePrefab != null)
         {
             SpawnProjectile(currentAttackTarget, finalDamage);
             Debug.Log($"[PlayerAttack] 🎯 Снаряд создан для {currentAttackTarget.GetEnemyName()}");
@@ -676,7 +760,7 @@ public class PlayerAttack : MonoBehaviour
         NetworkCombatSync combatSync = GetComponent<NetworkCombatSync>();
         if (combatSync != null)
         {
-            string attackType = isRangedAttack ? "ranged" : "melee";
+            string attackType = GetIsRangedAttack() ? "ranged" : "melee";
             combatSync.SendAttack(currentAttackTarget.gameObject, finalDamage, attackType);
         }
 
@@ -689,20 +773,31 @@ public class PlayerAttack : MonoBehaviour
     /// </summary>
     private float CalculateFinalDamage()
     {
-        float baseDamage = attackDamage;
+        // ПРИОРИТЕТ: используем BasicAttackConfig для расчета урона
+        float baseDamage = GetBaseDamage();
         float finalDamage = baseDamage;
 
         if (characterStats != null)
         {
-            // Физический урон (ближний бой) - Strength
-            if (!isRangedAttack)
+            // Если используется BasicAttackConfig - используем его метод расчета
+            if (attackConfig != null)
             {
-                finalDamage = characterStats.CalculatePhysicalDamage(baseDamage);
+                finalDamage = attackConfig.CalculateDamage(characterStats);
+                Debug.Log($"[PlayerAttack] 💥 Урон рассчитан через BasicAttackConfig: {finalDamage:F0}");
             }
-            // Магический урон (дальний бой) - Intelligence
+            // Иначе legacy расчет
             else
             {
-                finalDamage = characterStats.CalculateMagicalDamage(baseDamage);
+                // Физический урон (ближний бой) - Strength
+                if (!GetIsRangedAttack())
+                {
+                    finalDamage = characterStats.CalculatePhysicalDamage(baseDamage);
+                }
+                // Магический урон (дальний бой) - Intelligence
+                else
+                {
+                    finalDamage = characterStats.CalculateMagicalDamage(baseDamage);
+                }
             }
 
             // Проверка критического удара (Luck)
@@ -744,7 +839,8 @@ public class PlayerAttack : MonoBehaviour
         Vector3 direction = (targetPosition - spawnPosition).normalized;
 
         // Создаем снаряд
-        GameObject projectileObj = Instantiate(projectilePrefab, spawnPosition, Quaternion.identity);
+        GameObject prefabToSpawn = GetProjectilePrefab();
+        GameObject projectileObj = Instantiate(prefabToSpawn, spawnPosition, Quaternion.identity);
 
         // Проверяем тип снаряда и инициализируем соответствующий компонент
         // Проверяем CelestialProjectile, ArrowProjectile, затем старый Projectile
@@ -893,7 +989,8 @@ public class PlayerAttack : MonoBehaviour
         float finalDamage = CalculateFinalDamage();
 
         // Дальняя атака - создаём снаряд
-        if (isRangedAttack && projectilePrefab != null)
+        GameObject currentProjectilePrefab = GetProjectilePrefab();
+        if (GetIsRangedAttack() && currentProjectilePrefab != null)
         {
             SpawnProjectile(currentAttackTarget, finalDamage);
             Debug.Log($"[PlayerAttack] 🎯 Снаряд создан для {currentAttackTarget.GetEnemyName()}");
@@ -921,7 +1018,7 @@ public class PlayerAttack : MonoBehaviour
         NetworkCombatSync combatSync = GetComponent<NetworkCombatSync>();
         if (combatSync != null)
         {
-            string attackType = isRangedAttack ? "ranged" : "melee";
+            string attackType = GetIsRangedAttack() ? "ranged" : "melee";
             combatSync.SendAttack(currentAttackTarget.gameObject, finalDamage, attackType);
         }
 
@@ -969,14 +1066,70 @@ public class PlayerAttack : MonoBehaviour
         else
         {
             selectedSkillIndex = skillIndex;
-            SkillData skill = skillManager.equippedSkills[skillIndex];
+            SkillConfig skill = skillManager.equippedSkills[skillIndex];
             Debug.Log($"[PlayerAttack] ✅ ВЫБРАН скилл {skillIndex + 1}: {skill.skillName}");
             Debug.Log($"[PlayerAttack] 💡 Теперь нажмите ПКМ для использования или 1/2/3 для отмены");
         }
     }
 
     /// <summary>
-    /// Попытка использовать выбранный скилл
+    /// ПРЯМОЕ использование скилла по индексу (БЕЗ ПКМ)
+    /// </summary>
+    private void UseSkillDirectly(int skillIndex)
+    {
+        if (skillManager == null)
+        {
+            Debug.LogWarning("[PlayerAttack] ❌ SkillManager не найден!");
+            return;
+        }
+
+        if (skillIndex < 0 || skillIndex >= skillManager.equippedSkills.Count)
+        {
+            Debug.LogWarning($"[PlayerAttack] ❌ Некорректный индекс скилла: {skillIndex}");
+            return;
+        }
+
+        SkillConfig skill = skillManager.equippedSkills[skillIndex];
+        Debug.Log($"[PlayerAttack] 🎯 Прямое использование скилла {skillIndex + 1}: {skill.skillName}");
+
+        // Определяем цель в зависимости от типа скилла
+        Transform target = null;
+
+        // Для скиллов требующих цель - используем текущую цель из TargetSystem
+        if (skill.targetType == SkillTargetType.Enemy)
+        {
+            if (targetSystem != null && targetSystem.HasTarget())
+            {
+                target = targetSystem.GetCurrentTarget()?.transform;
+            }
+            else
+            {
+                Debug.LogWarning($"[PlayerAttack] ❌ Скилл {skill.skillName} требует цель, но цель не выбрана!");
+                return;
+            }
+        }
+        // Для скиллов на себя - цель = сам персонаж
+        else if (skill.targetType == SkillTargetType.Self)
+        {
+            target = transform;
+        }
+        // Для остальных типов (NoTarget, GroundTarget, Directional) - null (обработается в SkillManager)
+
+        // Используем скилл
+        bool success = skillManager.UseSkill(skillIndex, target);
+
+        if (success)
+        {
+            Debug.Log($"[PlayerAttack] ⚡ Скилл {skill.skillName} УСПЕШНО использован!");
+        }
+        else
+        {
+            Debug.LogWarning($"[PlayerAttack] ❌ Не удалось использовать скилл {skill.skillName}");
+        }
+    }
+
+    /// <summary>
+    /// Попытка использовать выбранный скилл (СТАРАЯ СИСТЕМА - DEPRECATED)
     /// </summary>
     private void TryUseSelectedSkill()
     {
@@ -999,14 +1152,14 @@ public class PlayerAttack : MonoBehaviour
             return;
         }
 
-        SkillData skill = skillManager.equippedSkills[selectedSkillIndex];
+        SkillConfig skill = skillManager.equippedSkills[selectedSkillIndex];
         Debug.Log($"[PlayerAttack] 🎯 Попытка использовать скилл: {skill.skillName}");
 
         // Определяем цель в зависимости от типа скилла
         Transform target = null;
 
         // Для скиллов требующих цель - используем текущую цель из TargetSystem
-        if (skill.targetType == SkillTargetType.SingleTarget)
+        if (skill.targetType == SkillTargetType.Enemy)
         {
             if (targetSystem != null && targetSystem.HasTarget())
             {

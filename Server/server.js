@@ -641,15 +641,19 @@ io.on('connection', (socket) => {
         const player = players.get(socket.id);
         if (!player) return;
 
-        socket.to(player.roomId).emit('projectile_spawned', {
-            projectileType: data.projectileType,
-            spawnPosition: data.spawnPosition,
-            direction: data.direction,
-            ownerId: socket.id,
-            targetId: data.targetId,
-            damage: data.damage,
-            speed: data.speed
-        });
+        const parsedData = typeof data === 'string' ? JSON.parse(data) : data;
+
+        console.log(`[Projectile] ${player.username} spawned projectile: skillId=${parsedData.skillId}`);
+
+        // Broadcast to all players in room (including sender for confirmation)
+        io.to(player.roomId).emit('projectile_spawned', JSON.stringify({
+            socketId: socket.id,
+            skillId: parsedData.skillId,
+            spawnPosition: parsedData.spawnPosition,
+            direction: parsedData.direction,
+            targetSocketId: parsedData.targetSocketId || '',
+            timestamp: Date.now()
+        }));
     });
 
     // Visual effect spawned

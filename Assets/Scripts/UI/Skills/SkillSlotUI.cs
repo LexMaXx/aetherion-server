@@ -18,12 +18,15 @@ public class SkillSlotUI : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndD
     [SerializeField] private TextMeshProUGUI keyBindText; // Альтернатива hotkeyText
 
     [Header("Settings")]
-    [SerializeField] private bool isEquipSlot = false; // true = слот экипировки (3 штуки), false = слот библиотеки (6 штук)
+    [SerializeField] private bool isEquipSlot = false; // true = слот экипировки (5 штук), false = слот библиотеки (6 штук)
     [SerializeField] private bool isLibrarySlot = true; // Для обратной совместимости с editor скриптом
     [SerializeField] private int slotIndex = 0;
     [SerializeField] private SkillSelectionManager skillSelectionManager; // Менеджер выбора скиллов
 
-    private SkillData currentSkill;
+    // DUAL SYSTEM: Поддержка как старой (SkillData), так и новой (SkillConfig) системы
+    private SkillData currentSkill; // OLD SYSTEM (deprecated)
+    private SkillConfig currentSkillConfig; // NEW SYSTEM (primary)
+
     private Canvas canvas;
     private CanvasGroup canvasGroup;
     private RectTransform rectTransform;
@@ -68,15 +71,16 @@ public class SkillSlotUI : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndD
     }
 
     /// <summary>
-    /// Установить скилл в слот
+    /// Установить скилл в слот (OLD SYSTEM: SkillData)
     /// </summary>
     public void SetSkill(SkillData skill)
     {
         currentSkill = skill;
+        currentSkillConfig = null; // Очищаем новую систему
 
         if (skill != null)
         {
-            Debug.Log($"[SkillSlotUI] SetSkill: {skill.skillName}, иконка: {(skill.icon != null ? "✓" : "❌ NULL")}");
+            Debug.Log($"[SkillSlotUI] SetSkill (OLD): {skill.skillName}, иконка: {(skill.icon != null ? "✓" : "❌ NULL")}");
 
             // Показываем иконку
             if (iconImage != null)
@@ -122,38 +126,106 @@ public class SkillSlotUI : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndD
         }
         else
         {
-            // Очищаем слот
-            if (iconImage != null)
-            {
-                iconImage.sprite = null;
-                iconImage.enabled = false;
-            }
-
-            if (skillNameText != null)
-            {
-                skillNameText.text = "";
-                skillNameText.gameObject.SetActive(false);
-            }
-
-            if (emptyText != null)
-            {
-                emptyText.gameObject.SetActive(true);
-            }
-
-            if (hotkeyText != null)
-            {
-                hotkeyText.gameObject.SetActive(false);
-            }
-
-            if (keyBindText != null)
-            {
-                keyBindText.gameObject.SetActive(false);
-            }
+            ClearSlotInternal();
         }
     }
 
     /// <summary>
-    /// Получить текущий скилл
+    /// Установить скилл в слот (NEW SYSTEM: SkillConfig)
+    /// </summary>
+    public void SetSkill(SkillConfig skill)
+    {
+        currentSkillConfig = skill;
+        currentSkill = null; // Очищаем старую систему
+
+        if (skill != null)
+        {
+            Debug.Log($"[SkillSlotUI] SetSkill (NEW): {skill.skillName} (ID: {skill.skillId}), иконка: {(skill.icon != null ? "✓" : "❌ NULL")}");
+
+            // Показываем иконку
+            if (iconImage != null)
+            {
+                iconImage.sprite = skill.icon;
+                iconImage.enabled = true;
+                iconImage.color = Color.white;
+
+                if (skill.icon == null)
+                {
+                    Debug.LogWarning($"[SkillSlotUI] ⚠️ У скилла '{skill.skillName}' нет иконки! Назначь Sprite в поле 'icon'");
+                }
+            }
+            else
+            {
+                Debug.LogWarning("[SkillSlotUI] ⚠️ iconImage не назначен в Inspector!");
+            }
+
+            // Показываем название скилла
+            if (skillNameText != null)
+            {
+                skillNameText.text = skill.skillName;
+                skillNameText.gameObject.SetActive(true);
+            }
+
+            // Скрываем текст "Пусто"
+            if (emptyText != null)
+            {
+                emptyText.gameObject.SetActive(false);
+            }
+
+            // Горячая клавиша (только для экипированных слотов)
+            if (hotkeyText != null && isEquipSlot)
+            {
+                hotkeyText.text = $"{slotIndex + 1}";
+                hotkeyText.gameObject.SetActive(true);
+            }
+            if (keyBindText != null && !isLibrarySlot)
+            {
+                keyBindText.text = $"{slotIndex + 1}";
+                keyBindText.gameObject.SetActive(true);
+            }
+        }
+        else
+        {
+            ClearSlotInternal();
+        }
+    }
+
+    /// <summary>
+    /// Внутренний метод очистки слота
+    /// </summary>
+    private void ClearSlotInternal()
+    {
+        // Очищаем слот
+        if (iconImage != null)
+        {
+            iconImage.sprite = null;
+            iconImage.enabled = false;
+        }
+
+        if (skillNameText != null)
+        {
+            skillNameText.text = "";
+            skillNameText.gameObject.SetActive(false);
+        }
+
+        if (emptyText != null)
+        {
+            emptyText.gameObject.SetActive(true);
+        }
+
+        if (hotkeyText != null)
+        {
+            hotkeyText.gameObject.SetActive(false);
+        }
+
+        if (keyBindText != null)
+        {
+            keyBindText.gameObject.SetActive(false);
+        }
+    }
+
+    /// <summary>
+    /// Получить текущий скилл (OLD SYSTEM: SkillData)
     /// </summary>
     public SkillData GetSkill()
     {
@@ -161,11 +233,21 @@ public class SkillSlotUI : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndD
     }
 
     /// <summary>
+    /// Получить текущий скилл (NEW SYSTEM: SkillConfig)
+    /// </summary>
+    public SkillConfig GetSkillConfig()
+    {
+        return currentSkillConfig;
+    }
+
+    /// <summary>
     /// Очистить слот
     /// </summary>
     public void ClearSlot()
     {
-        SetSkill(null);
+        currentSkill = null;
+        currentSkillConfig = null;
+        ClearSlotInternal();
     }
 
     /// <summary>
@@ -196,9 +278,13 @@ public class SkillSlotUI : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndD
 
     public void OnBeginDrag(PointerEventData eventData)
     {
-        if (currentSkill == null) return;
+        // DUAL SYSTEM: Проверяем обе системы
+        if (currentSkill == null && currentSkillConfig == null) return;
 
-        Debug.Log($"[SkillSlotUI] Начало перетаскивания: {currentSkill.skillName}");
+        string skillName = currentSkill != null ? currentSkill.skillName : currentSkillConfig.skillName;
+        Sprite icon = currentSkill != null ? currentSkill.icon : currentSkillConfig.icon;
+
+        Debug.Log($"[SkillSlotUI] Начало перетаскивания: {skillName}");
 
         // Создаём временную иконку для перетаскивания
         dragIcon = new GameObject("DragIcon");
@@ -206,7 +292,7 @@ public class SkillSlotUI : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndD
         dragIcon.transform.SetAsLastSibling();
 
         Image dragImage = dragIcon.AddComponent<Image>();
-        dragImage.sprite = currentSkill.icon;
+        dragImage.sprite = icon;
         dragImage.raycastTarget = false;
 
         RectTransform dragRect = dragIcon.GetComponent<RectTransform>();
@@ -249,10 +335,21 @@ public class SkillSlotUI : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndD
         SkillSlotUI draggedSlot = eventData.pointerDrag?.GetComponent<SkillSlotUI>();
         if (draggedSlot == null) return;
 
-        // Меняем скиллы местами
-        SkillData tempSkill = currentSkill;
-        SetSkill(draggedSlot.GetSkill());
-        draggedSlot.SetSkill(tempSkill);
+        // DUAL SYSTEM: Меняем скиллы местами (NEW system приоритетнее)
+        if (draggedSlot.currentSkillConfig != null || currentSkillConfig != null)
+        {
+            // NEW SYSTEM
+            SkillConfig tempSkill = currentSkillConfig;
+            SetSkill(draggedSlot.GetSkillConfig());
+            draggedSlot.SetSkill(tempSkill);
+        }
+        else
+        {
+            // OLD SYSTEM (fallback)
+            SkillData tempSkill = currentSkill;
+            SetSkill(draggedSlot.GetSkill());
+            draggedSlot.SetSkill(tempSkill);
+        }
 
         // Уведомляем менеджер о смене
         SkillSelectionManager manager = FindObjectOfType<SkillSelectionManager>();

@@ -147,6 +147,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6625f71664354144886d1e762eb6893c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  attackConfig: {fileID: 0}
   attackCooldown: 0.8
   attackRange: 20
   attackDamage: 40
@@ -156,5 +157,6 @@ MonoBehaviour:
   isRangedAttack: 1
   projectileSpeed: 20
   weaponTipTransform: {fileID: 0}
+  manaCostPerShot: 10
   attackAnimationSpeed: 3
   attackHitTiming: 0.4

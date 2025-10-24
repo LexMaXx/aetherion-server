@@ -170,17 +170,43 @@ public class ActionPointsSystem : MonoBehaviour
         if (animator != null)
         {
             // Проверяем параметр isMoving (используется в MixamoPlayerController)
-            bool isMoving = animator.GetBool("isMoving");
-            if (isMoving)
+            if (HasParameter(animator, "isMoving"))
             {
-                return false; // Персонаж двигается
+                bool isMoving = animator.GetBool("isMoving");
+                if (isMoving)
+                {
+                    return false; // Персонаж двигается
+                }
+            }
+
+            // Проверяем параметр IsMoving (используется в PlayerController - с заглавной буквы!)
+            if (HasParameter(animator, "IsMoving"))
+            {
+                bool isMoving = animator.GetBool("IsMoving");
+                if (isMoving)
+                {
+                    return false; // Персонаж двигается
+                }
             }
 
             // Проверяем параметр moveY (скорость движения)
-            float moveY = animator.GetFloat("moveY");
-            if (Mathf.Abs(moveY) > 0.01f)
+            if (HasParameter(animator, "moveY"))
             {
-                return false; // Персонаж движется
+                float moveY = animator.GetFloat("moveY");
+                if (Mathf.Abs(moveY) > 0.01f)
+                {
+                    return false; // Персонаж движется
+                }
+            }
+
+            // Проверяем параметр MoveY (с заглавной буквы!)
+            if (HasParameter(animator, "MoveY"))
+            {
+                float moveY = animator.GetFloat("MoveY");
+                if (Mathf.Abs(moveY) > 0.01f)
+                {
+                    return false; // Персонаж движется
+                }
             }
 
             // КРИТИЧЕСКОЕ: Проверяем, проигрывается ли анимация атаки
@@ -278,5 +304,20 @@ public class ActionPointsSystem : MonoBehaviour
     public bool IsRegenerating()
     {
         return isRegenerating;
+    }
+
+    /// <summary>
+    /// Проверить существует ли параметр в Animator (безопасная проверка)
+    /// </summary>
+    private bool HasParameter(Animator animator, string paramName)
+    {
+        if (animator == null) return false;
+
+        foreach (AnimatorControllerParameter param in animator.parameters)
+        {
+            if (param.name == paramName)
+                return true;
+        }
+        return false;
     }
 }

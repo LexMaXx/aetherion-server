@@ -53,4 +53,9 @@ AssetStoreTools/
 # Unity Builds (exclude from repo)
 /Aetherion/
 
+# Third-party Assets (large files)
+Assets/Hovl Studio/
+Assets/JMO Assets/
+Assets/TerrainDemoScene_URP/
+
 nul

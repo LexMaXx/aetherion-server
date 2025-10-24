@@ -15,7 +15,7 @@ GameObject:
   - component: {fileID: 2860387430667558386}
   - component: {fileID: 8249567048614370429}
   - component: {fileID: -2895099261935889691}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: ExplosiveArrowProjectile
   m_TagString: Untagged
   m_Icon: {fileID: 0}

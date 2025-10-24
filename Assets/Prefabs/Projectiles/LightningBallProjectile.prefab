@@ -13,7 +13,7 @@ GameObject:
   - component: {fileID: 8845667390123456792}
   - component: {fileID: 8845667390123456793}
   - component: {fileID: 8845667390123456794}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: LightningBallProjectile
   m_TagString: Untagged
   m_Icon: {fileID: 0}
