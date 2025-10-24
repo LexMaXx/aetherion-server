@@ -424,6 +424,8 @@ public class SkillExecutor : MonoBehaviour
                 dummyEnemy.TakeDamage(damage);
             }
 
+            // Применяем эффекты (баффы/дебаффы)
+            float maxEffectDuration = 0f;
             if (skill.effects != null && skill.effects.Count > 0)
             {
                 EffectManager targetEffectManager = hitTarget.GetComponent<EffectManager>();
@@ -432,17 +434,32 @@ public class SkillExecutor : MonoBehaviour
                     foreach (EffectConfig effect in skill.effects)
                     {
                         targetEffectManager.ApplyEffect(effect, stats);
+
+                        // Берём макс длительность для DoT эффектов (Burn, Poison и т.д.)
+                        if (effect.duration > maxEffectDuration)
+                        {
+                            maxEffectDuration = effect.duration;
+                        }
                     }
                 }
             }
 
-            // Эффект попадания на цели
+            // Получаем socketId цели
             string targetSocketId = "";
             if (networkPlayer != null)
             {
                 targetSocketId = networkPlayer.socketId;
             }
+
+            // Эффект попадания (моментальный)
             SpawnEffect(skill.hitEffectPrefab, hitTarget.position, Quaternion.identity, 1f, targetSocketId, "hit");
+
+            // Если есть DoT эффекты - создаём длительный визуальный эффект (горение, яд и т.д.)
+            if (maxEffectDuration > 0f && skill.casterEffectPrefab != null)
+            {
+                SpawnEffectAttached(skill.casterEffectPrefab, hitTarget, maxEffectDuration, targetSocketId, "dot_effect");
+                Log($"🔥 DoT visual effect attached for {maxEffectDuration}s");
+            }
         }
 
         // Эффект каста AOE в центре
@@ -511,6 +528,8 @@ public class SkillExecutor : MonoBehaviour
 
         Log("Chain hit " + nextTarget.name + ": " + chainDamage + " damage");
 
+        // Применяем эффекты chain lightning
+        float chainEffectDuration = 0f;
         if (skill.effects != null && skill.effects.Count > 0)
         {
             EffectManager targetEffectManager = nextTarget.GetComponent<EffectManager>();
@@ -519,18 +538,32 @@ public class SkillExecutor : MonoBehaviour
                 foreach (EffectConfig effect in skill.effects)
                 {
                     targetEffectManager.ApplyEffect(effect, stats);
+
+                    // Сохраняем длительность для визуала
+                    if (effect.duration > chainEffectDuration)
+                    {
+                        chainEffectDuration = effect.duration;
+                    }
                 }
             }
         }
 
-        // Эффект chain lightning на следующей цели
+        // Получаем socketId цели
         string chainTargetSocketId = "";
         NetworkPlayer chainNetPlayer = nextTarget.GetComponent<NetworkPlayer>();
         if (chainNetPlayer != null)
         {
             chainTargetSocketId = chainNetPlayer.socketId;
         }
+
+        // Эффект chain lightning (моментальный удар)
         SpawnEffect(skill.hitEffectPrefab, nextTarget.position, Quaternion.identity, 1f, chainTargetSocketId, "chain_hit");
+
+        // Если есть эффекты (например, Stun) - добавляем длительный визуал
+        if (chainEffectDuration > 0f && skill.casterEffectPrefab != null)
+        {
+            SpawnEffectAttached(skill.casterEffectPrefab, nextTarget, chainEffectDuration, chainTargetSocketId, "chain_effect");
+        }
 
         alreadyHitTargets.Add(nextTarget);
 
@@ -698,6 +731,8 @@ public class SkillExecutor : MonoBehaviour
             return;
         }
 
+        // Получаем максимальную длительность эффектов для визуала
+        float maxDuration = 5f; // default
         EffectManager targetEffectManager = buffTarget.GetComponent<EffectManager>();
         if (targetEffectManager != null && skill.effects != null)
         {
@@ -705,17 +740,25 @@ public class SkillExecutor : MonoBehaviour
             {
                 targetEffectManager.ApplyEffect(effect, stats);
                 Log("Buff applied: " + effect.effectType);
+
+                // Берём максимальную длительность для визуального эффекта
+                if (effect.duration > maxDuration)
+                {
+                    maxDuration = effect.duration;
+                }
             }
         }
 
-        // Эффект бафф каста на цели
+        // Эффект бафф каста на цели (с длительностью = длительности бафф-эффекта)
         string buffTargetSocketId = "";
         NetworkPlayer buffNetPlayer = buffTarget.GetComponent<NetworkPlayer>();
         if (buffNetPlayer != null)
         {
             buffTargetSocketId = buffNetPlayer.socketId;
         }
-        SpawnEffect(skill.castEffectPrefab, buffTarget.position, Quaternion.identity, 1f, buffTargetSocketId, "buff");
+
+        // Создаём визуальный эффект с правильной длительностью и привязкой к игроку
+        SpawnEffectAttached(skill.castEffectPrefab, buffTarget, maxDuration, buffTargetSocketId, "buff");
     }
 
     /// <summary>
@@ -785,6 +828,7 @@ public class SkillExecutor : MonoBehaviour
         // Применяем баффы на всех союзников
         foreach (Transform ally in allies)
         {
+            float maxBuffDuration = 5f;
             EffectManager effectManager = ally.GetComponent<EffectManager>();
             if (effectManager != null && skill.effects != null)
             {
@@ -792,17 +836,23 @@ public class SkillExecutor : MonoBehaviour
                 {
                     effectManager.ApplyEffect(effect, stats);
                     Log($"✅ Buff {effect.effectType} applied to {ally.name}");
+
+                    // Берём максимальную длительность для визуала
+                    if (effect.duration > maxBuffDuration)
+                    {
+                        maxBuffDuration = effect.duration;
+                    }
                 }
             }
 
-            // Спавним визуальный эффект на союзнике
+            // Спавним визуальный эффект на союзнике ПРИВЯЗАННЫЙ к нему
             string allySocketId = "";
             NetworkPlayer allyNetPlayer = ally.GetComponent<NetworkPlayer>();
             if (allyNetPlayer != null)
             {
                 allySocketId = allyNetPlayer.socketId;
             }
-            SpawnEffect(skill.hitEffectPrefab, ally.position, Quaternion.identity, 1.5f, allySocketId, "buff_ally");
+            SpawnEffectAttached(skill.hitEffectPrefab, ally, maxBuffDuration, allySocketId, "buff_ally");
         }
     }
 
@@ -1085,6 +1135,37 @@ public class SkillExecutor : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Создать эффект ПРИВЯЗАННЫЙ к игроку (для аур, баффов, дебаффов)
+    /// Эффект следует за игроком и держится нужное время
+    /// </summary>
+    private void SpawnEffectAttached(GameObject effectPrefab, Transform target, float lifetime, string targetSocketId = "", string effectType = "buff")
+    {
+        if (effectPrefab == null || target == null) return;
+
+        // Создаём эффект локально и делаем дочерним объектом игрока
+        GameObject effect = Instantiate(effectPrefab, target.position + Vector3.up * 1.5f, Quaternion.identity);
+        effect.transform.SetParent(target); // КЛЮЧЕВОЕ: привязываем к игроку!
+        Destroy(effect, lifetime);
+
+        Log($"✨ Attached effect {effectPrefab.name} to {target.name} for {lifetime}s");
+
+        // 🌐 СИНХРОНИЗАЦИЯ: Отправляем эффект на сервер
+        if (SocketIOManager.Instance != null && SocketIOManager.Instance.IsConnected)
+        {
+            string prefabName = effectPrefab.name.Replace("(Clone)", "").Trim();
+            SocketIOManager.Instance.SendVisualEffect(
+                effectType,
+                prefabName,
+                target.position + Vector3.up * 1.5f,
+                Quaternion.identity,
+                targetSocketId,  // ВАЖНО: указываем targetSocketId чтобы привязать к игроку
+                lifetime
+            );
+            Log($"🌐 Attached effect synced: {prefabName} on player {targetSocketId} for {lifetime}s");
+        }
+    }
+
     private IEnumerator SpawnFallingMeteor(SkillConfig skill, Vector3 targetPosition)
     {
         Vector3 skyPosition = targetPosition + Vector3.up * 30f;
@@ -1209,6 +1290,8 @@ public class SkillExecutor : MonoBehaviour
                 dummyEnemy.TakeDamage(damage);
             }
 
+            // Применяем эффекты (Burn)
+            float burnDuration = 0f;
             if (skill.effects != null && skill.effects.Count > 0)
             {
                 EffectManager targetEffectManager = hitTarget.GetComponent<EffectManager>();
@@ -1218,18 +1301,33 @@ public class SkillExecutor : MonoBehaviour
                     {
                         targetEffectManager.ApplyEffect(effect, stats);
                         Log("Burn applied to " + hitTarget.name);
+
+                        // Сохраняем длительность горения
+                        if (effect.effectType == EffectType.Burn && effect.duration > burnDuration)
+                        {
+                            burnDuration = effect.duration;
+                        }
                     }
                 }
             }
 
-            // Эффект попадания метеора
+            // Получаем socketId цели
             string meteorTargetSocketId = "";
             NetworkPlayer meteorNetPlayer = hitTarget.GetComponent<NetworkPlayer>();
             if (meteorNetPlayer != null)
             {
                 meteorTargetSocketId = meteorNetPlayer.socketId;
             }
+
+            // Эффект попадания метеора (моментальный)
             SpawnEffect(skill.hitEffectPrefab, hitTarget.position, Quaternion.identity, 1f, meteorTargetSocketId, "meteor_hit");
+
+            // Эффект горения (длительный) - если есть
+            if (burnDuration > 0f && skill.casterEffectPrefab != null)
+            {
+                SpawnEffectAttached(skill.casterEffectPrefab, hitTarget, burnDuration, meteorTargetSocketId, "burn_effect");
+                Log($"🔥 Burn visual effect attached for {burnDuration}s");
+            }
         }
 
         // Эффект взрыва метеора в точке падения
