@@ -352,7 +352,8 @@ public class SkillExecutor : MonoBehaviour
             }
         }
 
-        SpawnEffect(skill.castEffectPrefab, spawnPos, Quaternion.identity);
+        // Эффект каста снаряда (на кастере)
+        SpawnEffect(skill.castEffectPrefab, spawnPos, Quaternion.identity, 1f, "", "cast");
     }
 
     private void ExecuteAOEDamage(SkillConfig skill, Transform target, Vector3? groundTarget)
@@ -435,10 +436,17 @@ public class SkillExecutor : MonoBehaviour
                 }
             }
 
-            SpawnEffect(skill.hitEffectPrefab, hitTarget.position, Quaternion.identity);
+            // Эффект попадания на цели
+            string targetSocketId = "";
+            if (networkPlayer != null)
+            {
+                targetSocketId = networkPlayer.socketId;
+            }
+            SpawnEffect(skill.hitEffectPrefab, hitTarget.position, Quaternion.identity, 1f, targetSocketId, "hit");
         }
 
-        SpawnEffect(skill.castEffectPrefab, aoeCenter, Quaternion.identity);
+        // Эффект каста AOE в центре
+        SpawnEffect(skill.castEffectPrefab, aoeCenter, Quaternion.identity, 2f, "", "aoe");
 
         if (skill.customData != null && skill.customData.chainCount > 0 && hitTargets.Count > 0)
         {
@@ -515,7 +523,14 @@ public class SkillExecutor : MonoBehaviour
             }
         }
 
-        SpawnEffect(skill.hitEffectPrefab, nextTarget.position, Quaternion.identity);
+        // Эффект chain lightning на следующей цели
+        string chainTargetSocketId = "";
+        NetworkPlayer chainNetPlayer = nextTarget.GetComponent<NetworkPlayer>();
+        if (chainNetPlayer != null)
+        {
+            chainTargetSocketId = chainNetPlayer.socketId;
+        }
+        SpawnEffect(skill.hitEffectPrefab, nextTarget.position, Quaternion.identity, 1f, chainTargetSocketId, "chain_hit");
 
         alreadyHitTargets.Add(nextTarget);
 
@@ -557,11 +572,13 @@ public class SkillExecutor : MonoBehaviour
 
                 Log("Teleported to " + destination);
 
-                SpawnEffect(skill.hitEffectPrefab, destination, Quaternion.identity);
+                // Эффект телепорта в точке прибытия
+                SpawnEffect(skill.hitEffectPrefab, destination, Quaternion.identity, 1f, "", "teleport_arrive");
                 break;
         }
 
-        SpawnEffect(skill.castEffectPrefab, transform.position, Quaternion.identity);
+        // Эффект каста движения (в точке отправления)
+        SpawnEffect(skill.castEffectPrefab, transform.position, Quaternion.identity, 1f, "", "movement_cast");
 
         // Применяем эффекты на цель после телепорта (например, Stun для Warrior Charge)
         if (target != null && skill.effects != null && skill.effects.Count > 0)
@@ -691,7 +708,14 @@ public class SkillExecutor : MonoBehaviour
             }
         }
 
-        SpawnEffect(skill.castEffectPrefab, buffTarget.position, Quaternion.identity);
+        // Эффект бафф каста на цели
+        string buffTargetSocketId = "";
+        NetworkPlayer buffNetPlayer = buffTarget.GetComponent<NetworkPlayer>();
+        if (buffNetPlayer != null)
+        {
+            buffTargetSocketId = buffNetPlayer.socketId;
+        }
+        SpawnEffect(skill.castEffectPrefab, buffTarget.position, Quaternion.identity, 1f, buffTargetSocketId, "buff");
     }
 
     /// <summary>
@@ -702,9 +726,9 @@ public class SkillExecutor : MonoBehaviour
         Vector3 center = transform.position;
         Log($"AOE Buff center: {center}, radius: {skill.aoeRadius}");
 
-        // Спавним эффект каста на кастере
-        SpawnEffect(skill.castEffectPrefab, center, Quaternion.identity);
-        SpawnEffect(skill.casterEffectPrefab, center + Vector3.up * 1.5f, Quaternion.identity);
+        // Спавним эффект каста на кастере (AOE Buff начало)
+        SpawnEffect(skill.castEffectPrefab, center, Quaternion.identity, 2f, "", "aoe_buff_cast");
+        SpawnEffect(skill.casterEffectPrefab, center + Vector3.up * 1.5f, Quaternion.identity, 2f, "", "aoe_buff_aura");
 
         // Ищем всех в радиусе
         Collider[] hits = Physics.OverlapSphere(center, skill.aoeRadius, ~0);
@@ -772,7 +796,13 @@ public class SkillExecutor : MonoBehaviour
             }
 
             // Спавним визуальный эффект на союзнике
-            SpawnEffect(skill.hitEffectPrefab, ally.position, Quaternion.identity);
+            string allySocketId = "";
+            NetworkPlayer allyNetPlayer = ally.GetComponent<NetworkPlayer>();
+            if (allyNetPlayer != null)
+            {
+                allySocketId = allyNetPlayer.socketId;
+            }
+            SpawnEffect(skill.hitEffectPrefab, ally.position, Quaternion.identity, 1.5f, allySocketId, "buff_ally");
         }
     }
 
@@ -820,9 +850,15 @@ public class SkillExecutor : MonoBehaviour
             }
         }
 
-        // Визуальные эффекты
-        SpawnEffect(skill.castEffectPrefab, healTarget.position, Quaternion.identity);
-        SpawnEffect(skill.hitEffectPrefab, healTarget.position, Quaternion.identity);
+        // Визуальные эффекты лечения
+        string healTargetSocketId = "";
+        NetworkPlayer healNetPlayer = healTarget.GetComponent<NetworkPlayer>();
+        if (healNetPlayer != null)
+        {
+            healTargetSocketId = healNetPlayer.socketId;
+        }
+        SpawnEffect(skill.castEffectPrefab, healTarget.position, Quaternion.identity, 1f, healTargetSocketId, "heal_cast");
+        SpawnEffect(skill.hitEffectPrefab, healTarget.position, Quaternion.identity, 2f, healTargetSocketId, "heal_effect");
     }
 
     /// <summary>
@@ -833,9 +869,9 @@ public class SkillExecutor : MonoBehaviour
         Vector3 center = transform.position;
         Log($"AOE Heal center: {center}, radius: {skill.aoeRadius}");
 
-        // Спавним эффект каста на кастере
-        SpawnEffect(skill.castEffectPrefab, center, Quaternion.identity);
-        SpawnEffect(skill.casterEffectPrefab, center + Vector3.up * 1.5f, Quaternion.identity);
+        // Спавним эффект каста на кастере (AOE Heal начало)
+        SpawnEffect(skill.castEffectPrefab, center, Quaternion.identity, 2f, "", "aoe_heal_cast");
+        SpawnEffect(skill.casterEffectPrefab, center + Vector3.up * 1.5f, Quaternion.identity, 2f, "", "aoe_heal_aura");
 
         // Ищем всех в радиусе
         Collider[] hits = Physics.OverlapSphere(center, skill.aoeRadius, ~0);
@@ -913,7 +949,13 @@ public class SkillExecutor : MonoBehaviour
             }
 
             // Спавним визуальный эффект на союзнике
-            SpawnEffect(skill.hitEffectPrefab, ally.position, Quaternion.identity);
+            string healAllySocketId = "";
+            NetworkPlayer healAllyNetPlayer = ally.GetComponent<NetworkPlayer>();
+            if (healAllyNetPlayer != null)
+            {
+                healAllySocketId = healAllyNetPlayer.socketId;
+            }
+            SpawnEffect(skill.hitEffectPrefab, ally.position, Quaternion.identity, 1.5f, healAllySocketId, "heal_ally");
         }
     }
 
@@ -967,9 +1009,9 @@ public class SkillExecutor : MonoBehaviour
         manaSystem.RestoreMana(manaRestore);
         Log($"💙 Восстановлено: +{manaRestore:F1} MP ({skill.customData.manaRestorePercent}% от максимума)");
 
-        // Визуальные эффекты
-        SpawnEffect(skill.castEffectPrefab, transform.position, Quaternion.identity); // Кровавый эффект
-        SpawnEffect(skill.casterEffectPrefab, transform.position + Vector3.up * 1.5f, Quaternion.identity); // Эффект восстановления маны
+        // Визуальные эффекты Blood for Mana
+        SpawnEffect(skill.castEffectPrefab, transform.position, Quaternion.identity, 1.5f, "", "blood_sacrifice"); // Кровавый эффект
+        SpawnEffect(skill.casterEffectPrefab, transform.position + Vector3.up * 1.5f, Quaternion.identity, 2f, "", "mana_restore"); // Эффект восстановления маны
 
         Log($"✅ Blood for Mana: -{hpSacrifice:F0} HP → +{manaRestore:F0} MP");
     }
@@ -1019,12 +1061,28 @@ public class SkillExecutor : MonoBehaviour
         return heal;
     }
 
-    private void SpawnEffect(GameObject effectPrefab, Vector3 position, Quaternion rotation, float lifetime = 1f)
+    private void SpawnEffect(GameObject effectPrefab, Vector3 position, Quaternion rotation, float lifetime = 1f, string targetSocketId = "", string effectType = "effect")
     {
         if (effectPrefab == null) return;
 
+        // Создаём эффект локально
         GameObject effect = Instantiate(effectPrefab, position, rotation);
         Destroy(effect, lifetime);
+
+        // 🌐 СИНХРОНИЗАЦИЯ: Отправляем визуальный эффект на сервер для других игроков
+        if (SocketIOManager.Instance != null && SocketIOManager.Instance.IsConnected)
+        {
+            string prefabName = effectPrefab.name.Replace("(Clone)", "").Trim();
+            SocketIOManager.Instance.SendVisualEffect(
+                effectType,         // "cast", "hit", "buff", "explosion" и т.д.
+                prefabName,         // Имя префаба для поиска в Resources
+                position,           // Позиция эффекта
+                rotation,           // Поворот эффекта
+                targetSocketId,     // Если привязан к игроку (пустая строка = world space)
+                lifetime            // Длительность эффекта
+            );
+            Log($"🌐 Визуальный эффект отправлен на сервер: {prefabName} at {position}");
+        }
     }
 
     private IEnumerator SpawnFallingMeteor(SkillConfig skill, Vector3 targetPosition)
@@ -1164,10 +1222,18 @@ public class SkillExecutor : MonoBehaviour
                 }
             }
 
-            SpawnEffect(skill.hitEffectPrefab, hitTarget.position, Quaternion.identity);
+            // Эффект попадания метеора
+            string meteorTargetSocketId = "";
+            NetworkPlayer meteorNetPlayer = hitTarget.GetComponent<NetworkPlayer>();
+            if (meteorNetPlayer != null)
+            {
+                meteorTargetSocketId = meteorNetPlayer.socketId;
+            }
+            SpawnEffect(skill.hitEffectPrefab, hitTarget.position, Quaternion.identity, 1f, meteorTargetSocketId, "meteor_hit");
         }
 
-        SpawnEffect(skill.castEffectPrefab, targetPosition, Quaternion.identity, 2f);
+        // Эффект взрыва метеора в точке падения
+        SpawnEffect(skill.castEffectPrefab, targetPosition, Quaternion.identity, 3f, "", "meteor_explosion");
 
         Destroy(meteor, 0.2f);
 
@@ -1181,9 +1247,9 @@ public class SkillExecutor : MonoBehaviour
     {
         Log($"Using skill: {skill.skillName}");
 
-        // Спавним визуальные эффекты призыва
-        SpawnEffect(skill.castEffectPrefab, transform.position, Quaternion.identity);
-        SpawnEffect(skill.casterEffectPrefab, transform.position, Quaternion.identity);
+        // Спавним визуальные эффекты призыва миньона
+        SpawnEffect(skill.castEffectPrefab, transform.position, Quaternion.identity, 2f, "", "summon_cast");
+        SpawnEffect(skill.casterEffectPrefab, transform.position, Quaternion.identity, 2f, "", "summon_aura");
 
         // Получаем duration из эффекта
         float summonDuration = 20f; // default
@@ -1398,9 +1464,9 @@ public class SkillExecutor : MonoBehaviour
     {
         Log($"Using transformation skill: {skill.skillName}");
 
-        // Спавним визуальные эффекты трансформации
-        SpawnEffect(skill.castEffectPrefab, transform.position, Quaternion.identity);
-        SpawnEffect(skill.casterEffectPrefab, transform.position + Vector3.up * 1.5f, Quaternion.identity);
+        // Спавним визуальные эффекты трансформации (Bear Form и т.д.)
+        SpawnEffect(skill.castEffectPrefab, transform.position, Quaternion.identity, 2f, "", "transformation_cast");
+        SpawnEffect(skill.casterEffectPrefab, transform.position + Vector3.up * 1.5f, Quaternion.identity, 2f, "", "transformation_aura");
 
         // Проверяем что prefab трансформации существует
         if (skill.transformationModel == null)
@@ -1488,8 +1554,12 @@ public class SkillExecutor : MonoBehaviour
             transformation.RevertToOriginal();
             Log($"⏱️ Трансформация завершилась (время истекло)");
 
-            // Спавним эффект возврата
-            SpawnEffect(Resources.Load<GameObject>("Effects/CFXR Magic Poof"), transform.position, Quaternion.identity);
+            // Спавним эффект возврата из трансформации
+            GameObject revertEffect = Resources.Load<GameObject>("Effects/CFXR Magic Poof");
+            if (revertEffect != null)
+            {
+                SpawnEffect(revertEffect, transform.position, Quaternion.identity, 1.5f, "", "transformation_revert");
+            }
         }
     }
 

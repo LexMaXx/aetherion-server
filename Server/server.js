@@ -656,18 +656,23 @@ io.on('connection', (socket) => {
         }));
     });
 
-    // Visual effect spawned
+    // Visual effect spawned (ИСПРАВЛЕНО: передаем все нужные параметры)
     socket.on('visual_effect_spawned', (data) => {
         const player = players.get(socket.id);
         if (!player) return;
 
-        socket.to(player.roomId).emit('visual_effect_spawned', {
-            effectType: data.effectType,
-            position: data.position,
-            rotation: data.rotation,
-            scale: data.scale,
-            parentId: data.parentId
-        });
+        console.log(`[Visual Effect] ${player.username} spawned effect: ${data.effectPrefabName} at (${data.position.x.toFixed(1)}, ${data.position.y.toFixed(1)}, ${data.position.z.toFixed(1)})`);
+
+        // Отправляем визуальный эффект всем игрокам в комнате (кроме отправителя)
+        socket.to(player.roomId).emit('visual_effect_spawned', JSON.stringify({
+            socketId: socket.id,                    // Кто создал эффект
+            effectType: data.effectType,            // Тип эффекта (cast, hit, buff, etc)
+            effectPrefabName: data.effectPrefabName,// Имя префаба для поиска в Resources
+            position: data.position,                // Позиция эффекта
+            rotation: data.rotation,                // Поворот эффекта
+            targetSocketId: data.targetSocketId || '',  // Если привязан к игроку
+            duration: data.duration || 1.0          // Длительность эффекта
+        }));
     });
 
     // Player transformed
