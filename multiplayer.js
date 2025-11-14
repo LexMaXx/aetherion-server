@@ -227,6 +227,7 @@ module.exports = (io) => {
         // ═══════════════════════════════════════════
         // LOBBY SYSTEM: Запускаем таймер если >= 2 игроков
         // ═══════════════════════════════════════════
+        console.log(`[Lobby] 🔍 Checking if lobby should start. Players in room: ${playersInRoom.length}`);
 
         if (playersInRoom.length >= 2) {
           let lobby = roomLobbies.get(roomId);
