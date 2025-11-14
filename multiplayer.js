@@ -17,6 +17,20 @@ const roomLobbies = new Map(); // roomId => { waitTime, startTime, countdownTime
 module.exports = (io) => {
   console.log('🎮 Multiplayer module loaded');
 
+  // ═══════════════════════════════════════════════════════════════════
+  // ГЛОБАЛЬНАЯ MMO КОМНАТА (PERSISTENT WORLD)
+  // ═══════════════════════════════════════════════════════════════════
+  const GLOBAL_ROOM_ID = 'aetherion-global-world';
+  const GLOBAL_ROOM_MAX_PLAYERS = 500;
+
+  console.log('🌍 ═══════════════════════════════════════════');
+  console.log('🌍 ГЛОБАЛЬНАЯ MMO КОМНАТА СОЗДАНА');
+  console.log(`🌍 Room ID: ${GLOBAL_ROOM_ID}`);
+  console.log(`🌍 Max Players: ${GLOBAL_ROOM_MAX_PLAYERS}`);
+  console.log('🌍 Type: Persistent World (никогда не закрывается)');
+  console.log('🌍 Все игроки автоматически подключаются к этой комнате');
+  console.log('🌍 ═══════════════════════════════════════════');
+
   io.on('connection', (socket) => {
     console.log(`✅ Player connected: ${socket.id}`);
 
@@ -45,9 +59,19 @@ module.exports = (io) => {
           }
         }
 
-        const { roomId, username, characterClass, userId } = parsedData;
+        let { roomId, username, characterClass, userId } = parsedData;
 
-        console.log(`[Join Room] ${username} (${socket.id}) joining room ${roomId} as ${characterClass}`);
+        // ═══════════════════════════════════════════════════════════════════
+        // MMO MODE: Все игроки подключаются к ОДНОЙ глобальной комнате
+        // ═══════════════════════════════════════════════════════════════════
+        const useGlobalRoom = true; // Включить MMO режим
+
+        if (useGlobalRoom) {
+          roomId = GLOBAL_ROOM_ID; // Принудительно используем глобальную комнату
+          console.log(`[Join Room - MMO] 🌍 ${username} (${socket.id}) подключается к глобальной MMO комнате`);
+        } else {
+          console.log(`[Join Room] ${username} (${socket.id}) joining room ${roomId} as ${characterClass}`);
+        }
 
         // Присоединяемся к Socket.IO room
         socket.join(roomId);
@@ -60,10 +84,10 @@ module.exports = (io) => {
             // Комната не существует - создаём новую
             const roomData = {
               roomId,
-              roomName: `${username}'s Room`,
-              maxPlayers: 20,
+              roomName: useGlobalRoom ? 'Aetherion Global World' : `${username}'s Room`,
+              maxPlayers: useGlobalRoom ? GLOBAL_ROOM_MAX_PLAYERS : 20,
               isPrivate: false,
-              status: 'waiting',
+              status: useGlobalRoom ? 'in_progress' : 'waiting', // Глобальная комната всегда "в игре"
               players: []
             };
 
@@ -73,6 +97,17 @@ module.exports = (io) => {
             }
 
             room = new Room(roomData);
+
+            if (useGlobalRoom) {
+              console.log(`[Join Room - MMO] 🌍 Создана глобальная MMO комната (лимит: ${GLOBAL_ROOM_MAX_PLAYERS} игроков)`);
+            }
+          }
+
+          // Проверяем лимит игроков
+          if (room.players.length >= room.maxPlayers) {
+            console.log(`[Join Room] ❌ Комната ${roomId} полная (${room.players.length}/${room.maxPlayers})`);
+            socket.emit('room_full', { message: 'Комната полная, попробуйте позже' });
+            return;
           }
 
           // Проверяем есть ли игрок уже в комнате
@@ -97,14 +132,11 @@ module.exports = (io) => {
 
             room.players.push(playerData);
 
-            // НЕ меняем статус автоматически!
-            // Статус "in_progress" должен устанавливаться через:
-            // 1. POST /api/room/start (хост нажимает кнопку Start)
-            // 2. MatchmakingManager таймер (20 секунд ожидания)
-            // Это позволяет другим игрокам присоединиться к комнате!
+            // Для глобальной комнаты не меняем статус
+            // Статус всегда "in_progress" для MMO режима
 
             await room.save();
-            console.log(`[Join Room] ✅ Room ${roomId} updated in MongoDB. Players: ${room.players.length}`);
+            console.log(`[Join Room] ✅ Room ${roomId} updated in MongoDB. Players: ${room.players.length}/${room.maxPlayers}`);
           }
         } catch (dbError) {
           console.error('[Join Room] ❌ MongoDB error:', dbError.message);
