@@ -206,12 +206,14 @@ module.exports = (io) => {
         }
 
         // Отправляем текущему игроку список всех игроков
+        console.log(`[Join Room] 📤 Sending room_players to ${username}: ${playersInRoom.length} players`);
         socket.emit('room_players', {
           players: playersInRoom,
           yourSocketId: socket.id
         });
 
         // Уведомляем других игроков о новом игроке
+        console.log(`[Join Room] 📢 Broadcasting player_joined for ${username} to room ${roomId}`);
         socket.to(roomId).emit('player_joined', {
           socketId: socket.id,
           username,
@@ -228,6 +230,7 @@ module.exports = (io) => {
 
         if (playersInRoom.length >= 2) {
           let lobby = roomLobbies.get(roomId);
+          console.log(`[Lobby] 🎲 Checking lobby state for room ${roomId}. Players: ${playersInRoom.length}. Lobby exists: ${!!lobby}. Game started: ${lobby?.gameStarted}`);
 
           // Если лобби еще нет - создаём и запускаем таймер
           if (!lobby || lobby.gameStarted) {
