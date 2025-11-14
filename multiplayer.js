@@ -206,9 +206,17 @@ module.exports = (io) => {
 
         // Отправляем текущему игроку список всех игроков
         console.log(`[Join Room] 📤 Sending room_players to ${username}: ${playersInRoom.length} players`);
+
+        // КРИТИЧНО: Проверяем статус игры
+        const lobby = roomLobbies.get(roomId);
+        const gameStarted = lobby ? lobby.gameStarted : false;
+
+        console.log(`[Join Room] 🎮 Game started status: ${gameStarted}`);
+
         socket.emit('room_players', {
           players: playersInRoom,
-          yourSocketId: socket.id
+          yourSocketId: socket.id,
+          gameStarted: gameStarted  // КРИТИЧНО: Флаг для Unity!
         });
 
         // Уведомляем других игроков о новом игроке
