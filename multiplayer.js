@@ -362,6 +362,23 @@ module.exports = (io) => {
         });
 
         console.log(`✅ Sent ${playersInRoom.length} players to ${player.username}`);
+
+        // КРИТИЧЕСКОЕ: Уведомляем ДРУГИХ игроков что этот игрок "вернулся"
+        // Это нужно для случая когда игрок выходит на WorldMap и возвращается в BattleScene
+        // Другие игроки должны заспавнить его снова
+        socket.to(roomId).emit('player_joined', {
+          socketId: socket.id,
+          username: player.username,
+          characterClass: player.characterClass,
+          position: player.position,
+          rotation: player.rotation,
+          animation: player.animation,
+          health: player.health,
+          maxHealth: player.maxHealth
+        });
+
+        console.log(`📢 Broadcast player_joined for ${player.username} (returning to BattleScene)`);
+
       } catch (error) {
         console.error('[Get Room Players] Error:', error);
       }
