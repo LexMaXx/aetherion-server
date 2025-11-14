@@ -1980,6 +1980,114 @@ module.exports = (io) => {
     socket.on('ping', () => {
       socket.emit('pong', { timestamp: Date.now() });
     });
+
+    // ═══════════════════════════════════════════
+    // WORLD MAP СИНХРОНИЗАЦИЯ
+    // ═══════════════════════════════════════════
+
+    // Игрок зашел на WorldMap
+    socket.on('world_map_join', (data) => {
+      try {
+        let parsedData = data;
+        if (typeof data === 'string') {
+          parsedData = JSON.parse(data);
+        }
+
+        const player = activePlayers.get(socket.id);
+        if (!player) {
+          console.warn(`[WorldMap] ⚠️ Player not found: ${socket.id}`);
+          return;
+        }
+
+        // Обновляем информацию что игрок на WorldMap
+        player.isOnWorldMap = true;
+        player.worldMapPosition = parsedData.position;
+
+        console.log(`[WorldMap] ✅ ${player.username} зашел на WorldMap at position (${parsedData.position.x}, ${parsedData.position.y}, ${parsedData.position.z})`);
+
+        // Отправляем список других игроков на WorldMap
+        const worldMapPlayers = [];
+        for (const [socketId, otherPlayer] of activePlayers.entries()) {
+          if (socketId !== socket.id && otherPlayer.isOnWorldMap && otherPlayer.worldMapPosition) {
+            worldMapPlayers.push({
+              socketId: socketId,
+              username: otherPlayer.username,
+              characterClass: otherPlayer.characterClass,
+              position: otherPlayer.worldMapPosition,
+              rotation: otherPlayer.worldMapRotation || { x: 0, y: 0, z: 0 }
+            });
+          }
+        }
+
+        socket.emit('world_map_players_list', {
+          players: worldMapPlayers
+        });
+
+        console.log(`[WorldMap] 📋 Отправлен список игроков на WorldMap: ${worldMapPlayers.length} игроков`);
+
+        // Уведомляем других игроков на WorldMap о новом игроке
+        socket.broadcast.emit('world_map_player_joined', {
+          socketId: socket.id,
+          username: player.username,
+          characterClass: player.characterClass,
+          position: parsedData.position,
+          rotation: { x: 0, y: 0, z: 0 }
+        });
+
+      } catch (error) {
+        console.error('[WorldMap Join] ❌ Error:', error.message);
+      }
+    });
+
+    // Обновление позиции на WorldMap
+    socket.on('world_map_position_update', (data) => {
+      try {
+        let parsedData = data;
+        if (typeof data === 'string') {
+          parsedData = JSON.parse(data);
+        }
+
+        const player = activePlayers.get(socket.id);
+        if (!player || !player.isOnWorldMap) {
+          return;
+        }
+
+        // Обновляем позицию
+        player.worldMapPosition = parsedData.position;
+        player.worldMapRotation = parsedData.rotation;
+
+        // Рассылаем другим игрокам на WorldMap
+        socket.broadcast.emit('world_map_player_moved', {
+          socketId: socket.id,
+          position: parsedData.position,
+          rotation: parsedData.rotation
+        });
+
+      } catch (error) {
+        console.error('[WorldMap Position] ❌ Error:', error.message);
+      }
+    });
+
+    // Игрок покинул WorldMap
+    socket.on('world_map_leave', () => {
+      try {
+        const player = activePlayers.get(socket.id);
+        if (player && player.isOnWorldMap) {
+          player.isOnWorldMap = false;
+          player.worldMapPosition = null;
+          player.worldMapRotation = null;
+
+          console.log(`[WorldMap] 🚪 ${player.username} покинул WorldMap`);
+
+          // Уведомляем других игроков
+          socket.broadcast.emit('world_map_player_left', {
+            socketId: socket.id
+          });
+        }
+      } catch (error) {
+        console.error('[WorldMap Leave] ❌ Error:', error.message);
+      }
+    });
   });
 
   // Периодическая очистка отключённых игроков (каждые 5 минут)
