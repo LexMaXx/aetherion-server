@@ -270,12 +270,17 @@ module.exports = (io) => {
             }
 
             // Отправляем game_start этому игроку
-            socket.emit('game_start', {
+            const gameStartData = {
               roomId,
               players: currentPlayers,
               timestamp: Date.now(),
               alreadyStarted: true
-            });
+            };
+
+            console.log(`[Lobby - MMO] 📤 Sending game_start to ${username}. Players in payload: ${currentPlayers.length}`);
+            console.log(`[Lobby - MMO] 📋 Players: ${currentPlayers.map(p => p.username).join(', ')}`);
+
+            socket.emit('game_start', gameStartData);
 
             console.log(`[Lobby - MMO] ✅ Sent game_start to ${username} (${currentPlayers.length} players in MMO world)`);
           }
