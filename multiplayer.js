@@ -229,7 +229,60 @@ module.exports = (io) => {
         // ═══════════════════════════════════════════
         console.log(`[Lobby] 🔍 Checking if lobby should start. Players in room: ${playersInRoom.length}`);
 
-        if (playersInRoom.length >= 2) {
+        // ═══════════════════════════════════════════
+        // MMO MODE: Для глобальной комнаты игра ВСЕГДА идёт!
+        // ═══════════════════════════════════════════
+        const useGlobalRoom = true;
+        if (useGlobalRoom && roomId === GLOBAL_ROOM_ID) {
+          let lobby = roomLobbies.get(roomId);
+
+          if (!lobby) {
+            // Создаём лобби для глобальной комнаты с gameStarted = true
+            console.log(`[Lobby - MMO] 🌍 Creating persistent lobby for global room (game always running)`);
+            lobby = {
+              waitTime: 0,
+              currentTime: 0,
+              startTime: Date.now(),
+              countdownStarted: false,
+              gameStarted: true, // ← КРИТИЧНО: Игра ВСЕГДА идёт в MMO режиме!
+              timer: null
+            };
+            roomLobbies.set(roomId, lobby);
+          }
+
+          // Для каждого игрока подключающегося к ongoing MMO игре - отправляем game_start
+          if (lobby.gameStarted) {
+            console.log(`[Lobby - MMO] 🎮 Player ${username} joined ONGOING MMO game - sending game_start`);
+
+            // Получаем всех игроков с их spawnIndex
+            const currentPlayers = [];
+            for (const [sid, player] of activePlayers.entries()) {
+              if (player.roomId === roomId) {
+                currentPlayers.push({
+                  socketId: sid,
+                  username: player.username,
+                  characterClass: player.characterClass,
+                  spawnIndex: player.spawnIndex !== undefined ? player.spawnIndex : 0,
+                  position: player.position,
+                  rotation: player.rotation,
+                  health: player.health,
+                  maxHealth: player.maxHealth
+                });
+              }
+            }
+
+            // Отправляем game_start этому игроку
+            socket.emit('game_start', {
+              roomId,
+              players: currentPlayers,
+              timestamp: Date.now(),
+              alreadyStarted: true
+            });
+
+            console.log(`[Lobby - MMO] ✅ Sent game_start to ${username} (${currentPlayers.length} players in MMO world)`);
+          }
+        } else if (playersInRoom.length >= 2) {
+          // ARENA MODE: Обычная логика с таймером лобби
           let lobby = roomLobbies.get(roomId);
           console.log(`[Lobby] 🎲 Checking lobby state for room ${roomId}. Players: ${playersInRoom.length}. Lobby exists: ${!!lobby}. Game started: ${lobby?.gameStarted}`);
 
