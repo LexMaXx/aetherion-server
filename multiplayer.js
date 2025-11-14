@@ -280,7 +280,11 @@ module.exports = (io) => {
             console.log(`[Lobby - MMO] 📤 Sending game_start to ${username}. Players in payload: ${currentPlayers.length}`);
             console.log(`[Lobby - MMO] 📋 Players: ${currentPlayers.map(p => p.username).join(', ')}`);
 
-            socket.emit('game_start', gameStartData);
+            // КРИТИЧНО: Отправляем JSON СТРОКУ, не объект!
+            const jsonString = JSON.stringify(gameStartData);
+            console.log(`[Lobby - MMO] 📝 JSON length: ${jsonString.length} chars`);
+
+            socket.emit('game_start', jsonString);
 
             console.log(`[Lobby - MMO] ✅ Sent game_start to ${username} (${currentPlayers.length} players in MMO world)`);
           }
