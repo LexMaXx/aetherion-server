@@ -41,11 +41,10 @@ app.use('/api/party', require('./routes/party'));
 app.get('/', (req, res) => {
   res.json({
     message: 'Aetherion Server is running!',
-    version: '2.2.0-game-start-fix',
-    commit: 'e4b1b95',
+    version: '2.3.0-race-condition-fix',
     status: 'online',
     timestamp: new Date().toISOString(),
-    features: ['REST API', 'Socket.IO', 'Multiplayer', 'JSON String Parsing', 'Game Start for Ongoing Games']
+    features: ['REST API', 'Socket.IO', 'Multiplayer', 'MMO Persistent World', 'Race Condition Fix']
   });
 });
 

@@ -195,6 +195,7 @@ module.exports = (io) => {
               socketId: sid,
               username: player.username,
               characterClass: player.characterClass,
+              spawnIndex: player.spawnIndex !== undefined ? player.spawnIndex : 0, // КРИТИЧНО!
               position: player.position,
               rotation: player.rotation,
               animation: player.animation,
@@ -212,10 +213,12 @@ module.exports = (io) => {
         const gameStarted = lobby ? lobby.gameStarted : false;
 
         console.log(`[Join Room] 🎮 Game started status: ${gameStarted}`);
+        console.log(`[Join Room] 🎯 Your spawnIndex: ${assignedSpawnIndex !== undefined ? assignedSpawnIndex : 'not assigned yet (will be set on game_start)'}`);
 
         socket.emit('room_players', {
           players: playersInRoom,
           yourSocketId: socket.id,
+          yourSpawnIndex: assignedSpawnIndex !== undefined ? assignedSpawnIndex : 0, // КРИТИЧНО для Unity!
           gameStarted: gameStarted  // КРИТИЧНО: Флаг для Unity!
         });
 
@@ -462,7 +465,19 @@ module.exports = (io) => {
         const player = activePlayers.get(socket.id);
 
         if (!player) {
-          console.warn(`[Get Room Players] Player ${socket.id} not found in activePlayers`);
+          console.warn(`[Get Room Players] ⚠️ Player ${socket.id} not found in activePlayers - might be race condition`);
+          console.log(`[Get Room Players] 🔄 Sending empty player list with gameStarted flag anyway`);
+
+          // КРИТИЧНО: Не выходим! Отправляем хотя бы статус игры
+          const lobby = roomLobbies.get(roomId);
+          const gameStarted = lobby ? lobby.gameStarted : false;
+
+          socket.emit('room_players', {
+            players: [],
+            yourSocketId: socket.id,
+            yourSpawnIndex: 0,
+            gameStarted: gameStarted
+          });
           return;
         }
 
@@ -476,6 +491,7 @@ module.exports = (io) => {
               socketId: sid,
               username: p.username,
               characterClass: p.characterClass,
+              spawnIndex: p.spawnIndex !== undefined ? p.spawnIndex : 0, // КРИТИЧНО!
               position: p.position,
               rotation: p.rotation,
               animation: p.animation,
@@ -485,13 +501,19 @@ module.exports = (io) => {
           }
         }
 
+        // КРИТИЧНО: Проверяем статус игры
+        const lobby = roomLobbies.get(roomId);
+        const gameStarted = lobby ? lobby.gameStarted : false;
+
         // Отправляем список игроков
         socket.emit('room_players', {
           players: playersInRoom,
-          yourSocketId: socket.id
+          yourSocketId: socket.id,
+          yourSpawnIndex: player.spawnIndex !== undefined ? player.spawnIndex : 0, // КРИТИЧНО для Unity!
+          gameStarted: gameStarted  // КРИТИЧНО: Флаг для Unity!
         });
 
-        console.log(`✅ Sent ${playersInRoom.length} players to ${player.username}`);
+        console.log(`✅ Sent ${playersInRoom.length} players to ${player.username} (gameStarted: ${gameStarted})`);
 
         // КРИТИЧЕСКОЕ: Уведомляем ДРУГИХ игроков что этот игрок "вернулся"
         // Это нужно для случая когда игрок выходит на WorldMap и возвращается в BattleScene
@@ -500,6 +522,7 @@ module.exports = (io) => {
           socketId: socket.id,
           username: player.username,
           characterClass: player.characterClass,
+          spawnIndex: player.spawnIndex !== undefined ? player.spawnIndex : 0,
           position: player.position,
           rotation: player.rotation,
           animation: player.animation,
