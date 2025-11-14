@@ -22,6 +22,7 @@ module.exports = (io) => {
   // ═══════════════════════════════════════════════════════════════════
   const GLOBAL_ROOM_ID = 'aetherion-global-world';
   const GLOBAL_ROOM_MAX_PLAYERS = 500;
+  const USE_GLOBAL_ROOM = true; // MMO режим: все в одной комнате
 
   console.log('🌍 ═══════════════════════════════════════════');
   console.log('🌍 ГЛОБАЛЬНАЯ MMO КОМНАТА СОЗДАНА');
@@ -64,9 +65,7 @@ module.exports = (io) => {
         // ═══════════════════════════════════════════════════════════════════
         // MMO MODE: Все игроки подключаются к ОДНОЙ глобальной комнате
         // ═══════════════════════════════════════════════════════════════════
-        const useGlobalRoom = true; // Включить MMO режим
-
-        if (useGlobalRoom) {
+        if (USE_GLOBAL_ROOM) {
           roomId = GLOBAL_ROOM_ID; // Принудительно используем глобальную комнату
           console.log(`[Join Room - MMO] 🌍 ${username} (${socket.id}) подключается к глобальной MMO комнате`);
         } else {
@@ -84,10 +83,10 @@ module.exports = (io) => {
             // Комната не существует - создаём новую
             const roomData = {
               roomId,
-              roomName: useGlobalRoom ? 'Aetherion Global World' : `${username}'s Room`,
-              maxPlayers: useGlobalRoom ? GLOBAL_ROOM_MAX_PLAYERS : 20,
+              roomName: USE_GLOBAL_ROOM ? 'Aetherion Global World' : `${username}'s Room`,
+              maxPlayers: USE_GLOBAL_ROOM ? GLOBAL_ROOM_MAX_PLAYERS : 20,
               isPrivate: false,
-              status: useGlobalRoom ? 'in_progress' : 'waiting', // Глобальная комната всегда "в игре"
+              status: USE_GLOBAL_ROOM ? 'in_progress' : 'waiting', // Глобальная комната всегда "в игре"
               players: []
             };
 
@@ -98,7 +97,7 @@ module.exports = (io) => {
 
             room = new Room(roomData);
 
-            if (useGlobalRoom) {
+            if (USE_GLOBAL_ROOM) {
               console.log(`[Join Room - MMO] 🌍 Создана глобальная MMO комната (лимит: ${GLOBAL_ROOM_MAX_PLAYERS} игроков)`);
             }
           }
@@ -232,8 +231,7 @@ module.exports = (io) => {
         // ═══════════════════════════════════════════
         // MMO MODE: Для глобальной комнаты игра ВСЕГДА идёт!
         // ═══════════════════════════════════════════
-        const useGlobalRoom = true;
-        if (useGlobalRoom && roomId === GLOBAL_ROOM_ID) {
+        if (USE_GLOBAL_ROOM && roomId === GLOBAL_ROOM_ID) {
           let lobby = roomLobbies.get(roomId);
 
           if (!lobby) {
