@@ -146,6 +146,28 @@ module.exports = (io) => {
         // Сохраняем информацию об игроке в памяти
         // ВАЖНО: HP будет установлено через update_player_stats от клиента!
         // Используем 0 как placeholder вместо null (Unity не поддерживает null для float)
+
+        // Проверяем если игра уже началась - назначаем spawnIndex сразу
+        let assignedSpawnIndex = undefined;
+        const lobby = roomLobbies.get(roomId);
+        if (lobby && lobby.gameStarted) {
+          // Находим следующий свободный spawnIndex
+          const usedIndices = new Set();
+          for (const [sid, player] of activePlayers.entries()) {
+            if (player.roomId === roomId && player.spawnIndex !== undefined) {
+              usedIndices.add(player.spawnIndex);
+            }
+          }
+          // Назначаем минимальный свободный индекс
+          for (let i = 0; i < 100; i++) {
+            if (!usedIndices.has(i)) {
+              assignedSpawnIndex = i;
+              break;
+            }
+          }
+          console.log(`[Join Room] 🎯 Assigned spawnIndex ${assignedSpawnIndex} to ${username} (game already started)`);
+        }
+
         activePlayers.set(socket.id, {
           roomId,
           username,
@@ -159,7 +181,8 @@ module.exports = (io) => {
           currentHealth: 0,  // ← Placeholder для совместимости с Server/server.js
           connected: true,
           joinedAt: Date.now(),
-          level: 1  // Добавляем level для party system
+          level: 1,  // Добавляем level для party system
+          spawnIndex: assignedSpawnIndex  // Присваиваем spawnIndex если игра уже идёт
         });
 
         console.log(`[Join Room] ✅ Player ${username} added to activePlayers with socketId: ${socket.id}`);
@@ -292,16 +315,51 @@ module.exports = (io) => {
               }
             }, 1000);
           } else {
-            // Лобби уже существует - отправляем текущее состояние новому игроку
-            console.log(`[Lobby] Player ${username} joined existing lobby. Time remaining: ${lobby.currentTime}s`);
+            // Лобби уже существует
+            if (lobby.gameStarted) {
+              // ═══════════════════════════════════════════════════════════════════
+              // КРИТИЧЕСКОЕ: Игра уже началась - отправляем game_start немедленно!
+              // ═══════════════════════════════════════════════════════════════════
+              console.log(`[Lobby] 🎮 Player ${username} joined ONGOING game - sending game_start immediately`);
 
-            socket.emit('lobby_created', {
-              roomId,
-              waitTime: lobby.currentTime, // Отправляем оставшееся время
-              playerCount: playersInRoom.length,
-              maxPlayers: 20,
-              timestamp: Date.now()
-            });
+              // Получаем всех игроков с их spawnIndex
+              const currentPlayers = [];
+              for (const [sid, player] of activePlayers.entries()) {
+                if (player.roomId === roomId) {
+                  currentPlayers.push({
+                    socketId: sid,
+                    username: player.username,
+                    characterClass: player.characterClass,
+                    spawnIndex: player.spawnIndex !== undefined ? player.spawnIndex : 0,
+                    position: player.position,
+                    rotation: player.rotation,
+                    health: player.health,
+                    maxHealth: player.maxHealth
+                  });
+                }
+              }
+
+              // Отправляем game_start только этому игроку
+              socket.emit('game_start', {
+                roomId,
+                players: currentPlayers,
+                timestamp: Date.now(),
+                alreadyStarted: true // Флаг что игра уже идёт
+              });
+
+              console.log(`[Lobby] ✅ Sent game_start to ${username} (${currentPlayers.length} players in game)`);
+            } else {
+              // Лобби ещё в ожидании - отправляем текущее состояние таймера
+              console.log(`[Lobby] Player ${username} joined existing lobby. Time remaining: ${lobby.currentTime}s`);
+
+              socket.emit('lobby_created', {
+                roomId,
+                waitTime: lobby.currentTime, // Отправляем оставшеее время
+                playerCount: playersInRoom.length,
+                maxPlayers: 20,
+                timestamp: Date.now()
+              });
+            }
           }
         }
 
