@@ -230,8 +230,10 @@ module.exports = (io) => {
           socketId: socket.id,
           username,
           characterClass,
-          position: { x: 0, y: 0, z: 0 },
-          rotation: { x: 0, y: 0, z: 0 }
+          spawnIndex: assignedSpawnIndex !== undefined ? assignedSpawnIndex : 0, // КРИТИЧНО для MMO режима!
+          position: { x: 0, y: 0, z: 0 }, // Пока неизвестна, будет обновлена через player_update
+          rotation: { x: 0, y: 0, z: 0 },
+          stats: null // TODO: Добавить передачу stats если нужно
         });
 
         console.log(`✅ ${username} joined room ${roomId}. Total players: ${playersInRoom.length}`);
