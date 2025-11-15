@@ -449,12 +449,17 @@ module.exports = (io) => {
     // ═══════════════════════════════════════════
 
     socket.on('get_room_players', (data) => {
+      console.log(`[Get Room Players] 🔥🔥🔥 EVENT RECEIVED from ${socket.id}`);
+      console.log(`[Get Room Players] 📦 Raw data type: ${typeof data}`);
+      console.log(`[Get Room Players] 📦 Raw data: ${JSON.stringify(data)}`);
+
       try {
         // ВАЖНО: Unity может отправить как строку, так и как объект
         let parsedData = data;
         if (typeof data === 'string') {
           try {
             parsedData = JSON.parse(data);
+            console.log(`[Get Room Players] ✅ Parsed JSON: ${JSON.stringify(parsedData)}`);
           } catch (e) {
             console.error('[Get Room Players] ❌ Failed to parse JSON:', e.message);
             return;
@@ -462,7 +467,11 @@ module.exports = (io) => {
         }
 
         const { roomId } = parsedData;
+        console.log(`[Get Room Players] 🎯 Extracted roomId: ${roomId}`);
+        console.log(`[Get Room Players] 🔍 Checking activePlayers for ${socket.id}...`);
+
         const player = activePlayers.get(socket.id);
+        console.log(`[Get Room Players] 👤 Player found: ${player ? `YES (${player.username})` : 'NO'}`);
 
         if (!player) {
           console.warn(`[Get Room Players] ⚠️ Player ${socket.id} not found in activePlayers - might be race condition`);
