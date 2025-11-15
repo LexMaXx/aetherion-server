@@ -211,8 +211,7 @@ module.exports = (io) => {
         // Отправляем текущему игроку список всех игроков
         console.log(`[Join Room] 📤 Sending room_players to ${username}: ${playersInRoom.length} players`);
 
-        // КРИТИЧНО: Проверяем статус игры
-        const lobby = roomLobbies.get(roomId);
+        // КРИТИЧНО: Проверяем статус игры (lobby уже объявлен на line 154)
         const gameStarted = lobby ? lobby.gameStarted : false;
 
         console.log(`[Join Room] 🎮 Game started status: ${gameStarted}`);
@@ -513,8 +512,7 @@ module.exports = (io) => {
           }
         }
 
-        // КРИТИЧНО: Проверяем статус игры
-        const lobby = roomLobbies.get(roomId);
+        // КРИТИЧНО: Проверяем статус игры (lobby уже объявлен на line 484)
         const gameStarted = lobby ? lobby.gameStarted : false;
 
         // Отправляем список игроков
