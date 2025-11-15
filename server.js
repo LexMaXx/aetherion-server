@@ -41,11 +41,11 @@ app.use('/api/party', require('./routes/party'));
 app.get('/', (req, res) => {
   res.json({
     message: 'Aetherion Server is running!',
-    version: '2.3.1-debug-logging',
-    commit: '4a2cc16',
+    version: '2.3.2-socket-debug',
+    commit: 'pending',
     status: 'online',
     timestamp: new Date().toISOString(),
-    features: ['REST API', 'Socket.IO', 'Multiplayer', 'MMO Persistent World', 'Debug Logging Active']
+    features: ['REST API', 'Socket.IO', 'Multiplayer', 'MMO Persistent World', 'Socket.IO Full Debug']
   });
 });
 

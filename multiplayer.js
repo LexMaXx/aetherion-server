@@ -33,12 +33,15 @@ module.exports = (io) => {
   console.log('🌍 ═══════════════════════════════════════════');
 
   io.on('connection', (socket) => {
-    console.log(`✅ Player connected: ${socket.id}`);
+    console.log(`🔥🔥🔥 ✅ Player connected: ${socket.id}`);
+    console.log(`🔥 Connection transport: ${socket.conn.transport.name}`);
+    console.log(`🔥 Connection query: ${JSON.stringify(socket.handshake.query)}`);
 
-    // DEBUG: Лог ТОЛЬКО Party событий (чтобы не спамить логи)
+    // DEBUG: Лог ВСЕХ событий для диагностики!
     socket.onAny((eventName, ...args) => {
-      if (eventName.startsWith('party_')) {
-        console.log(`[🔍 PARTY EVENT] ${eventName} from ${socket.id}`);
+      console.log(`🔥 [EVENT RECEIVED] ${eventName} from ${socket.id}`);
+      if (args.length > 0) {
+        console.log(`🔥 [EVENT DATA] ${JSON.stringify(args[0]).substring(0, 200)}`);
       }
     });
 
