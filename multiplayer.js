@@ -472,16 +472,16 @@ module.exports = (io) => {
         console.log(`[Get Room Players] 🎯 Extracted roomId: ${roomId}`);
         console.log(`[Get Room Players] 🔍 Checking activePlayers for ${socket.id}...`);
 
+        // КРИТИЧНО: Получаем lobby СРАЗУ для использования в обоих ветках (if и else)
+        const lobby = roomLobbies.get(roomId);
+        const gameStarted = lobby ? lobby.gameStarted : false;
+
         const player = activePlayers.get(socket.id);
         console.log(`[Get Room Players] 👤 Player found: ${player ? `YES (${player.username})` : 'NO'}`);
 
         if (!player) {
           console.warn(`[Get Room Players] ⚠️ Player ${socket.id} not found in activePlayers - might be race condition`);
           console.log(`[Get Room Players] 🔄 Sending empty player list with gameStarted flag anyway`);
-
-          // КРИТИЧНО: Не выходим! Отправляем хотя бы статус игры
-          const lobby = roomLobbies.get(roomId);
-          const gameStarted = lobby ? lobby.gameStarted : false;
 
           socket.emit('room_players', {
             players: [],
@@ -512,10 +512,7 @@ module.exports = (io) => {
           }
         }
 
-        // КРИТИЧНО: Проверяем статус игры (lobby уже объявлен на line 484)
-        const gameStarted = lobby ? lobby.gameStarted : false;
-
-        // Отправляем список игроков
+        // Отправляем список игроков (gameStarted уже вычислен на line 477)
         socket.emit('room_players', {
           players: playersInRoom,
           yourSocketId: socket.id,
