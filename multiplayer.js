@@ -1657,6 +1657,10 @@ module.exports = (io) => {
         const player = activePlayers.get(socket.id);
         if (!player) {
           console.error('[Inventory Sync] ❌ Player not found:', socket.id);
+          socket.emit('inventory_synced', {
+            success: false,
+            error: 'Player not found in activePlayers'
+          });
           return;
         }
 
@@ -1673,11 +1677,30 @@ module.exports = (io) => {
         console.log(`[Inventory Sync] 📦 ${player.username} синхронизирует инвентарь`);
         console.log(`[Inventory Sync] Предметов: ${inventoryObj.items ? inventoryObj.items.length : 0}`);
         console.log(`[Inventory Sync] Экипировка: weapon=${inventoryObj.equipment?.weapon || 'none'}, armor=${inventoryObj.equipment?.armor || 'none'}`);
+        console.log(`[Inventory Sync] 🔍 player.userId: ${player.userId}`);
+        console.log(`[Inventory Sync] 🔍 characterClass: ${characterClass}`);
 
-        // Сохраняем в MongoDB
+        // ИСПРАВЛЕНИЕ: Сначала ищем User по username, затем Character по userId + characterClass
+        const User = require('./models/User');
         const Character = require('./models/Character');
-        await Character.updateOne(
-          { userId: player.userId, characterClass: characterClass },
+
+        // Находим User по username
+        const user = await User.findOne({ username: player.username });
+
+        if (!user) {
+          console.error(`[Inventory Sync] ❌ User not found for username: ${player.username}`);
+          socket.emit('inventory_synced', {
+            success: false,
+            error: `User not found: ${player.username}`
+          });
+          return;
+        }
+
+        console.log(`[Inventory Sync] ✅ User найден: ${user._id}`);
+
+        // Сохраняем в MongoDB используя реальный MongoDB ObjectId
+        const result = await Character.updateOne(
+          { userId: user._id, characterClass: characterClass },
           {
             $set: {
               inventory: inventoryObj.items || [],
@@ -1686,7 +1709,18 @@ module.exports = (io) => {
           }
         );
 
-        console.log(`[Inventory Sync] ✅ Инвентарь ${player.username} сохранён в MongoDB`);
+        console.log(`[Inventory Sync] 📊 MongoDB updateOne result: matched=${result.matchedCount}, modified=${result.modifiedCount}`);
+
+        if (result.matchedCount === 0) {
+          console.error(`[Inventory Sync] ❌ Character not found: userId=${user._id}, class=${characterClass}`);
+          socket.emit('inventory_synced', {
+            success: false,
+            error: `Character not found for ${player.username} (${characterClass})`
+          });
+          return;
+        }
+
+        console.log(`[Inventory Sync] ✅ Инвентарь ${player.username} (${characterClass}) сохранён в MongoDB`);
 
         // Отправляем подтверждение
         socket.emit('inventory_synced', {
@@ -1696,6 +1730,7 @@ module.exports = (io) => {
 
       } catch (error) {
         console.error('[Inventory Sync] ❌ Error:', error.message);
+        console.error('[Inventory Sync] Stack:', error.stack);
         socket.emit('inventory_synced', {
           success: false,
           error: error.message
@@ -1714,6 +1749,10 @@ module.exports = (io) => {
         const player = activePlayers.get(socket.id);
         if (!player) {
           console.error('[Load Inventory] ❌ Player not found:', socket.id);
+          socket.emit('inventory_loaded', {
+            success: false,
+            error: 'Player not found in activePlayers'
+          });
           return;
         }
 
@@ -1721,18 +1760,35 @@ module.exports = (io) => {
 
         console.log(`[Load Inventory] 📥 ${player.username} запрашивает инвентарь для ${characterClass}`);
 
-        // Загружаем из MongoDB
+        // ИСПРАВЛЕНИЕ: Сначала ищем User по username, затем Character
+        const User = require('./models/User');
         const Character = require('./models/Character');
+
+        // Находим User по username
+        const user = await User.findOne({ username: player.username });
+
+        if (!user) {
+          console.error(`[Load Inventory] ❌ User not found for username: ${player.username}`);
+          socket.emit('inventory_loaded', {
+            success: false,
+            error: `User not found: ${player.username}`
+          });
+          return;
+        }
+
+        console.log(`[Load Inventory] ✅ User найден: ${user._id}`);
+
+        // Загружаем из MongoDB используя реальный MongoDB ObjectId
         const character = await Character.findOne({
-          userId: player.userId,
+          userId: user._id,
           characterClass: characterClass
         });
 
         if (!character) {
-          console.error(`[Load Inventory] ❌ Character not found: ${characterClass}`);
+          console.error(`[Load Inventory] ❌ Character not found: userId=${user._id}, class=${characterClass}`);
           socket.emit('inventory_loaded', {
             success: false,
-            error: 'Character not found'
+            error: `Character not found for ${player.username} (${characterClass})`
           });
           return;
         }
@@ -1743,7 +1799,8 @@ module.exports = (io) => {
           equipment: character.equipment || {}
         };
 
-        console.log(`[Load Inventory] ✅ Инвентарь загружен: ${inventoryData.items.length} предметов`);
+        console.log(`[Load Inventory] ✅ Инвентарь ${player.username} (${characterClass}) загружен: ${inventoryData.items.length} предметов`);
+        console.log(`[Load Inventory] 📦 Экипировка: weapon=${inventoryData.equipment.weapon || 'none'}, armor=${inventoryData.equipment.armor || 'none'}`);
 
         socket.emit('inventory_loaded', {
           success: true,
@@ -1753,6 +1810,7 @@ module.exports = (io) => {
 
       } catch (error) {
         console.error('[Load Inventory] ❌ Error:', error.message);
+        console.error('[Load Inventory] Stack:', error.stack);
         socket.emit('inventory_loaded', {
           success: false,
           error: error.message
