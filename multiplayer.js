@@ -2377,10 +2377,10 @@ module.exports = (io) => {
         const player = activePlayers.get(socket.id);
         if (!player) {
           console.error('[MMO Inventory] ❌ Player not found:', socket.id);
-          socket.emit('mmo_inventory_response', {
+          socket.emit('mmo_inventory_response', JSON.stringify({
             success: false,
             message: 'Player not found'
-          });
+          }));
           return;
         }
 
@@ -2394,10 +2394,10 @@ module.exports = (io) => {
         // Находим User по username
         const user = await User.findOne({ username: player.username });
         if (!user) {
-          socket.emit('mmo_inventory_response', {
+          socket.emit('mmo_inventory_response', JSON.stringify({
             success: false,
             message: `User not found: ${player.username}`
-          });
+          }));
           return;
         }
 
@@ -2609,7 +2609,7 @@ module.exports = (io) => {
 
       } catch (error) {
         console.error('[MMO Inventory Move] ❌ Error:', error.message);
-        socket.emit('mmo_inventory_response', { success: false, message: error.message });
+        socket.emit('mmo_inventory_response', JSON.stringify({ success: false, message: error.message }));
       }
     });
 
@@ -2685,7 +2685,7 @@ module.exports = (io) => {
 
       } catch (error) {
         console.error('[MMO Inventory Remove] ❌ Error:', error.message);
-        socket.emit('mmo_inventory_response', { success: false, message: error.message });
+        socket.emit('mmo_inventory_response', JSON.stringify({ success: false, message: error.message }));
       }
     });
 
