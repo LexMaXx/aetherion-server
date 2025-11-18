@@ -1698,26 +1698,30 @@ module.exports = (io) => {
 
         console.log(`[Inventory Sync] ✅ User найден: ${user._id}`);
 
-        // Сохраняем в MongoDB используя реальный MongoDB ObjectId
+        // ИСПРАВЛЕНИЕ: Используем upsert чтобы создать персонажа если его нет
         const result = await Character.updateOne(
           { userId: user._id, characterClass: characterClass },
           {
             $set: {
               inventory: inventoryObj.items || [],
               equipment: inventoryObj.equipment || {}
+            },
+            $setOnInsert: {
+              userId: user._id,
+              characterClass: characterClass,
+              level: 1,
+              experience: 0,
+              stats: { strength: 1, perception: 1, endurance: 1, wisdom: 1, intelligence: 1, agility: 1, luck: 1 },
+              availableStatPoints: 0
             }
-          }
+          },
+          { upsert: true } // КРИТИЧНО: Создаём персонажа если его нет!
         );
 
-        console.log(`[Inventory Sync] 📊 MongoDB updateOne result: matched=${result.matchedCount}, modified=${result.modifiedCount}`);
+        console.log(`[Inventory Sync] 📊 MongoDB updateOne result: matched=${result.matchedCount}, modified=${result.modifiedCount}, upserted=${result.upsertedCount}`);
 
-        if (result.matchedCount === 0) {
-          console.error(`[Inventory Sync] ❌ Character not found: userId=${user._id}, class=${characterClass}`);
-          socket.emit('inventory_synced', {
-            success: false,
-            error: `Character not found for ${player.username} (${characterClass})`
-          });
-          return;
+        if (result.upsertedCount > 0) {
+          console.log(`[Inventory Sync] 🆕 Создан новый персонаж: ${player.username} (${characterClass})`);
         }
 
         console.log(`[Inventory Sync] ✅ Инвентарь ${player.username} (${characterClass}) сохранён в MongoDB`);
@@ -1784,23 +1788,25 @@ module.exports = (io) => {
           characterClass: characterClass
         });
 
+        // ИСПРАВЛЕНИЕ: Если персонаж не найден, возвращаем ПУСТОЙ инвентарь (новый персонаж)
+        // Персонаж будет создан автоматически при первом inventory_sync (upsert: true)
+        let inventoryData;
+
         if (!character) {
-          console.error(`[Load Inventory] ❌ Character not found: userId=${user._id}, class=${characterClass}`);
-          socket.emit('inventory_loaded', {
-            success: false,
-            error: `Character not found for ${player.username} (${characterClass})`
-          });
-          return;
+          console.log(`[Load Inventory] 🆕 Персонаж не найден (новый персонаж) → возвращаем пустой инвентарь`);
+          inventoryData = {
+            items: [],
+            equipment: {}
+          };
+        } else {
+          // Формируем JSON для Unity
+          inventoryData = {
+            items: character.inventory || [],
+            equipment: character.equipment || {}
+          };
+          console.log(`[Load Inventory] ✅ Инвентарь ${player.username} (${characterClass}) загружен: ${inventoryData.items.length} предметов`);
+          console.log(`[Load Inventory] 📦 Экипировка: weapon=${inventoryData.equipment.weapon || 'none'}, armor=${inventoryData.equipment.armor || 'none'}`);
         }
-
-        // Формируем JSON для Unity
-        const inventoryData = {
-          items: character.inventory || [],
-          equipment: character.equipment || {}
-        };
-
-        console.log(`[Load Inventory] ✅ Инвентарь ${player.username} (${characterClass}) загружен: ${inventoryData.items.length} предметов`);
-        console.log(`[Load Inventory] 📦 Экипировка: weapon=${inventoryData.equipment.weapon || 'none'}, armor=${inventoryData.equipment.armor || 'none'}`);
 
         socket.emit('inventory_loaded', {
           success: true,
@@ -2357,6 +2363,332 @@ module.exports = (io) => {
         console.error('[WorldMap Leave] ❌ Error:', error.message);
       }
     });
+    // ═══════════════════════════════════════════
+    // MMO INVENTORY SYSTEM (NEW)
+    // ═══════════════════════════════════════════
+
+    socket.on('mmo_load_inventory', async (data) => {
+      try {
+        let parsedData = data;
+        if (typeof data === 'string') {
+          parsedData = JSON.parse(data);
+        }
+
+        const player = activePlayers.get(socket.id);
+        if (!player) {
+          console.error('[MMO Inventory] ❌ Player not found:', socket.id);
+          socket.emit('mmo_inventory_response', {
+            success: false,
+            message: 'Player not found'
+          });
+          return;
+        }
+
+        const { characterClass } = parsedData;
+
+        console.log(`[MMO Inventory] 📥 ${player.username} загружает инвентарь (${characterClass})`);
+
+        const User = require('./models/User');
+        const Character = require('./models/Character');
+
+        // Находим User по username
+        const user = await User.findOne({ username: player.username });
+        if (!user) {
+          socket.emit('mmo_inventory_response', {
+            success: false,
+            message: `User not found: ${player.username}`
+          });
+          return;
+        }
+
+        // Загружаем Character
+        let character = await Character.findOne({
+          userId: user._id,
+          characterClass: characterClass
+        });
+
+        // Если персонаж не найден, создаём с пустым инвентарём
+        if (!character) {
+          console.log(`[MMO Inventory] 🆕 Создаём нового персонажа для ${player.username} (${characterClass})`);
+
+          character = new Character({
+            userId: user._id,
+            characterClass: characterClass,
+            level: 1,
+            experience: 0,
+            stats: { strength: 1, perception: 1, endurance: 1, wisdom: 1, intelligence: 1, agility: 1, luck: 1 },
+            availableStatPoints: 0,
+            inventory: [],
+            equipment: {}
+          });
+
+          await character.save();
+        }
+
+        // Формируем snapshot
+        const snapshot = {
+          items: character.inventory || [],
+          equipment: character.equipment || {},
+          gold: character.gold || 0,
+          lastModified: Date.now()
+        };
+
+        console.log(`[MMO Inventory] ✅ Инвентарь загружен: ${snapshot.items.length} предметов, ${snapshot.gold} золота`);
+
+        socket.emit('mmo_inventory_response', JSON.stringify({
+          success: true,
+          message: 'Inventory loaded',
+          snapshot: snapshot
+        }));
+
+      } catch (error) {
+        console.error('[MMO Inventory Load] ❌ Error:', error.message);
+        socket.emit('mmo_inventory_response', JSON.stringify({
+          success: false,
+          message: error.message
+        }));
+      }
+    });
+
+    socket.on('mmo_add_item', async (data) => {
+      try {
+        let parsedData = data;
+        if (typeof data === 'string') {
+          parsedData = JSON.parse(data);
+        }
+
+        const player = activePlayers.get(socket.id);
+        if (!player) {
+          socket.emit('mmo_inventory_response', JSON.stringify({ success: false, message: 'Player not found' }));
+          return;
+        }
+
+        const { characterClass, itemId, itemName, quantity, slotIndex } = parsedData;
+
+        console.log(`[MMO Inventory] ➕ ${player.username} добавляет предмет: ${itemName} x${quantity} в слот ${slotIndex}`);
+
+        const User = require('./models/User');
+        const Character = require('./models/Character');
+
+        const user = await User.findOne({ username: player.username });
+        if (!user) {
+          socket.emit('mmo_inventory_response', JSON.stringify({ success: false, message: 'User not found' }));
+          return;
+        }
+
+        const character = await Character.findOne({
+          userId: user._id,
+          characterClass: characterClass
+        });
+
+        if (!character) {
+          socket.emit('mmo_inventory_response', JSON.stringify({ success: false, message: 'Character not found' }));
+          return;
+        }
+
+        // Добавляем предмет в инвентарь
+        if (!character.inventory) {
+          character.inventory = [];
+        }
+
+        // Проверяем занят ли слот
+        const existingItemIndex = character.inventory.findIndex(item => item.slotIndex === slotIndex);
+
+        if (existingItemIndex !== -1) {
+          // Слот занят - увеличиваем количество
+          character.inventory[existingItemIndex].quantity += quantity;
+        } else {
+          // Слот свободен - добавляем новый предмет
+          character.inventory.push({
+            itemId: itemId,
+            itemName: itemName,
+            quantity: quantity,
+            slotIndex: slotIndex,
+            timestamp: Date.now()
+          });
+        }
+
+        await character.save();
+
+        // Возвращаем обновлённый snapshot
+        const snapshot = {
+          items: character.inventory || [],
+          equipment: character.equipment || {},
+          gold: character.gold || 0,
+          lastModified: Date.now()
+        };
+
+        console.log(`[MMO Inventory] ✅ Предмет добавлен успешно`);
+
+        const response = {
+          success: true,
+          message: 'Item added',
+          snapshot: snapshot
+        };
+
+        console.log(`[MMO Inventory] 📤 Отправляем ответ клиенту: ${JSON.stringify(response).substring(0, 100)}...`);
+        socket.emit('mmo_inventory_response', JSON.stringify(response));
+
+      } catch (error) {
+        console.error('[MMO Inventory Add] ❌ Error:', error.message);
+        socket.emit('mmo_inventory_response', JSON.stringify({ success: false, message: error.message }));
+      }
+    });
+
+    socket.on('mmo_move_item', async (data) => {
+      try {
+        let parsedData = data;
+        if (typeof data === 'string') {
+          parsedData = JSON.parse(data);
+        }
+
+        const player = activePlayers.get(socket.id);
+        if (!player) {
+          socket.emit('mmo_inventory_response', JSON.stringify({ success: false, message: 'Player not found' }));
+          return;
+        }
+
+        const { characterClass, fromSlot, toSlot } = parsedData;
+
+        console.log(`[MMO Inventory] 🔄 ${player.username} перемещает предмет: слот ${fromSlot} → ${toSlot}`);
+
+        const User = require('./models/User');
+        const Character = require('./models/Character');
+
+        const user = await User.findOne({ username: player.username });
+        if (!user) {
+          socket.emit('mmo_inventory_response', JSON.stringify({ success: false, message: 'User not found' }));
+          return;
+        }
+
+        const character = await Character.findOne({
+          userId: user._id,
+          characterClass: characterClass
+        });
+
+        if (!character) {
+          socket.emit('mmo_inventory_response', JSON.stringify({ success: false, message: 'Character not found' }));
+          return;
+        }
+
+        // Находим предметы в слотах
+        const fromIndex = character.inventory.findIndex(item => item.slotIndex === fromSlot);
+        const toIndex = character.inventory.findIndex(item => item.slotIndex === toSlot);
+
+        if (fromIndex === -1) {
+          socket.emit('mmo_inventory_response', JSON.stringify({ success: false, message: 'Source slot is empty' }));
+          return;
+        }
+
+        if (toIndex === -1) {
+          // Целевой слот пустой - просто перемещаем
+          character.inventory[fromIndex].slotIndex = toSlot;
+        } else {
+          // Целевой слот занят - меняем местами
+          character.inventory[fromIndex].slotIndex = toSlot;
+          character.inventory[toIndex].slotIndex = fromSlot;
+        }
+
+        await character.save();
+
+        // Возвращаем обновлённый snapshot
+        const snapshot = {
+          items: character.inventory || [],
+          equipment: character.equipment || {},
+          gold: character.gold || 0,
+          lastModified: Date.now()
+        };
+
+        console.log(`[MMO Inventory] ✅ Предмет перемещён успешно`);
+
+        socket.emit('mmo_inventory_response', JSON.stringify({
+          success: true,
+          message: 'Item moved',
+          snapshot: snapshot
+        }));
+
+      } catch (error) {
+        console.error('[MMO Inventory Move] ❌ Error:', error.message);
+        socket.emit('mmo_inventory_response', { success: false, message: error.message });
+      }
+    });
+
+    socket.on('mmo_remove_item', async (data) => {
+      try {
+        let parsedData = data;
+        if (typeof data === 'string') {
+          parsedData = JSON.parse(data);
+        }
+
+        const player = activePlayers.get(socket.id);
+        if (!player) {
+          socket.emit('mmo_inventory_response', JSON.stringify({ success: false, message: 'Player not found' }));
+          return;
+        }
+
+        const { characterClass, slotIndex, quantity } = parsedData;
+
+        console.log(`[MMO Inventory] 🗑️ ${player.username} удаляет предмет из слота ${slotIndex} (количество: ${quantity || 'все'})`);
+
+        const User = require('./models/User');
+        const Character = require('./models/Character');
+
+        const user = await User.findOne({ username: player.username });
+        if (!user) {
+          socket.emit('mmo_inventory_response', JSON.stringify({ success: false, message: 'User not found' }));
+          return;
+        }
+
+        const character = await Character.findOne({
+          userId: user._id,
+          characterClass: characterClass
+        });
+
+        if (!character) {
+          socket.emit('mmo_inventory_response', JSON.stringify({ success: false, message: 'Character not found' }));
+          return;
+        }
+
+        // Находим предмет в слоте
+        const itemIndex = character.inventory.findIndex(item => item.slotIndex === slotIndex);
+
+        if (itemIndex === -1) {
+          socket.emit('mmo_inventory_response', JSON.stringify({ success: false, message: 'Slot is empty' }));
+          return;
+        }
+
+        if (quantity === 0 || quantity >= character.inventory[itemIndex].quantity) {
+          // Удаляем весь стак
+          character.inventory.splice(itemIndex, 1);
+        } else {
+          // Уменьшаем количество
+          character.inventory[itemIndex].quantity -= quantity;
+        }
+
+        await character.save();
+
+        // Возвращаем обновлённый snapshot
+        const snapshot = {
+          items: character.inventory || [],
+          equipment: character.equipment || {},
+          gold: character.gold || 0,
+          lastModified: Date.now()
+        };
+
+        console.log(`[MMO Inventory] ✅ Предмет удалён успешно`);
+
+        socket.emit('mmo_inventory_response', JSON.stringify({
+          success: true,
+          message: 'Item removed',
+          snapshot: snapshot
+        }));
+
+      } catch (error) {
+        console.error('[MMO Inventory Remove] ❌ Error:', error.message);
+        socket.emit('mmo_inventory_response', { success: false, message: error.message });
+      }
+    });
+
   });
 
   // Периодическая очистка отключённых игроков (каждые 5 минут)
