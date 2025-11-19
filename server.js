@@ -5,13 +5,29 @@ const socketIO = require('socket.io');
 const cors = require('cors');
 const connectDB = require('./config/db');
 
+// Validate required environment variables
+const requiredEnvVars = ['MONGODB_URI', 'JWT_SECRET'];
+const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
+
+if (missingEnvVars.length > 0) {
+  console.error('❌ Missing required environment variables:');
+  missingEnvVars.forEach(varName => console.error(`   - ${varName}`));
+  console.error('\n💡 Create a .env file with these variables. See .env.example for reference.');
+  process.exit(1);
+}
+
 const app = express();
 const server = http.createServer(app);
+
+// CORS configuration
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
+  : ['http://localhost:3000', 'http://localhost:5173'];
 
 // Socket.IO setup with CORS
 const io = socketIO(server, {
   cors: {
-    origin: "*", // В production укажите конкретные домены
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true
   },
@@ -22,7 +38,10 @@ const io = socketIO(server, {
 connectDB();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: allowedOrigins,
+  credentials: true
+}));
 app.use(express.json());
 
 // Logging middleware
