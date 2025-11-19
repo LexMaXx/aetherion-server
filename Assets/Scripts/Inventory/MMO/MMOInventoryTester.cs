@@ -22,6 +22,15 @@ namespace AetherionMMO.Inventory
 
         void Start()
         {
+            Debug.Log("[MMOInventoryTester] ===== START =====");
+            Debug.Log($"[MMOInventoryTester] testItem1 assigned: {testItem1 != null}");
+            Debug.Log($"[MMOInventoryTester] testItem2 assigned: {testItem2 != null}");
+            Debug.Log($"[MMOInventoryTester] testItem3 assigned: {testItem3 != null}");
+
+            if (testItem1 != null) Debug.Log($"[MMOInventoryTester] testItem1 = {testItem1.itemName}");
+            if (testItem2 != null) Debug.Log($"[MMOInventoryTester] testItem2 = {testItem2.itemName}");
+            if (testItem3 != null) Debug.Log($"[MMOInventoryTester] testItem3 = {testItem3.itemName}");
+
             // Подключаем кнопки если они назначены
             if (addItemButton != null)
             {
@@ -39,6 +48,7 @@ namespace AetherionMMO.Inventory
             }
 
             UpdateStatus("Готов к тестированию");
+            Debug.Log("[MMOInventoryTester] ✅ Initialization complete, listening for keys 1, 2, 9, 0");
         }
 
         void Update()
@@ -46,21 +56,25 @@ namespace AetherionMMO.Inventory
             // Клавиши для быстрого тестирования
             if (Input.GetKeyDown(KeyCode.Alpha1))
             {
+                Debug.Log("[MMOInventoryTester] 🎮 KEY 1 PRESSED!");
                 AddTestItem();
             }
 
             if (Input.GetKeyDown(KeyCode.Alpha2))
             {
+                Debug.Log("[MMOInventoryTester] 🎮 KEY 2 PRESSED!");
                 AddRandomItem();
             }
 
             if (Input.GetKeyDown(KeyCode.Alpha9))
             {
+                Debug.Log("[MMOInventoryTester] 🎮 KEY 9 PRESSED!");
                 AddGold(100);
             }
 
             if (Input.GetKeyDown(KeyCode.Alpha0))
             {
+                Debug.Log("[MMOInventoryTester] 🎮 KEY 0 PRESSED!");
                 ClearInventory();
             }
         }
@@ -70,20 +84,27 @@ namespace AetherionMMO.Inventory
         /// </summary>
         public void AddTestItem()
         {
+            Debug.Log("[MMOInventoryTester] 📦 AddTestItem() called");
+
             if (MongoInventoryManager.Instance == null)
             {
+                Debug.LogError("[MMOInventoryTester] ❌ MongoInventoryManager.Instance is NULL!");
                 UpdateStatus("❌ MongoInventoryManager не найден!");
                 return;
             }
 
+            Debug.Log("[MMOInventoryTester] ✅ MongoInventoryManager.Instance found");
+
             if (testItem1 != null)
             {
+                Debug.Log($"[MMOInventoryTester] 🎯 Calling AddItem for: {testItem1.itemName}");
                 MongoInventoryManager.Instance.AddItem(testItem1, 1);
                 UpdateStatus($"✅ Добавлен: {testItem1.itemName}");
                 Debug.Log($"[Tester] ➕ Добавлен предмет: {testItem1.itemName}");
             }
             else
             {
+                Debug.LogError("[MMOInventoryTester] ❌ testItem1 is NULL! Assign it in Inspector!");
                 UpdateStatus("⚠️ Не назначен testItem1!");
             }
         }

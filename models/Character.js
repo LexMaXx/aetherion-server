@@ -70,8 +70,11 @@ const CharacterSchema = new mongoose.Schema({
 
   // Инвентарь (массив предметов с количеством)
   inventory: [{
+    itemId: { type: String, required: true },
     itemName: { type: String, required: true },
-    quantity: { type: Number, default: 1, min: 1 }
+    quantity: { type: Number, default: 1, min: 1 },
+    slotIndex: { type: Number, required: true },
+    timestamp: { type: Number, default: Date.now }
   }],
 
   // Экипировка (названия предметов)
