@@ -2061,19 +2061,26 @@ module.exports = (io) => {
 
     socket.on('mmo_add_item', async (data) => {
       try {
+        console.log(`[MMO Inventory] 🔥 EVENT RECEIVED: mmo_add_item from ${socket.id}`);
+
         let parsedData = data;
         if (typeof data === 'string') {
           parsedData = JSON.parse(data);
         }
 
+        console.log(`[MMO Inventory] 📦 Parsed data:`, parsedData);
+        console.log(`[MMO Inventory] 🔍 activePlayers has ${socket.id}? ${activePlayers.has(socket.id)}`);
+
         const player = activePlayers.get(socket.id);
         if (!player) {
+          console.error(`[MMO Inventory] ❌ Player ${socket.id} NOT FOUND in activePlayers!`);
           socket.emit('mmo_inventory_response', JSON.stringify({ success: false, message: 'Player not found' }));
           return;
         }
 
         const { characterClass, itemId, itemName, quantity, slotIndex } = parsedData;
 
+        console.log(`[MMO Inventory] ✅ Player found: ${player.username}`);
         console.log(`[MMO Inventory] ➕ ${player.username} добавляет предмет: ${itemName} x${quantity} в слот ${slotIndex}`);
 
         const User = require('./models/User');
