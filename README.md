@@ -1,41 +1,109 @@
-# Aetherion Server
+# Aetherion MMO Server
 
-Node.js + Express + Socket.IO + MongoDB backend for Aetherion MMO RPG.
+Backend server для Aetherion - мультиплеерной MMO RPG игры на Unity.
 
-## Features
+## 🚀 Tech Stack
 
-- Real-time multiplayer with Socket.IO
-- JWT authentication
-- MongoDB data persistence
-- PvP arena system with rooms
-- Party/group system
-- Character management with SPECIAL stats
-- Inventory system with MongoDB sync
-- RESTful API
+- **Node.js** (v18+)
+- **Express** - REST API  
+- **Socket.IO** - Real-time multiplayer
+- **MongoDB** - Database (Mongoose ODM)
+- **JWT** - Authentication
 
-## Deploy on Render
-
-This server is configured for automatic deployment on Render.
-
-### Environment Variables (Required)
+## 📁 Project Structure
 
 ```
-MONGODB_URI=mongodb+srv://...
-JWT_SECRET=your_secret_here
-NODE_ENV=production
+├── server.js              # Main entry point
+├── multiplayer.js         # Socket.IO multiplayer logic (2300+ lines)
+├── config/
+│   └── db.js             # MongoDB connection
+├── models/
+│   ├── User.js           # User model
+│   ├── Character.js      # Character model (5 classes)
+│   ├── Room.js           # Room/lobby model
+│   └── Party.js          # Party/group model
+├── routes/
+│   ├── auth.js           # Auth endpoints
+│   ├── character.js      # Character management
+│   ├── room.js           # Room management
+│   └── party.js          # Party management
+├── controllers/
+│   ├── authController.js
+│   └── characterController.js
+└── middleware/
+    └── auth.js           # JWT middleware
 ```
 
-### Deployment
+## 🎮 Features
 
-1. Push to GitHub
-2. Render auto-deploys on commit
-3. Check logs for successful startup
+### MMO Persistent World
+- Global room with up to 500 players
+- Real-time position synchronization
+- Character animations sync
+- Combat system (attacks, skills, damage)
 
-## Local Development
+### Inventory System
+- 40-slot MMO inventory
+- Equipment (weapon, armor, helmet, accessory)
+- MongoDB persistence
+- Offline fallback (PlayerPrefs)
+
+### Character System
+- 5 classes: Warrior, Mage, Archer, Rogue, Paladin
+- SPECIAL stats: Strength, Perception, Endurance, Wisdom, Intelligence, Agility, Luck
+- Level progression
+- One character per class per account
+
+## 🔧 Installation
 
 ```bash
+# Install dependencies
 npm install
-npm run dev
+
+# Create .env file with your credentials
+# See Environment Variables section below
 ```
 
-Server runs on http://localhost:5000
+### Environment Variables
+```env
+NODE_ENV=production
+PORT=5000
+MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/aetherion
+JWT_SECRET=your-secret-key
+ALLOWED_ORIGINS=https://yourdomain.com
+```
+
+## 🏃 Running
+
+```bash
+# Development
+npm run dev
+
+# Production
+npm start
+```
+
+## 🌍 Deployment (Render.com)
+
+**Important:** Deploy from `server-only` branch!
+
+```bash
+git push origin server-only
+```
+
+Render will auto-detect changes and redeploy.
+
+## 📊 Stats
+
+- Repository Size: 890 MB (cleaned from 9.4 GB)
+- Server Code: ~4,600 lines
+- Supports: 500+ concurrent players
+
+## 📝 Git Branches
+
+- `main` - Full project (Unity + Server)
+- `server-only` - Server code only (for Render)
+
+## 📄 License
+
+MIT

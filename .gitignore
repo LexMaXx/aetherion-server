@@ -63,4 +63,18 @@ crashlytics-build.properties
 
 # Claude Code settings (keep local)
 .claude/settings.local.json
+
+# Unity Build folder
 Aetherion/
+
+# Large asset folders (use Git LFS instead)
+Assets/TerrainDemoScene_URP/
+Assets/Scenes/House/
+
+# Backup files
+*.bak
+*.backup
+files-to-remove.txt
+
+# Git cleanup artifacts
+.git/refs/original/
