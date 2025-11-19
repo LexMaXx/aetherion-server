@@ -21,6 +21,7 @@ public class ApiClient : MonoBehaviour
     private const string GET_CHARACTERS_ENDPOINT = "/api/character";
     private const string CREATE_CHARACTER_ENDPOINT = "/api/character";
     private const string SELECT_CHARACTER_ENDPOINT = "/api/character/select";
+    private const string SELECT_OR_CREATE_ENDPOINT = "/api/character/select-or-create";
     private const string CHARACTER_PROGRESS_ENDPOINT = "/api/character/progress";
 
     private static ApiClient instance;
@@ -225,55 +226,20 @@ public class ApiClient : MonoBehaviour
 
     /// <summary>
     /// Выбрать/создать персонажа по классу (умная логика)
-    /// Сначала проверяет список персонажей, если есть - выбирает, если нет - создает
+    /// Использует новый endpoint /select-or-create который делает всё в одном запросе
+    /// Если персонаж существует - вернет его, если нет - создаст нового
     /// </summary>
     public void SelectOrCreateCharacter(string token, CharacterClass characterClass, Action<CharacterResponse> onSuccess, Action<string> onError)
     {
-        Debug.Log($"SelectOrCreateCharacter для класса: {characterClass}");
+        Debug.Log($"[SelectOrCreateCharacter] Запрос для класса: {characterClass}");
 
-        // Сначала получаем список всех персонажей
-        GetCharacters(token,
-            (response) =>
-            {
-                if (response.success && response.characters != null)
-                {
-                    // Ищем персонажа нужного класса
-                    CharacterInfo existingChar = null;
-                    foreach (var character in response.characters)
-                    {
-                        if (string.Equals(character.characterClass, characterClass.ToString(), StringComparison.OrdinalIgnoreCase))
-                        {
-                            existingChar = character;
-                            break;
-                        }
-                    }
+        // Формируем JSON с полем characterClass
+        string json = $"{{\"characterClass\":\"{characterClass}\"}}";
 
-                    if (existingChar != null)
-                    {
-                        // Персонаж существует - выбираем его
-                        Debug.Log($"Персонаж {characterClass} найден (ID: {existingChar.id}), выбираем его");
-                        SelectCharacter(token, existingChar.id, onSuccess, onError);
-                    }
-                    else
-                    {
-                        // Персонажа нет - создаем нового
-                        Debug.Log($"Персонаж {characterClass} не найден, создаем нового");
-                        CreateCharacter(token, characterClass, onSuccess, onError);
-                    }
-                }
-                else
-                {
-                    // Нет персонажей - создаем первого
-                    Debug.Log($"Нет персонажей, создаем первого: {characterClass}");
-                    CreateCharacter(token, characterClass, onSuccess, onError);
-                }
-            },
-            (error) =>
-            {
-                Debug.LogError($"Ошибка получения списка персонажей: {error}");
-                onError?.Invoke(error);
-            }
-        );
+        Debug.Log($"[SelectOrCreateCharacter] Отправка на {SELECT_OR_CREATE_ENDPOINT}");
+        Debug.Log($"[SelectOrCreateCharacter] JSON: {json}");
+
+        StartCoroutine(PostRequestWithToken(SELECT_OR_CREATE_ENDPOINT, token, json, onSuccess, onError));
     }
 
     public void SaveCharacterProgress(string token, string characterId, CharacterStatsData stats, LevelingData leveling, Action<CharacterProgressResponse> onSuccess, Action<string> onError)

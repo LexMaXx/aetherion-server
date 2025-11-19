@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const Character = require('../models/Character');
+const characterController = require('../controllers/characterController');
 
 /**
  * GET /api/character
@@ -80,6 +81,13 @@ router.post('/', auth, async (req, res) => {
         });
     }
 });
+
+/**
+ * POST /api/character/select-or-create
+ * Умный выбор персонажа: если существует - вернет его, если нет - создаст нового
+ * Это основной endpoint для Unity клиента при нажатии кнопки Play
+ */
+router.post('/select-or-create', auth, characterController.selectOrCreateCharacter);
 
 /**
  * POST /api/character/select
