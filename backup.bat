@@ -5,7 +5,8 @@ echo ====================================
 echo.
 
 REM Установите путь к вашему внешнему диску или сетевой папке
-set BACKUP_DIR=D:\Backups\Aetherion
+REM Текущая настройка: C:\Backups\Aetherion (измените если нужно)
+set BACKUP_DIR=C:\Backups\Aetherion
 
 REM Создаём папку с датой
 set DATE=%date:~-4%-%date:~3,2%-%date:~0,2%
