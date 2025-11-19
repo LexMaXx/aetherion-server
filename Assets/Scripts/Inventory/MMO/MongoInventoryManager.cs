@@ -395,24 +395,41 @@ namespace AetherionMMO.Inventory
                 return;
             }
 
-            // Отправляем запрос на сервер
-            var request = new AddItemRequest
-            {
-                characterClass = characterClass,
-                itemId = item.ItemId,
-                itemName = item.itemName,
-                quantity = quantity,
-                slotIndex = emptySlotIndex
-            };
-
-            string json = JsonUtility.ToJson(request);
-
-            SocketIOManager.Instance.EmitCustomEvent("mmo_add_item", json, (response) =>
-            {
-                HandleInventoryUpdated(response);
-            });
-
             Debug.Log($"[MongoInventory] 📤 Добавление предмета: {item.itemName} x{quantity} в слот {emptySlotIndex}");
+
+            // ВАЖНО: Проверяем подключение к серверу
+            if (SocketIOManager.Instance != null && SocketIOManager.Instance.IsConnected)
+            {
+                // Отправляем запрос на сервер
+                var request = new AddItemRequest
+                {
+                    characterClass = characterClass,
+                    itemId = item.ItemId,
+                    itemName = item.itemName,
+                    quantity = quantity,
+                    slotIndex = emptySlotIndex
+                };
+
+                string json = JsonUtility.ToJson(request);
+
+                SocketIOManager.Instance.EmitCustomEvent("mmo_add_item", json, (response) =>
+                {
+                    HandleInventoryUpdated(response);
+                });
+
+                Debug.Log($"[MongoInventory] 📡 Запрос отправлен на сервер");
+            }
+            else
+            {
+                // РЕЖИМ БЕЗ СЕРВЕРА: Обновляем UI локально для тестирования
+                Debug.LogWarning("[MongoInventory] ⚠️ Сервер не подключен - локальное обновление UI");
+
+                if (emptySlotIndex >= 0 && emptySlotIndex < slots.Count)
+                {
+                    slots[emptySlotIndex].SetItem(item, quantity);
+                    Debug.Log($"[MongoInventory] ✅ Локально установлен предмет в слот {emptySlotIndex}: {item.itemName} x{quantity}");
+                }
+            }
         }
 
         /// <summary>
@@ -423,21 +440,43 @@ namespace AetherionMMO.Inventory
             if (fromSlot == toSlot)
                 return;
 
-            var request = new MoveItemRequest
-            {
-                characterClass = characterClass,
-                fromSlot = fromSlot,
-                toSlot = toSlot
-            };
-
-            string json = JsonUtility.ToJson(request);
-
-            SocketIOManager.Instance.EmitCustomEvent("mmo_move_item", json, (response) =>
-            {
-                HandleInventoryUpdated(response);
-            });
-
             Debug.Log($"[MongoInventory] 🔄 Перемещение предмета: слот {fromSlot} → {toSlot}");
+
+            if (SocketIOManager.Instance != null && SocketIOManager.Instance.IsConnected)
+            {
+                var request = new MoveItemRequest
+                {
+                    characterClass = characterClass,
+                    fromSlot = fromSlot,
+                    toSlot = toSlot
+                };
+
+                string json = JsonUtility.ToJson(request);
+
+                SocketIOManager.Instance.EmitCustomEvent("mmo_move_item", json, (response) =>
+                {
+                    HandleInventoryUpdated(response);
+                });
+            }
+            else
+            {
+                // РЕЖИМ БЕЗ СЕРВЕРА: Локальное перемещение
+                Debug.LogWarning("[MongoInventory] ⚠️ Сервер не подключен - локальное перемещение");
+
+                if (fromSlot >= 0 && fromSlot < slots.Count && toSlot >= 0 && toSlot < slots.Count)
+                {
+                    // Меняем местами предметы
+                    var fromItem = slots[fromSlot].CurrentItem;
+                    var fromQty = slots[fromSlot].CurrentQuantity;
+                    var toItem = slots[toSlot].CurrentItem;
+                    var toQty = slots[toSlot].CurrentQuantity;
+
+                    slots[fromSlot].SetItem(toItem, toQty);
+                    slots[toSlot].SetItem(fromItem, fromQty);
+
+                    Debug.Log($"[MongoInventory] ✅ Локально перемещено: {fromSlot} ↔ {toSlot}");
+                }
+            }
         }
 
         /// <summary>
@@ -445,21 +484,35 @@ namespace AetherionMMO.Inventory
         /// </summary>
         public void RemoveItem(int slotIndex, int quantity = 0)
         {
-            var request = new RemoveItemRequest
-            {
-                characterClass = characterClass,
-                slotIndex = slotIndex,
-                quantity = quantity // 0 = удалить всё
-            };
-
-            string json = JsonUtility.ToJson(request);
-
-            SocketIOManager.Instance.EmitCustomEvent("mmo_remove_item", json, (response) =>
-            {
-                HandleInventoryUpdated(response);
-            });
-
             Debug.Log($"[MongoInventory] 🗑️ Удаление предмета из слота {slotIndex}");
+
+            if (SocketIOManager.Instance != null && SocketIOManager.Instance.IsConnected)
+            {
+                var request = new RemoveItemRequest
+                {
+                    characterClass = characterClass,
+                    slotIndex = slotIndex,
+                    quantity = quantity // 0 = удалить всё
+                };
+
+                string json = JsonUtility.ToJson(request);
+
+                SocketIOManager.Instance.EmitCustomEvent("mmo_remove_item", json, (response) =>
+                {
+                    HandleInventoryUpdated(response);
+                });
+            }
+            else
+            {
+                // РЕЖИМ БЕЗ СЕРВЕРА: Локальное удаление
+                Debug.LogWarning("[MongoInventory] ⚠️ Сервер не подключен - локальное удаление");
+
+                if (slotIndex >= 0 && slotIndex < slots.Count)
+                {
+                    slots[slotIndex].Clear();
+                    Debug.Log($"[MongoInventory] ✅ Локально удалено из слота {slotIndex}");
+                }
+            }
         }
 
         /// <summary>
