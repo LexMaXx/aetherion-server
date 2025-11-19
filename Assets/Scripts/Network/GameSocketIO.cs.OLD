@@ -1,0 +1,350 @@
+using UnityEngine;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Text;
+using UnityEngine.Networking;
+
+/// <summary>
+/// Socket.IO клиент для игры Aetherion
+/// </summary>
+public class GameSocketIO : MonoBehaviour
+{
+    public static GameSocketIO Instance { get; private set; }
+
+    [Header("Server Settings")]
+    [SerializeField] private string serverUrl = "https://aetherion-server-gv5u.onrender.com";
+    [SerializeField] private float heartbeatInterval = 20f;
+    [SerializeField] private float pollInterval = 0.05f;
+
+    private bool isConnected = false;
+    private bool isConnecting = false;
+    private string sessionId = "";
+    private string authToken = "";
+    private string currentRoomId = "";
+    private string myUsername = "";
+    private float lastHeartbeat = 0f;
+
+    private Dictionary<string, Action<string>> eventCallbacks = new Dictionary<string, Action<string>>();
+    private string HandshakeUrl => $"{serverUrl}/socket.io/?EIO=4&transport=polling";
+    private string PollUrl => $"{serverUrl}/socket.io/?EIO=4&transport=polling&sid={sessionId}";
+    private Coroutine listeningCoroutine;
+
+    void Awake()
+    {
+        if (Instance == null)
+        {
+            Instance = this;
+            DontDestroyOnLoad(gameObject);
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
+    }
+
+    void Update()
+    {
+        if (isConnected && Time.time - lastHeartbeat > heartbeatInterval)
+        {
+            SendHeartbeat();
+            lastHeartbeat = Time.time;
+        }
+    }
+
+    public void Connect(string token, Action<bool> onComplete = null)
+    {
+        if (isConnected || isConnecting)
+        {
+            Debug.LogWarning("[SocketIO] Уже подключен");
+            onComplete?.Invoke(false);
+            return;
+        }
+
+        authToken = token;
+        myUsername = PlayerPrefs.GetString("Username", "Player");
+        StartCoroutine(ConnectCoroutine(onComplete));
+    }
+
+    private IEnumerator ConnectCoroutine(Action<bool> onComplete)
+    {
+        isConnecting = true;
+        Debug.Log($"[SocketIO] Подключение к {serverUrl}...");
+
+        UnityWebRequest request = UnityWebRequest.Get(HandshakeUrl);
+        request.SetRequestHeader("Authorization", $"Bearer {authToken}");
+        yield return request.SendWebRequest();
+
+        if (request.result == UnityWebRequest.Result.Success)
+        {
+            string response = request.downloadHandler.text;
+            int sidStart = response.IndexOf("\"sid\":\"") + 7;
+            int sidEnd = response.IndexOf("\"", sidStart);
+
+            if (sidStart > 6 && sidEnd > sidStart)
+            {
+                sessionId = response.Substring(sidStart, sidEnd - sidStart);
+                isConnected = true;
+                isConnecting = false;
+                lastHeartbeat = Time.time;
+
+                Debug.Log($"[SocketIO] Подключено! Session ID: {sessionId}");
+                onComplete?.Invoke(true);
+
+                listeningCoroutine = StartCoroutine(ListenCoroutine());
+            }
+            else
+            {
+                Debug.LogError("[SocketIO] Не удалось получить session ID");
+                isConnecting = false;
+                onComplete?.Invoke(false);
+            }
+        }
+        else
+        {
+            Debug.LogError($"[SocketIO] Ошибка подключения: {request.error}");
+            isConnecting = false;
+            onComplete?.Invoke(false);
+        }
+    }
+
+    public void Disconnect()
+    {
+        if (!isConnected) return;
+        if (listeningCoroutine != null) StopCoroutine(listeningCoroutine);
+        isConnected = false;
+        sessionId = "";
+        currentRoomId = "";
+    }
+
+    public void Emit(string eventName, string jsonData)
+    {
+        if (!isConnected)
+        {
+            Debug.LogWarning($"[SocketIO] Не подключен! Событие '{eventName}' не отправлено");
+            return;
+        }
+        StartCoroutine(EmitCoroutine(eventName, jsonData));
+    }
+
+    private IEnumerator EmitCoroutine(string eventName, string jsonData)
+    {
+        string message = $"42[\"{eventName}\",{jsonData}]";
+        UnityWebRequest request = new UnityWebRequest(PollUrl, "POST");
+        byte[] bodyRaw = Encoding.UTF8.GetBytes(message);
+        request.uploadHandler = new UploadHandlerRaw(bodyRaw);
+        request.downloadHandler = new DownloadHandlerBuffer();
+        request.SetRequestHeader("Content-Type", "text/plain");
+
+        yield return request.SendWebRequest();
+
+        if (request.result == UnityWebRequest.Result.Success)
+        {
+            Debug.Log($"[SocketIO] Отправлено: {eventName}");
+        }
+        else if (request.responseCode != 400)
+        {
+            Debug.LogWarning($"[SocketIO] Ошибка отправки '{eventName}': {request.error}");
+        }
+    }
+
+    public void On(string eventName, Action<string> callback)
+    {
+        if (!eventCallbacks.ContainsKey(eventName))
+            eventCallbacks[eventName] = callback;
+        else
+            eventCallbacks[eventName] += callback;
+    }
+
+    public void Off(string eventName)
+    {
+        if (eventCallbacks.ContainsKey(eventName))
+            eventCallbacks.Remove(eventName);
+    }
+
+    private void SendHeartbeat()
+    {
+        if (!isConnected) return;
+        StartCoroutine(HeartbeatCoroutine());
+    }
+
+    private IEnumerator HeartbeatCoroutine()
+    {
+        UnityWebRequest request = new UnityWebRequest(PollUrl, "POST");
+        byte[] bodyRaw = Encoding.UTF8.GetBytes("2");
+        request.uploadHandler = new UploadHandlerRaw(bodyRaw);
+        request.downloadHandler = new DownloadHandlerBuffer();
+        yield return request.SendWebRequest();
+    }
+
+    private IEnumerator ListenCoroutine()
+    {
+        while (isConnected)
+        {
+            UnityWebRequest request = UnityWebRequest.Get(PollUrl);
+            yield return request.SendWebRequest();
+
+            if (request.result == UnityWebRequest.Result.Success)
+            {
+                string response = request.downloadHandler.text;
+                if (!string.IsNullOrEmpty(response) && response.Length > 2)
+                    ParseSocketIOMessages(response);
+            }
+
+            yield return new WaitForSeconds(pollInterval);
+        }
+    }
+
+    private void ParseSocketIOMessages(string response)
+    {
+        if (response.StartsWith("42["))
+        {
+            try
+            {
+                int eventStart = response.IndexOf("[\"") + 2;
+                int eventEnd = response.IndexOf("\",", eventStart);
+
+                if (eventEnd > eventStart)
+                {
+                    string eventName = response.Substring(eventStart, eventEnd - eventStart);
+                    int dataStart = eventEnd + 2;
+                    int dataEnd = response.LastIndexOf(']');
+
+                    if (dataEnd > dataStart)
+                    {
+                        string jsonData = response.Substring(dataStart, dataEnd - dataStart);
+                        if (eventCallbacks.ContainsKey(eventName))
+                            eventCallbacks[eventName]?.Invoke(jsonData);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[SocketIO] Ошибка парсинга: {ex.Message}");
+            }
+        }
+    }
+
+    public void JoinRoom(string roomId, string characterClass, Action<bool> onComplete = null)
+    {
+        if (!isConnected)
+        {
+            Debug.LogError("[SocketIO] Не подключен к серверу!");
+            onComplete?.Invoke(false);
+            return;
+        }
+
+        currentRoomId = roomId;
+
+        bool responseReceived = false;
+
+        On("room_players", (data) =>
+        {
+            if (!responseReceived)
+            {
+                responseReceived = true;
+                Debug.Log($"[SocketIO] ✅ Получен room_players");
+                onComplete?.Invoke(true);
+            }
+        });
+
+        var joinData = new JoinRoomRequest
+        {
+            roomId = roomId,
+            username = myUsername,
+            characterClass = characterClass,
+            password = "",
+            level = 1
+        };
+
+        string json = JsonUtility.ToJson(joinData);
+        Debug.Log($"[SocketIO] 🚪 Отправка join_room: {json}");
+        Emit("join_room", json);
+
+        // Fallback - если через 3 сек нет ответа, считаем успешным
+        StartCoroutine(JoinRoomTimeout(3f, () =>
+        {
+            if (!responseReceived)
+            {
+                responseReceived = true;
+                Debug.LogWarning("[SocketIO] ⏰ Таймаут ожидания, считаем вход успешным");
+                onComplete?.Invoke(true);
+            }
+        }));
+    }
+
+    private IEnumerator JoinRoomTimeout(float delay, Action callback)
+    {
+        yield return new WaitForSeconds(delay);
+        callback?.Invoke();
+    }
+
+    public void UpdatePosition(Vector3 position, Quaternion rotation, Vector3 velocity, bool isGrounded)
+    {
+        if (!isConnected || string.IsNullOrEmpty(currentRoomId)) return;
+
+        var data = new PlayerUpdateRequest
+        {
+            position = new SerializableVector3(position),
+            rotation = new SerializableVector3(rotation.eulerAngles),
+            velocity = new SerializableVector3(velocity),
+            isGrounded = isGrounded
+        };
+
+        Emit("player_update", JsonUtility.ToJson(data));
+    }
+
+    public void SendAnimation(string animation, float speed = 1.0f)
+    {
+        if (!isConnected || string.IsNullOrEmpty(currentRoomId)) return;
+        var data = new AnimationRequest { animation = animation, speed = speed };
+        Emit("player_animation", JsonUtility.ToJson(data));
+    }
+
+    public void SendAttack(string targetType, string targetId, float damage, string attackType = "melee", int skillId = 0)
+    {
+        if (!isConnected || string.IsNullOrEmpty(currentRoomId)) return;
+        var data = new AttackRequest
+        {
+            attackType = attackType,
+            targetType = targetType,
+            targetId = targetId,
+            damage = damage,
+            skillId = skillId
+        };
+        Emit("player_attack", JsonUtility.ToJson(data));
+    }
+
+    public void SendDamage(float damage, float currentHealth, string attackerId)
+    {
+        if (!isConnected || string.IsNullOrEmpty(currentRoomId)) return;
+        var data = new DamageRequest { damage = damage, currentHealth = currentHealth, attackerId = attackerId };
+        Emit("player_damaged", JsonUtility.ToJson(data));
+    }
+
+    public void SendRespawn(Vector3 position)
+    {
+        if (!isConnected || string.IsNullOrEmpty(currentRoomId)) return;
+        var data = new RespawnRequest { position = new SerializableVector3(position) };
+        Emit("player_respawn", JsonUtility.ToJson(data));
+    }
+
+    public void SendEnemyDamaged(string enemyId, float damage, float currentHealth)
+    {
+        if (!isConnected || string.IsNullOrEmpty(currentRoomId)) return;
+        var data = new EnemyDamagedRequest { roomId = currentRoomId, enemyId = enemyId, damage = damage, currentHealth = currentHealth };
+        Emit("enemy_damaged", JsonUtility.ToJson(data));
+    }
+
+    public void SendEnemyKilled(string enemyId, Vector3 position)
+    {
+        if (!isConnected || string.IsNullOrEmpty(currentRoomId)) return;
+        var data = new EnemyKilledRequest { roomId = currentRoomId, enemyId = enemyId, position = new SerializableVector3(position) };
+        Emit("enemy_killed", JsonUtility.ToJson(data));
+    }
+
+    public bool IsConnected => isConnected;
+    public string CurrentRoomId => currentRoomId;
+    public string SessionId => sessionId;
+    public string Username => myUsername;
+}

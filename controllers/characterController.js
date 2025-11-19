@@ -41,9 +41,20 @@ exports.selectOrCreateCharacter = async (req, res) => {
     const userId = req.user.id;
     const { characterClass } = req.body;
 
+    console.log('[Select/Create Character] 📨 Запрос:', { userId, characterClass });
+
     // Проверка класса
     const validClasses = ['Warrior', 'Mage', 'Archer', 'Rogue', 'Paladin'];
+    if (!characterClass) {
+      console.log('[Select/Create Character] ❌ characterClass отсутствует');
+      return res.status(400).json({
+        success: false,
+        message: 'Класс персонажа обязателен'
+      });
+    }
+
     if (!validClasses.includes(characterClass)) {
+      console.log('[Select/Create Character] ❌ Недопустимый класс:', characterClass);
       return res.status(400).json({
         success: false,
         message: 'Недопустимый класс персонажа'
@@ -55,6 +66,7 @@ exports.selectOrCreateCharacter = async (req, res) => {
 
     // Если персонажа нет - создаем нового
     if (!character) {
+      console.log('[Select/Create Character] ✨ Персонаж не найден, создаем нового');
       const baseStats = getClassBaseStats(characterClass);
 
       character = new Character({
@@ -66,15 +78,20 @@ exports.selectOrCreateCharacter = async (req, res) => {
       });
 
       await character.save();
+      console.log('[Select/Create Character] ✅ Персонаж создан:', character._id);
     } else {
       // Если персонаж уже есть - обновляем lastPlayed
+      console.log('[Select/Create Character] 📖 Персонаж найден, обновляем lastPlayed');
       character.lastPlayed = Date.now();
       await character.save();
+      console.log('[Select/Create Character] ✅ Персонаж загружен:', character._id);
     }
+
+    const isNew = Math.abs(new Date(character.createdAt) - new Date(character.lastPlayed)) < 1000;
 
     res.json({
       success: true,
-      message: character.createdAt === character.lastPlayed ? 'Персонаж создан!' : 'Персонаж загружен!',
+      message: isNew ? 'Персонаж создан!' : 'Персонаж загружен!',
       character: {
         id: character._id,
         characterClass: character.characterClass,
