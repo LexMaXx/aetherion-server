@@ -60,6 +60,17 @@ namespace AetherionMMO.Inventory
 
         void Start()
         {
+            Debug.Log("[MongoInventory] ===== START =====");
+            Debug.Log($"[MongoInventory] itemDatabase count: {itemDatabase?.Count ?? 0}");
+            if (itemDatabase != null && itemDatabase.Count > 0)
+            {
+                Debug.Log($"[MongoInventory] itemDatabase items: {string.Join(", ", itemDatabase.Select(i => i.itemName))}");
+            }
+            else
+            {
+                Debug.LogError("[MongoInventory] ❌ itemDatabase is EMPTY! Items will not be found by ApplySnapshot!");
+            }
+
             InitializeUI();
             LoadCharacterClass();
             RegisterSocketEvents();
