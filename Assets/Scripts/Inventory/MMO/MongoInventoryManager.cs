@@ -478,6 +478,8 @@ namespace AetherionMMO.Inventory
         /// </summary>
         public void AddItem(ItemData item, int quantity = 1)
         {
+            Debug.Log($"[MongoInventory] 🔥 AddItem() called with item={item?.itemName ?? "NULL"}, quantity={quantity}");
+
             if (item == null)
             {
                 Debug.LogError("[MongoInventory] ❌ Item is null!");
@@ -486,6 +488,8 @@ namespace AetherionMMO.Inventory
 
             // Ищем пустой слот
             int emptySlotIndex = FindEmptySlot();
+            Debug.Log($"[MongoInventory] 🔍 FindEmptySlot() returned: {emptySlotIndex}");
+
             if (emptySlotIndex == -1)
             {
                 Debug.LogWarning("[MongoInventory] ⚠️ Инвентарь полон!");
@@ -495,7 +499,13 @@ namespace AetherionMMO.Inventory
             Debug.Log($"[MongoInventory] 📤 Добавление предмета: {item.itemName} x{quantity} в слот {emptySlotIndex}");
 
             // ВАЖНО: Проверяем подключение к серверу
-            if (SocketIOManager.Instance != null && SocketIOManager.Instance.IsConnected)
+            bool hasSocketManager = SocketIOManager.Instance != null;
+            bool isConnected = hasSocketManager && SocketIOManager.Instance.IsConnected;
+
+            Debug.Log($"[MongoInventory] 🌐 SocketIOManager.Instance: {(hasSocketManager ? "EXISTS" : "NULL")}");
+            Debug.Log($"[MongoInventory] 🔌 IsConnected: {isConnected}");
+
+            if (hasSocketManager && isConnected)
             {
                 // Отправляем запрос на сервер
                 var request = new AddItemRequest
@@ -508,9 +518,11 @@ namespace AetherionMMO.Inventory
                 };
 
                 string json = JsonUtility.ToJson(request);
+                Debug.Log($"[MongoInventory] 📋 Request JSON: {json}");
 
                 SocketIOManager.Instance.EmitCustomEvent("mmo_add_item", json, (response) =>
                 {
+                    Debug.Log($"[MongoInventory] 📥 Response received from server");
                     HandleInventoryUpdated(response);
                 });
 
@@ -520,14 +532,20 @@ namespace AetherionMMO.Inventory
             {
                 // РЕЖИМ БЕЗ СЕРВЕРА: Обновляем UI локально для тестирования
                 Debug.LogWarning("[MongoInventory] ⚠️ Сервер не подключен - локальное обновление UI");
+                Debug.Log($"[MongoInventory] 📊 Slots count: {slots.Count}, emptySlotIndex: {emptySlotIndex}");
 
                 if (emptySlotIndex >= 0 && emptySlotIndex < slots.Count)
                 {
+                    Debug.Log($"[MongoInventory] 🎯 Setting item in slot {emptySlotIndex}...");
                     slots[emptySlotIndex].SetItem(item, quantity);
                     Debug.Log($"[MongoInventory] ✅ Локально установлен предмет в слот {emptySlotIndex}: {item.itemName} x{quantity}");
 
                     // Автосохранение в PlayerPrefs
                     SaveInventoryToPlayerPrefs();
+                }
+                else
+                {
+                    Debug.LogError($"[MongoInventory] ❌ Invalid slot index! emptySlotIndex={emptySlotIndex}, slots.Count={slots.Count}");
                 }
             }
         }
