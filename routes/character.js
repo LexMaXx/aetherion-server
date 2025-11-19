@@ -11,9 +11,17 @@ const characterController = require('../controllers/characterController');
 router.get('/', auth, async (req, res) => {
     try {
         const characters = await Character.find({ userId: req.user.id });
+
+        // Добавляем поле _id для Unity JsonUtility
+        const charactersWithId = characters.map(char => ({
+            ...char.toObject(),
+            _id: char._id.toString(),
+            id: char._id.toString()
+        }));
+
         res.json({
             success: true,
-            characters
+            characters: charactersWithId
         });
     } catch (error) {
         console.error('Get characters error:', error);
