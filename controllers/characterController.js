@@ -93,7 +93,8 @@ exports.selectOrCreateCharacter = async (req, res) => {
       success: true,
       message: isNew ? 'Персонаж создан!' : 'Персонаж загружен!',
       character: {
-        id: character._id,
+        _id: character._id.toString(), // Unity JsonUtility нужно поле _id
+        id: character._id.toString(),   // Для совместимости
         characterClass: character.characterClass,
         level: character.level,
         experience: character.experience,

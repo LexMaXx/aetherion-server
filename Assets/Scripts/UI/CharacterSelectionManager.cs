@@ -68,6 +68,18 @@ public class CharacterSelectionManager : MonoBehaviour
 
     void Start()
     {
+        Debug.Log("[CharacterSelection] ===== START =====");
+        Debug.Log($"[CharacterSelection] Scene: {UnityEngine.SceneManagement.SceneManager.GetActiveScene().name}");
+
+        // Проверяем токен сразу
+        string token = PlayerPrefs.GetString("UserToken", "");
+        Debug.Log($"[CharacterSelection] UserToken exists: {!string.IsNullOrEmpty(token)}");
+
+        if (!string.IsNullOrEmpty(token))
+        {
+            Debug.Log($"[CharacterSelection] Token (first 10 chars): {token.Substring(0, Mathf.Min(10, token.Length))}...");
+        }
+
         InitializeClassDescriptions();
         SetupButtonListeners();
         LoadCharacters();
