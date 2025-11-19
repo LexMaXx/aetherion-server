@@ -299,31 +299,44 @@ namespace AetherionMMO.Inventory
         /// </summary>
         private void ApplySnapshot(MMOInventorySnapshot snapshot)
         {
+            Debug.Log($"[MongoInventory] 📸 ApplySnapshot() called with {snapshot.items.Count} items");
+
             // Очищаем все слоты
             ClearAllSlots();
+            Debug.Log($"[MongoInventory] 🧹 All slots cleared");
 
             // Заполняем слоты из snapshot
             foreach (MMOItemStack itemStack in snapshot.items)
             {
+                Debug.Log($"[MongoInventory] 🔍 Processing item: {itemStack.itemName} (id={itemStack.itemId}) for slot {itemStack.slotIndex}, quantity={itemStack.quantity}");
+
                 if (itemStack.slotIndex >= 0 && itemStack.slotIndex < slots.Count)
                 {
                     ItemData itemData = FindItemById(itemStack.itemId);
                     if (itemData == null)
                     {
+                        Debug.LogWarning($"[MongoInventory] ⚠️ FindItemById({itemStack.itemId}) returned NULL, trying by name...");
                         itemData = FindItemByName(itemStack.itemName);
                     }
 
                     if (itemData != null)
                     {
+                        Debug.Log($"[MongoInventory] 🎯 Found ItemData: {itemData.itemName}, calling SetItem on slot {itemStack.slotIndex}");
                         slots[itemStack.slotIndex].SetItem(itemData, itemStack.quantity);
                         Debug.Log($"[MongoInventory] ✅ Установлен предмет в слот {itemStack.slotIndex}: {itemData.itemName} x{itemStack.quantity}, icon={itemData.icon?.name ?? "NULL"}");
                     }
                     else
                     {
-                        Debug.LogWarning($"[MongoInventory] ⚠️ Предмет не найден: {itemStack.itemName} ({itemStack.itemId})");
+                        Debug.LogError($"[MongoInventory] ❌ Предмет не найден в itemDatabase: {itemStack.itemName} ({itemStack.itemId})");
                     }
                 }
+                else
+                {
+                    Debug.LogError($"[MongoInventory] ❌ Invalid slotIndex: {itemStack.slotIndex} (slots.Count={slots.Count})");
+                }
             }
+
+            Debug.Log($"[MongoInventory] 📸 ApplySnapshot() complete");
 
             // Обновляем золото
             currentGold = snapshot.gold;
