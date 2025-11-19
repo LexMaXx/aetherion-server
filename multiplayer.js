@@ -8,9 +8,6 @@ const Room = require('./models/Room');
 // Хранилище активных игроков
 const activePlayers = new Map(); // socketId => { roomId, username, characterClass, position, animation }
 
-// Хранилище врагов в комнатах
-const roomEnemies = new Map(); // roomId => Map(enemyId => { health, alive, position })
-
 // LOBBY SYSTEM: Хранилище лобби комнат
 const roomLobbies = new Map(); // roomId => { waitTime, startTime, countdownTimer, gameStarted }
 
@@ -33,17 +30,7 @@ module.exports = (io) => {
   console.log('🌍 ═══════════════════════════════════════════');
 
   io.on('connection', (socket) => {
-    console.log(`🔥🔥🔥 ✅ Player connected: ${socket.id}`);
-    console.log(`🔥 Connection transport: ${socket.conn.transport.name}`);
-    console.log(`🔥 Connection query: ${JSON.stringify(socket.handshake.query)}`);
-
-    // DEBUG: Лог ВСЕХ событий для диагностики!
-    socket.onAny((eventName, ...args) => {
-      console.log(`🔥 [EVENT RECEIVED] ${eventName} from ${socket.id}`);
-      if (args.length > 0) {
-        console.log(`🔥 [EVENT DATA] ${JSON.stringify(args[0]).substring(0, 200)}`);
-      }
-    });
+    console.log(`✅ Player connected: ${socket.id}`);
 
     // ═══════════════════════════════════════════
     // ПОДКЛЮЧЕНИЕ К КОМНАТЕ
@@ -620,39 +607,6 @@ module.exports = (io) => {
       console.log(`[Animation] 🎬 ${player.username} -> ${player.animation} (разослано в room ${player.roomId})`);
     });
 
-    // Обратная совместимость: старый event name
-    socket.on('player_animation', (data) => {
-      const player = activePlayers.get(socket.id);
-      if (!player) {
-        console.warn(`[Animation] ⚠️ Player not found: ${socket.id}`);
-        return;
-      }
-
-      // ВАЖНО: Unity может отправить как строку, так и как объект
-      let parsedData = data;
-      if (typeof data === 'string') {
-        try {
-          parsedData = JSON.parse(data);
-        } catch (e) {
-          console.error('[Animation] ❌ Failed to parse JSON:', e.message);
-          return;
-        }
-      }
-
-      player.animation = parsedData.animation || parsedData.animationState || 'Idle';
-      player.animationSpeed = parsedData.speed || 1.0;
-
-      // ИСПРАВЛЕНО: Рассылаем как player_animation_changed (как ожидает клиент)
-      io.to(player.roomId).emit('player_animation_changed', {
-        socketId: socket.id,
-        animation: player.animation,
-        speed: player.animationSpeed,
-        timestamp: Date.now()
-      });
-
-      console.log(`[Animation] 🎬 ${player.username} -> ${player.animation} (старый event, разослано в room ${player.roomId})`);
-    });
-
     // ═══════════════════════════════════════════
     // АТАКА
     // ═══════════════════════════════════════════
@@ -956,46 +910,6 @@ module.exports = (io) => {
 
       console.log(`[Transform] 📤 Broadcasted transformation end to room ${player.roomId}`);
     });
-
-    // ═══════════════════════════════════════════
-    // ПОЛУЧЕНИЕ УРОНА - УДАЛЕНО! (Дублирование)
-    // ═══════════════════════════════════════════
-    // КРИТИЧЕСКОЕ: Этот обработчик УДАЛЕН!
-    // Урон теперь обрабатывается ТОЛЬКО в Server/server.js через событие player_damage
-    // Это устраняет дублирование и рассинхронизацию HP
-
-    // Старый код (закомментирован для истории):
-    /*
-    socket.on('player_damaged', (data) => {
-      const player = activePlayers.get(socket.id);
-      if (!player) return;
-
-      player.health = Math.max(0, data.currentHealth);
-
-      console.log(`[Damage] ${player.username} took ${data.damage} damage. Health: ${player.health}/${player.maxHealth}`);
-
-      // Уведомляем всех игроков
-      io.to(player.roomId).emit('player_damaged', {
-        targetSocketId: socket.id,
-        attackerSocketId: data.attackerId,
-        attackerName: data.attackerName || 'Unknown',
-        damage: data.damage,
-        currentHealth: player.health,
-        maxHealth: player.maxHealth,
-        timestamp: Date.now()
-      });
-
-      // Если игрок умер
-      if (player.health <= 0) {
-        player.animation = 'Dead';
-        io.to(player.roomId).emit('player_died', {
-          socketId: socket.id,
-          killerId: data.attackerId,
-          timestamp: Date.now()
-        });
-      }
-    });
-    */
 
     // ═══════════════════════════════════════════
     // ОБНОВЛЕНИЕ HP И STATS
@@ -1314,113 +1228,6 @@ module.exports = (io) => {
       }
     });
 
-    // Legacy обработчик player_respawn (для обратной совместимости)
-    socket.on('player_respawn', (data) => {
-      const player = activePlayers.get(socket.id);
-      if (!player) return;
-
-      player.health = player.maxHealth;
-      player.position = data.position;
-      player.animation = 'Idle';
-
-      console.log(`[Respawn] ${player.username} respawned at (${data.position.x}, ${data.position.y}, ${data.position.z})`);
-
-      // Уведомляем всех
-      io.to(player.roomId).emit('player_respawned', {
-        socketId: socket.id,
-        position: data.position,
-        health: player.health,
-        timestamp: Date.now()
-      });
-    });
-
-    // ═══════════════════════════════════════════
-    // ВРАГИ (NPC)
-    // ═══════════════════════════════════════════
-
-    socket.on('enemy_damaged', (data) => {
-      const player = activePlayers.get(socket.id);
-      if (!player) return;
-
-      const { roomId, enemyId, damage, currentHealth } = data;
-
-      // Сохраняем состояние врага
-      if (!roomEnemies.has(roomId)) {
-        roomEnemies.set(roomId, new Map());
-      }
-      const enemies = roomEnemies.get(roomId);
-      enemies.set(enemyId, {
-        health: currentHealth,
-        alive: currentHealth > 0
-      });
-
-      console.log(`[Enemy Damage] ${enemyId} took ${damage} damage. Health: ${currentHealth}`);
-
-      // Уведомляем всех игроков в комнате
-      io.to(roomId).emit('enemy_health_changed', {
-        enemyId,
-        damage,
-        currentHealth,
-        attackerId: socket.id,
-        timestamp: Date.now()
-      });
-    });
-
-    socket.on('enemy_killed', (data) => {
-      const player = activePlayers.get(socket.id);
-      if (!player) return;
-
-      const { roomId, enemyId, position } = data;
-
-      // Помечаем врага как мёртвого
-      if (roomEnemies.has(roomId)) {
-        const enemies = roomEnemies.get(roomId);
-        enemies.set(enemyId, {
-          health: 0,
-          alive: false
-        });
-      }
-
-      console.log(`[Enemy Killed] ${enemyId} killed by ${player.username}`);
-
-      // Уведомляем всех игроков
-      io.to(roomId).emit('enemy_died', {
-        enemyId,
-        killerId: socket.id,
-        killerUsername: player.username,
-        position,
-        timestamp: Date.now()
-      });
-    });
-
-    socket.on('enemy_respawned', (data) => {
-      const player = activePlayers.get(socket.id);
-      if (!player) return;
-
-      const { roomId, enemyId, enemyType, position, health } = data;
-
-      // Обновляем состояние врага
-      if (roomEnemies.has(roomId)) {
-        const enemies = roomEnemies.get(roomId);
-        enemies.set(enemyId, {
-          health,
-          alive: true,
-          position
-        });
-      }
-
-      console.log(`[Enemy Respawned] ${enemyId} (${enemyType}) at (${position.x}, ${position.y}, ${position.z})`);
-
-      // Уведомляем всех игроков
-      io.to(roomId).emit('enemy_respawned', {
-        enemyId,
-        enemyType,
-        position,
-        health,
-        timestamp: Date.now()
-      });
-    });
-
     // ═══════════════════════════════════════════
     // ОТКЛЮЧЕНИЕ
     // ═══════════════════════════════════════════
@@ -1643,206 +1450,8 @@ module.exports = (io) => {
     });
 
     // ═══════════════════════════════════════════
-    // ИНВЕНТАРЬ И ЭКИПИРОВКА
-    // ═══════════════════════════════════════════
-
-    // Синхронизация инвентаря с MongoDB
-    socket.on('inventory_sync', async (data) => {
-      try {
-        let parsedData = data;
-        if (typeof data === 'string') {
-          parsedData = JSON.parse(data);
-        }
-
-        const player = activePlayers.get(socket.id);
-        if (!player) {
-          console.error('[Inventory Sync] ❌ Player not found:', socket.id);
-          socket.emit('inventory_synced', {
-            success: false,
-            error: 'Player not found in activePlayers'
-          });
-          return;
-        }
-
-        const { characterClass, inventoryData } = parsedData;
-
-        // Parse inventoryData если это строка
-        let inventoryObj;
-        if (typeof inventoryData === 'string') {
-          inventoryObj = JSON.parse(inventoryData);
-        } else {
-          inventoryObj = inventoryData;
-        }
-
-        console.log(`[Inventory Sync] 📦 ${player.username} синхронизирует инвентарь`);
-        console.log(`[Inventory Sync] Предметов: ${inventoryObj.items ? inventoryObj.items.length : 0}`);
-        console.log(`[Inventory Sync] Экипировка: weapon=${inventoryObj.equipment?.weapon || 'none'}, armor=${inventoryObj.equipment?.armor || 'none'}`);
-        console.log(`[Inventory Sync] 🔍 player.userId: ${player.userId}`);
-        console.log(`[Inventory Sync] 🔍 characterClass: ${characterClass}`);
-
-        // ИСПРАВЛЕНИЕ: Сначала ищем User по username, затем Character по userId + characterClass
-        const User = require('./models/User');
-        const Character = require('./models/Character');
-
-        // Находим User по username
-        const user = await User.findOne({ username: player.username });
-
-        if (!user) {
-          console.error(`[Inventory Sync] ❌ User not found for username: ${player.username}`);
-          socket.emit('inventory_synced', {
-            success: false,
-            error: `User not found: ${player.username}`
-          });
-          return;
-        }
-
-        console.log(`[Inventory Sync] ✅ User найден: ${user._id}`);
-
-        // ИСПРАВЛЕНИЕ: Используем upsert чтобы создать персонажа если его нет
-        const result = await Character.updateOne(
-          { userId: user._id, characterClass: characterClass },
-          {
-            $set: {
-              inventory: inventoryObj.items || [],
-              equipment: inventoryObj.equipment || {}
-            },
-            $setOnInsert: {
-              userId: user._id,
-              characterClass: characterClass,
-              level: 1,
-              experience: 0,
-              stats: { strength: 1, perception: 1, endurance: 1, wisdom: 1, intelligence: 1, agility: 1, luck: 1 },
-              availableStatPoints: 0
-            }
-          },
-          { upsert: true } // КРИТИЧНО: Создаём персонажа если его нет!
-        );
-
-        console.log(`[Inventory Sync] 📊 MongoDB updateOne result: matched=${result.matchedCount}, modified=${result.modifiedCount}, upserted=${result.upsertedCount}`);
-
-        if (result.upsertedCount > 0) {
-          console.log(`[Inventory Sync] 🆕 Создан новый персонаж: ${player.username} (${characterClass})`);
-        }
-
-        console.log(`[Inventory Sync] ✅ Инвентарь ${player.username} (${characterClass}) сохранён в MongoDB`);
-
-        // Отправляем подтверждение
-        socket.emit('inventory_synced', {
-          success: true,
-          timestamp: Date.now()
-        });
-
-      } catch (error) {
-        console.error('[Inventory Sync] ❌ Error:', error.message);
-        console.error('[Inventory Sync] Stack:', error.stack);
-        socket.emit('inventory_synced', {
-          success: false,
-          error: error.message
-        });
-      }
-    });
-
-    // Загрузка инвентаря из MongoDB (при подключении/переподключении)
-    socket.on('load_inventory', async (data) => {
-      try {
-        let parsedData = data;
-        if (typeof data === 'string') {
-          parsedData = JSON.parse(data);
-        }
-
-        const player = activePlayers.get(socket.id);
-        if (!player) {
-          console.error('[Load Inventory] ❌ Player not found:', socket.id);
-          socket.emit('inventory_loaded', {
-            success: false,
-            error: 'Player not found in activePlayers'
-          });
-          return;
-        }
-
-        const { characterClass } = parsedData;
-
-        console.log(`[Load Inventory] 📥 ${player.username} запрашивает инвентарь для ${characterClass}`);
-
-        // ИСПРАВЛЕНИЕ: Сначала ищем User по username, затем Character
-        const User = require('./models/User');
-        const Character = require('./models/Character');
-
-        // Находим User по username
-        const user = await User.findOne({ username: player.username });
-
-        if (!user) {
-          console.error(`[Load Inventory] ❌ User not found for username: ${player.username}`);
-          socket.emit('inventory_loaded', {
-            success: false,
-            error: `User not found: ${player.username}`
-          });
-          return;
-        }
-
-        console.log(`[Load Inventory] ✅ User найден: ${user._id}`);
-
-        // Загружаем из MongoDB используя реальный MongoDB ObjectId
-        const character = await Character.findOne({
-          userId: user._id,
-          characterClass: characterClass
-        });
-
-        // ИСПРАВЛЕНИЕ: Если персонаж не найден, возвращаем ПУСТОЙ инвентарь (новый персонаж)
-        // Персонаж будет создан автоматически при первом inventory_sync (upsert: true)
-        let inventoryData;
-
-        if (!character) {
-          console.log(`[Load Inventory] 🆕 Персонаж не найден (новый персонаж) → возвращаем пустой инвентарь`);
-          inventoryData = {
-            items: [],
-            equipment: {}
-          };
-        } else {
-          // Формируем JSON для Unity
-          inventoryData = {
-            items: character.inventory || [],
-            equipment: character.equipment || {}
-          };
-          console.log(`[Load Inventory] ✅ Инвентарь ${player.username} (${characterClass}) загружен: ${inventoryData.items.length} предметов`);
-          console.log(`[Load Inventory] 📦 Экипировка: weapon=${inventoryData.equipment.weapon || 'none'}, armor=${inventoryData.equipment.armor || 'none'}`);
-        }
-
-        socket.emit('inventory_loaded', {
-          success: true,
-          inventoryJson: JSON.stringify(inventoryData),
-          timestamp: Date.now()
-        });
-
-      } catch (error) {
-        console.error('[Load Inventory] ❌ Error:', error.message);
-        console.error('[Load Inventory] Stack:', error.stack);
-        socket.emit('inventory_loaded', {
-          success: false,
-          error: error.message
-        });
-      }
-    });
-
-    // ═══════════════════════════════════════════
     // PARTY SYSTEM (ГРУППЫ)
     // ═══════════════════════════════════════════
-
-    // DEBUG: Показать список активных игроков
-    socket.on('debug_active_players', () => {
-      console.log(`[Debug] 📊 Active players count: ${activePlayers.size}`);
-      for (const [socketId, player] of activePlayers.entries()) {
-        console.log(`  - ${player.username} (${socketId}) in room ${player.roomId}`);
-      }
-      socket.emit('debug_response', {
-        count: activePlayers.size,
-        players: Array.from(activePlayers.entries()).map(([sid, p]) => ({
-          socketId: sid,
-          username: p.username,
-          roomId: p.roomId
-        }))
-      });
-    });
 
     // Приглашение в группу
     console.log(`[Party System] 🔧 Регистрируем обработчик 'party_invite' для ${socket.id}`);
