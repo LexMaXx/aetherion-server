@@ -621,8 +621,9 @@ public class BattleSceneManager : MonoBehaviour
         // КРИТИЧЕСКИ ВАЖНО: Регистрируем персонажа в GameProgressManager для WorldMapScene
         RegisterCharacterInProgressManager(selectedClass);
 
-        // НОВОЕ: Загрузка инвентаря с сервера
-        LoadInventoryFromServer();
+        // ИСПРАВЛЕНО: НЕ загружаем инвентарь здесь!
+        // Инвентарь загружается ПОСЛЕ JoinRoom callback в LoadInventoryFromServerDelayed()
+        // Иначе сервер не знает о игроке в activePlayers → "Player not found"
 
         Debug.Log("[BattleSceneManager] ✅✅✅ ГОТОВО! Персонаж в игре!");
     }
