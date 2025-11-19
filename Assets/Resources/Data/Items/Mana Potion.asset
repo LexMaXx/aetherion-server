@@ -12,9 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 43a0a0d3e2ec7f64ca4ecaad4e5bb933, type: 3}
   m_Name: Mana Potion
   m_EditorClassIdentifier: 
+  itemId: 7566c8f3-31e0-4fac-92c6-cb7341673f69
   itemName: Mana Potion
   description: Restores a moderate amount of mana.
-  icon: {fileID: 0}
+  icon: {fileID: 21300108, guid: 7ab74e659e1f0a34d9cfec21c478fc12, type: 3}
   itemType: 4
   isStackable: 1
   maxStackSize: 99

@@ -12,9 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 43a0a0d3e2ec7f64ca4ecaad4e5bb933, type: 3}
   m_Name: Power Amulet
   m_EditorClassIdentifier: 
+  itemId: b7e31f96-a755-4d2c-8a22-45559e50d30c
   itemName: Power Amulet
   description: An amulet that enhances physical prowess.
-  icon: {fileID: 0}
+  icon: {fileID: 21300028, guid: 7ab74e659e1f0a34d9cfec21c478fc12, type: 3}
   itemType: 3
   isStackable: 0
   maxStackSize: 1

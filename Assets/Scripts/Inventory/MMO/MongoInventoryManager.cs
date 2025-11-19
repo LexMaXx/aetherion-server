@@ -64,7 +64,11 @@ namespace AetherionMMO.Inventory
             LoadCharacterClass();
             RegisterSocketEvents();
 
-            // Автозагрузка через 1 секунду
+            // НОВАЯ ЛОГИКА:
+            // 1. Сначала загружаем из PlayerPrefs (offline кэш)
+            LoadInventoryFromPlayerPrefs();
+
+            // 2. Потом пробуем синхронизировать с сервером (если подключен)
             Invoke(nameof(LoadInventoryFromServer), 1f);
         }
 
@@ -80,6 +84,13 @@ namespace AetherionMMO.Inventory
         void OnDestroy()
         {
             UnregisterSocketEvents();
+        }
+
+        void OnApplicationQuit()
+        {
+            // Сохраняем инвентарь перед выходом
+            SaveInventoryToPlayerPrefs();
+            Debug.Log("[MongoInventory] 💾 Инвентарь сохранён перед выходом из приложения");
         }
 
         /// <summary>
@@ -342,6 +353,92 @@ namespace AetherionMMO.Inventory
         }
 
         /// <summary>
+        /// Сохранить инвентарь в PlayerPrefs (для offline режима)
+        /// </summary>
+        public void SaveInventoryToPlayerPrefs()
+        {
+            if (string.IsNullOrEmpty(characterClass))
+            {
+                Debug.LogWarning("[MongoInventory] ⚠️ Не могу сохранить - класс персонажа не задан");
+                return;
+            }
+
+            // Создаём snapshot текущего состояния
+            var snapshot = new MMOInventorySnapshot
+            {
+                items = new List<MMOItemStack>(),
+                equipment = new MMOEquipmentData(),
+                gold = currentGold,
+                lastModified = System.DateTimeOffset.Now.ToUnixTimeMilliseconds()
+            };
+
+            // Собираем предметы из слотов
+            for (int i = 0; i < slots.Count; i++)
+            {
+                if (!slots[i].IsEmpty())
+                {
+                    var item = slots[i].CurrentItem;
+                    var quantity = slots[i].CurrentQuantity;
+
+                    snapshot.items.Add(new MMOItemStack
+                    {
+                        itemId = item.ItemId,
+                        itemName = item.itemName,
+                        quantity = quantity,
+                        slotIndex = i,
+                        timestamp = System.DateTimeOffset.Now.ToUnixTimeMilliseconds()
+                    });
+                }
+            }
+
+            // Сериализуем в JSON
+            string json = JsonUtility.ToJson(new MMOInventorySnapshotWrapper { snapshot = snapshot });
+            string key = $"Inventory_{characterClass}";
+
+            PlayerPrefs.SetString(key, json);
+            PlayerPrefs.Save();
+
+            Debug.Log($"[MongoInventory] 💾 Инвентарь сохранён локально: {snapshot.items.Count} предметов");
+        }
+
+        /// <summary>
+        /// Загрузить инвентарь из PlayerPrefs (для offline режима)
+        /// </summary>
+        public void LoadInventoryFromPlayerPrefs()
+        {
+            if (string.IsNullOrEmpty(characterClass))
+            {
+                Debug.LogWarning("[MongoInventory] ⚠️ Не могу загрузить - класс персонажа не задан");
+                return;
+            }
+
+            string key = $"Inventory_{characterClass}";
+
+            if (!PlayerPrefs.HasKey(key))
+            {
+                Debug.Log($"[MongoInventory] ℹ️ Нет сохранённого инвентаря для {characterClass}");
+                return;
+            }
+
+            string json = PlayerPrefs.GetString(key);
+
+            try
+            {
+                var wrapper = JsonUtility.FromJson<MMOInventorySnapshotWrapper>(json);
+                if (wrapper != null && wrapper.snapshot != null)
+                {
+                    ApplySnapshot(wrapper.snapshot);
+                    currentSnapshot = wrapper.snapshot;
+                    Debug.Log($"[MongoInventory] 📂 Инвентарь загружен из PlayerPrefs: {wrapper.snapshot.items.Count} предметов");
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[MongoInventory] ❌ Ошибка загрузки из PlayerPrefs: {e.Message}");
+            }
+        }
+
+        /// <summary>
         /// Найти предмет по ID
         /// </summary>
         private ItemData FindItemById(string itemId)
@@ -428,6 +525,9 @@ namespace AetherionMMO.Inventory
                 {
                     slots[emptySlotIndex].SetItem(item, quantity);
                     Debug.Log($"[MongoInventory] ✅ Локально установлен предмет в слот {emptySlotIndex}: {item.itemName} x{quantity}");
+
+                    // Автосохранение в PlayerPrefs
+                    SaveInventoryToPlayerPrefs();
                 }
             }
         }
@@ -475,6 +575,9 @@ namespace AetherionMMO.Inventory
                     slots[toSlot].SetItem(fromItem, fromQty);
 
                     Debug.Log($"[MongoInventory] ✅ Локально перемещено: {fromSlot} ↔ {toSlot}");
+
+                    // Автосохранение в PlayerPrefs
+                    SaveInventoryToPlayerPrefs();
                 }
             }
         }
@@ -511,6 +614,9 @@ namespace AetherionMMO.Inventory
                 {
                     slots[slotIndex].Clear();
                     Debug.Log($"[MongoInventory] ✅ Локально удалено из слота {slotIndex}");
+
+                    // Автосохранение в PlayerPrefs
+                    SaveInventoryToPlayerPrefs();
                 }
             }
         }

@@ -12,9 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 43a0a0d3e2ec7f64ca4ecaad4e5bb933, type: 3}
   m_Name: Magic Ring
   m_EditorClassIdentifier: 
+  itemId: f9fc8699-299a-4597-9585-1c59f9f31198
   itemName: Magic Ring
   description: A ring imbued with magical energy. Increases mana capacity.
-  icon: {fileID: 0}
+  icon: {fileID: 21300066, guid: 7ab74e659e1f0a34d9cfec21c478fc12, type: 3}
   itemType: 3
   isStackable: 0
   maxStackSize: 1

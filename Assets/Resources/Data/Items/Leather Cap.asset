@@ -12,9 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 43a0a0d3e2ec7f64ca4ecaad4e5bb933, type: 3}
   m_Name: Leather Cap
   m_EditorClassIdentifier: 
+  itemId: ea8e760f-a099-42aa-adff-1837a8678770
   itemName: Leather Cap
   description: A light leather cap offering minimal protection.
-  icon: {fileID: 0}
+  icon: {fileID: 21300090, guid: 7ab74e659e1f0a34d9cfec21c478fc12, type: 3}
   itemType: 2
   isStackable: 0
   maxStackSize: 1

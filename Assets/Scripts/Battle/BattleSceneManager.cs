@@ -220,10 +220,19 @@ public class BattleSceneManager : MonoBehaviour
         // ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: Проверяем подключен ли SocketIO
         bool isSocketConnected = SocketIOManager.Instance != null && SocketIOManager.Instance.IsConnected;
 
-        isMultiplayer = !string.IsNullOrEmpty(roomId) || isSocketConnected;
+        // КРИТИЧЕСКОЕ ИЗМЕНЕНИЕ: Проверяем наличие SocketIOManager (не только подключение)
+        // Если SocketIOManager существует - включаем мультиплеер режим для синхронизации
+        bool hasSocketManager = SocketIOManager.Instance != null;
+
+        // Включаем мультиплеер если:
+        // 1. Есть roomId (явно указана комната)
+        // 2. SocketIO уже подключен
+        // 3. SocketIOManager существует (будем подключаться для синхронизации инвентаря)
+        isMultiplayer = !string.IsNullOrEmpty(roomId) || isSocketConnected || hasSocketManager;
 
         Debug.Log($"[BattleSceneManager] 🔍 ДИАГНОСТИКА РЕЖИМА:");
         Debug.Log($"  roomId: '{roomId}' (пустой: {string.IsNullOrEmpty(roomId)})");
+        Debug.Log($"  SocketIOManager существует: {hasSocketManager}");
         Debug.Log($"  SocketIO подключен: {isSocketConnected}");
         Debug.Log($"  isMultiplayer: {isMultiplayer}");
 
@@ -246,7 +255,7 @@ public class BattleSceneManager : MonoBehaviour
         }
         else
         {
-            Debug.Log("[BattleSceneManager] 🎮 SINGLEPLAYER MODE");
+            Debug.Log("[BattleSceneManager] 🎮 SINGLEPLAYER MODE (нет SocketIOManager)");
             // Очищаем старые данные мультиплеера
             PlayerPrefs.DeleteKey("CurrentRoomId");
             PlayerPrefs.DeleteKey("IsRoomHost");
@@ -345,6 +354,11 @@ public class BattleSceneManager : MonoBehaviour
             if (joinSuccess)
             {
                 Debug.Log($"[BattleSceneManager] ✅ Присоединились к комнате {roomId}!");
+
+                // КРИТИЧЕСКОЕ: Загружаем инвентарь ПОСЛЕ присоединения к комнате
+                // Только сейчас сервер знает о нас в activePlayers
+                Debug.Log("[BattleSceneManager] 📦 ЗАДЕРЖАННАЯ ЗАГРУЗКА: Загружаем инвентарь после присоединения к комнате...");
+                LoadInventoryFromServerDelayed();
             }
             else
             {
@@ -640,14 +654,76 @@ public class BattleSceneManager : MonoBehaviour
             return;
         }
 
-        if (InventoryManager.Instance == null)
+        // Проверяем новый MongoInventoryManager
+        if (AetherionMMO.Inventory.MongoInventoryManager.Instance != null)
         {
-            Debug.LogWarning("[BattleSceneManager] ⚠️ InventoryManager.Instance == null, инвентарь не будет загружен");
-            return;
+            Debug.Log("[BattleSceneManager] 📦 Загружаем MMO инвентарь с сервера...");
+            AetherionMMO.Inventory.MongoInventoryManager.Instance.LoadInventoryFromServer();
+        }
+        // Fallback на старый InventoryManager
+        else if (InventoryManager.Instance != null)
+        {
+            Debug.Log("[BattleSceneManager] 📦 Загружаем старый инвентарь с сервера...");
+            InventoryManager.Instance.LoadInventoryFromServer();
+        }
+        else
+        {
+            Debug.LogWarning("[BattleSceneManager] ⚠️ Inventory Manager не найден, инвентарь не будет загружен");
+        }
+    }
+
+    /// <summary>
+    /// Загрузить инвентарь с задержкой (после присоединения к комнате)
+    /// КРИТИЧЕСКОЕ: Вызывается ПОСЛЕ JoinRoom callback, когда сервер уже знает о нас
+    /// </summary>
+    private void LoadInventoryFromServerDelayed()
+    {
+        StartCoroutine(LoadInventoryWithRetry());
+    }
+
+    /// <summary>
+    /// Корутина для загрузки инвентаря с повторными попытками
+    /// </summary>
+    private System.Collections.IEnumerator LoadInventoryWithRetry()
+    {
+        int maxRetries = 10;
+        float retryDelay = 0.5f;
+
+        for (int i = 0; i < maxRetries; i++)
+        {
+            // Проверяем новый MongoInventoryManager
+            if (AetherionMMO.Inventory.MongoInventoryManager.Instance != null)
+            {
+                if (SocketIOManager.Instance != null && SocketIOManager.Instance.IsConnected)
+                {
+                    Debug.Log($"[BattleSceneManager] 📦 ЗАГРУЖАЕМ MMO ИНВЕНТАРЬ! (попытка {i + 1})");
+                    AetherionMMO.Inventory.MongoInventoryManager.Instance.LoadInventoryFromServer();
+                    yield break;
+                }
+                else
+                {
+                    Debug.LogWarning($"[BattleSceneManager] ⚠️ Socket.IO не подключен, ждём... (попытка {i + 1}/{maxRetries})");
+                }
+            }
+            // Fallback на старый InventoryManager (если есть)
+            else if (InventoryManager.Instance != null)
+            {
+                if (SocketIOManager.Instance != null && SocketIOManager.Instance.IsConnected)
+                {
+                    Debug.Log($"[BattleSceneManager] 📦 Загружаем старый инвентарь (попытка {i + 1})");
+                    InventoryManager.Instance.LoadInventoryFromServer();
+                    yield break;
+                }
+            }
+            else
+            {
+                Debug.LogWarning($"[BattleSceneManager] ⚠️ Inventory Manager не найден, ждём... (попытка {i + 1}/{maxRetries})");
+            }
+
+            yield return new WaitForSeconds(retryDelay);
         }
 
-        Debug.Log("[BattleSceneManager] 📦 Загружаем инвентарь с сервера...");
-        InventoryManager.Instance.LoadInventoryFromServer();
+        Debug.LogError("[BattleSceneManager] ❌ Не удалось загрузить инвентарь после всех попыток!");
     }
 
     /// <summary>

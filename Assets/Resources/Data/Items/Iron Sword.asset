@@ -12,9 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 43a0a0d3e2ec7f64ca4ecaad4e5bb933, type: 3}
   m_Name: Iron Sword
   m_EditorClassIdentifier: 
+  itemId: 4e727070-00fa-44be-aa43-a390f0f53bfb
   itemName: Iron Sword
   description: A basic iron sword. Reliable and sturdy.
-  icon: {fileID: 0}
+  icon: {fileID: 21300096, guid: 7ab74e659e1f0a34d9cfec21c478fc12, type: 3}
   itemType: 0
   isStackable: 0
   maxStackSize: 1

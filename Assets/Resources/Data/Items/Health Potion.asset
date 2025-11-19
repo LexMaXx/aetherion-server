@@ -12,9 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 43a0a0d3e2ec7f64ca4ecaad4e5bb933, type: 3}
   m_Name: Health Potion
   m_EditorClassIdentifier: 
+  itemId: 701bcc2f-8b1b-4780-81ea-c6cc625b6e6b
   itemName: Health Potion
   description: Restores a moderate amount of health.
-  icon: {fileID: 0}
+  icon: {fileID: 21300072, guid: 09e4c6a7d75923945afe43953ef58ad2, type: 3}
   itemType: 4
   isStackable: 1
   maxStackSize: 99
