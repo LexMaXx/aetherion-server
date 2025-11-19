@@ -1,0 +1,76 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &4572105667263249362
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7584864237374610951}
+  - component: {fileID: 5665254310841036013}
+  m_Layer: 0
+  m_Name: NetworkSyncManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &7584864237374610951
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4572105667263249362}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -24.023378, y: -33.588795, z: 85.36842}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &5665254310841036013
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4572105667263249362}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 863fc1b0953e3fc49ac8e40abd4dc3cf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  positionSyncInterval: 0.033
+  syncEnabled: 1
+  alwaysSendPosition: 1
+  spawnPoints:
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  warriorPrefab: {fileID: 3648219444137287431, guid: fbfcc2922f138414fbc43267083d02a8, type: 3}
+  magePrefab: {fileID: 2455800741112154681, guid: f7055ae223915094c98381ed69d5b9e8, type: 3}
+  archerPrefab: {fileID: 5583116252532174475, guid: 2f3010c6a50412e488e9d1b235150aae, type: 3}
+  roguePrefab: {fileID: 3820967453952185360, guid: 2f01ddd4db0580d4b95ed3b60bcb3fe5, type: 3}
+  paladinPrefab: {fileID: 233694133803443117, guid: 7f2c1ef24c3932f4b9320bd2c3e34ea7, type: 3}
+  nameplatePrefab: {fileID: 4572105667263249362}

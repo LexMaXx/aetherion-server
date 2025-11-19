@@ -63,3 +63,4 @@ crashlytics-build.properties
 
 # Claude Code settings (keep local)
 .claude/settings.local.json
+Aetherion/
