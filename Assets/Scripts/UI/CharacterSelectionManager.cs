@@ -323,22 +323,33 @@ public class CharacterSelectionManager : MonoBehaviour
 
         string token = PlayerPrefs.GetString("UserToken", "");
 
+        Debug.Log($"[CharacterSelection] 🎮 Play button clicked! Selected class: {selectedClass}");
+        Debug.Log($"[CharacterSelection] 🔑 Token exists: {!string.IsNullOrEmpty(token)}");
+
         if (string.IsNullOrEmpty(token))
         {
-            Debug.LogError("Нет токена!");
+            Debug.LogError("[CharacterSelection] ❌ Нет токена! Требуется авторизация.");
             return;
         }
 
         isLoading = true;
+        Debug.Log($"[CharacterSelection] 🚀 Отправка запроса SelectOrCreateCharacter...");
 
         // Отправляем запрос на выбор/создание персонажа
         ApiClient.Instance.SelectOrCreateCharacter(token, selectedClass,
             onSuccess: (response) =>
             {
                 isLoading = false;
+                Debug.Log($"[CharacterSelection] ✅ Получен ответ от сервера!");
+                Debug.Log($"[CharacterSelection] Response.success = {response.success}");
+                Debug.Log($"[CharacterSelection] Response.character = {(response.character != null ? "NOT NULL" : "NULL")}");
 
                 if (response.success && response.character != null)
                 {
+                    Debug.Log($"[CharacterSelection] 💾 Сохранение данных персонажа...");
+                    Debug.Log($"[CharacterSelection] Character ID: {response.character.id}");
+                    Debug.Log($"[CharacterSelection] Character Class: {response.character.characterClass}");
+
                     // Сохраняем ID выбранного персонажа
                     PlayerPrefs.SetString("SelectedCharacterId", response.character.id);
                     PlayerPrefs.SetString("SelectedCharacterClass", response.character.characterClass);
@@ -359,14 +370,16 @@ public class CharacterSelectionManager : MonoBehaviour
 
                     PlayerPrefs.Save();
 
-                    Debug.Log($"Персонаж выбран: {response.character.characterClass}, Level {response.character.level}");
+                    Debug.Log($"[CharacterSelection] ✅ Персонаж выбран: {response.character.characterClass}, Level {response.character.level}");
+                    Debug.Log($"[CharacterSelection] 🎬 Загрузка сцены: {loadingSceneName}");
 
                     // Загружаем сцену загрузки
                     SceneManager.LoadScene(loadingSceneName);
                 }
                 else
                 {
-                    Debug.LogError($"Ошибка выбора персонажа: {response.message}");
+                    Debug.LogError($"[CharacterSelection] ❌ Ошибка выбора персонажа: {response.message}");
+                    Debug.LogError($"[CharacterSelection] Success: {response.success}, Character null: {response.character == null}");
                 }
             },
             onError: (error) =>
