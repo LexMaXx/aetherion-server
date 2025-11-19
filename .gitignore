@@ -4,6 +4,43 @@ node_modules/
 *.log
 .DS_Store
 
+# Exclude ALL Unity files and folders
+Assets/
+ProjectSettings/
+Packages/
+*.unity
+*.unity.meta
+*.asset
+*.asset.meta
+*.prefab
+*.prefab.meta
+*.mat
+*.mat.meta
+*.controller
+*.controller.meta
+*.anim
+*.anim.meta
+*.fbx
+*.fbx.meta
+*.png
+*.png.meta
+*.jpg
+*.jpg.meta
+*.mp3
+*.mp3.meta
+*.wav
+*.wav.meta
+*.shader
+*.shadergraph
+*.shadersubgraph
+*.meta
+*.terrainlayer
+*.renderTexture
+*.lighting
+*.cs.meta
+*.inputactions
+*.inputactions.meta
+
 # Unity Generated Files
 Library/
 Temp/
@@ -37,11 +74,6 @@ ExportedObj/
 *.opendb
 *.VC.db
 
-# Unity3D generated meta files
-*.pidb.meta
-*.pdb.meta
-*.mdb.meta
-
 # Unity3D generated file on crash reports
 sysinfo.txt
 
@@ -54,22 +86,8 @@ sysinfo.txt
 # Crashlytics generated file
 crashlytics-build.properties
 
-# Packed Addressables
-[Aa]ssets/[Aa]ddressable[Aa]ssets[Dd]ata/*/*.bin*
-
-# Temporary auto-generated Android Assets
-[Aa]ssets/[Ss]treamingAssets/aa.meta
-[Aa]ssets/[Ss]treamingAssets/aa/*
-
 # Claude Code settings (keep local)
 .claude/settings.local.json
-
-# Unity Build folder
-Aetherion/
-
-# Large asset folders (use Git LFS instead)
-Assets/TerrainDemoScene_URP/
-Assets/Scenes/House/
 
 # Backup files
 *.bak
