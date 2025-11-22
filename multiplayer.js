@@ -1229,6 +1229,163 @@ module.exports = (io) => {
     });
 
     // ═══════════════════════════════════════════
+    // ИСПОЛЬЗОВАНИЕ ЗЕЛИЙ (HP/MANA POTIONS)
+    // ═══════════════════════════════════════════
+
+    socket.on('use_potion', (data) => {
+      try {
+        const player = activePlayers.get(socket.id);
+        if (!player) {
+          console.warn('[Potion] ⚠️ Player not found');
+          return;
+        }
+
+        // Парсим данные если пришли как JSON строка
+        let parsedData = data;
+        if (typeof data === 'string') {
+          try {
+            parsedData = JSON.parse(data);
+          } catch (e) {
+            console.error('[Potion] ❌ Failed to parse JSON:', e.message);
+            return;
+          }
+        }
+
+        const { potionType, restoreAmount, currentValue, maxValue } = parsedData;
+
+        console.log(`[Potion] 🍾 ${player.username} used ${potionType} potion: +${restoreAmount} (${currentValue}/${maxValue})`);
+
+        // Обновляем значение на сервере
+        if (potionType === 'health') {
+          player.health = currentValue;
+          player.maxHealth = maxValue;
+          player.currentHealth = currentValue; // Для совместимости с другими системами
+
+          console.log(`[Potion] ❤️ ${player.username} HP updated: ${player.health}/${player.maxHealth}`);
+        } else if (potionType === 'mana') {
+          player.mana = currentValue;
+          player.maxMana = maxValue;
+          player.currentMana = currentValue; // Для совместимости
+
+          console.log(`[Potion] 💙 ${player.username} Mana updated: ${player.mana}/${player.maxMana}`);
+        }
+
+        // Отправляем обновление всем игрокам в комнате (включая использовавшего зелье)
+        io.to(player.roomId).emit('potion_used', {
+          socketId: socket.id,
+          username: player.username,
+          potionType: potionType,
+          restoreAmount: restoreAmount,
+          currentValue: currentValue,
+          maxValue: maxValue,
+          health: player.health,
+          maxHealth: player.maxHealth,
+          mana: player.mana || 0,
+          maxMana: player.maxMana || 0,
+          timestamp: Date.now()
+        });
+
+        console.log(`[Potion] ✅ ${player.username} potion effect broadcasted to room ${player.roomId}`);
+
+      } catch (error) {
+        console.error('[Potion] ❌ Error:', error.message);
+      }
+    });
+
+    // ═══════════════════════════════════════════
+    // ИЗМЕНЕНИЕ ЭКИПИРОВКИ
+    // ═══════════════════════════════════════════
+
+    socket.on('equipment_changed', (data) => {
+      try {
+        const player = activePlayers.get(socket.id);
+        if (!player) {
+          console.error('[Equipment] ❌ Player not found');
+          return;
+        }
+
+        // Парсим данные
+        let parsedData = typeof data === 'string' ? JSON.parse(data) : data;
+        const {
+          slotType,
+          itemName,
+          isEquip,
+          attackBonus,
+          defenseBonus,
+          healthBonus,
+          manaBonus,
+          totalAttackBonus,
+          totalDefenseBonus,
+          totalHealthBonus,
+          totalManaBonus,
+          currentHealth,
+          maxHealth,
+          currentMana,
+          maxMana,
+          attack,
+          defense
+        } = parsedData;
+
+        console.log(`[Equipment] ⚔️ ${player.username} ${isEquip ? 'equipped' : 'unequipped'} ${itemName} in ${slotType} slot`);
+        console.log(`[Equipment] 📊 Item bonuses: ATK+${attackBonus} DEF+${defenseBonus} HP+${healthBonus} MP+${manaBonus}`);
+        console.log(`[Equipment] 📊 Total bonuses: ATK+${totalAttackBonus} DEF+${totalDefenseBonus} HP+${totalHealthBonus} MP+${totalManaBonus}`);
+
+        // Обновляем данные игрока на сервере
+        player.maxHealth = maxHealth;
+        player.health = currentHealth;
+        player.currentHealth = currentHealth;
+        player.maxMana = maxMana;
+        player.mana = currentMana;
+        player.currentMana = currentMana;
+        player.attack = attack;
+        player.defense = defense;
+
+        // Сохраняем информацию о бонусах экипировки
+        if (!player.equipment) {
+          player.equipment = {};
+        }
+        player.equipment.totalAttackBonus = totalAttackBonus;
+        player.equipment.totalDefenseBonus = totalDefenseBonus;
+        player.equipment.totalHealthBonus = totalHealthBonus;
+        player.equipment.totalManaBonus = totalManaBonus;
+
+        console.log(`[Equipment] ✅ ${player.username} stats updated: HP=${currentHealth}/${maxHealth} MP=${currentMana}/${maxMana} ATK=${attack} DEF=${defense}`);
+
+        // Broadcast всем игрокам в комнате
+        io.to(player.roomId).emit('player_equipment_changed', {
+          socketId: socket.id,
+          username: player.username,
+          slotType: slotType,
+          itemName: itemName,
+          isEquip: isEquip,
+          // Бонусы от конкретного предмета
+          attackBonus: attackBonus,
+          defenseBonus: defenseBonus,
+          healthBonus: healthBonus,
+          manaBonus: manaBonus,
+          // Суммарные бонусы
+          totalAttackBonus: totalAttackBonus,
+          totalDefenseBonus: totalDefenseBonus,
+          totalHealthBonus: totalHealthBonus,
+          totalManaBonus: totalManaBonus,
+          // Текущие значения
+          health: currentHealth,
+          maxHealth: maxHealth,
+          mana: currentMana,
+          maxMana: maxMana,
+          attack: attack,
+          defense: defense,
+          timestamp: Date.now()
+        });
+
+        console.log(`[Equipment] ✅ ${player.username} equipment change broadcasted to room ${player.roomId}`);
+
+      } catch (error) {
+        console.error('[Equipment] ❌ Error:', error.message);
+      }
+    });
+
+    // ═══════════════════════════════════════════
     // ОТКЛЮЧЕНИЕ
     // ═══════════════════════════════════════════
 
@@ -2301,6 +2458,194 @@ module.exports = (io) => {
 
       } catch (error) {
         console.error('[MMO Inventory Remove] ❌ Error:', error.message);
+        socket.emit('mmo_inventory_response', JSON.stringify({ success: false, message: error.message }));
+      }
+    });
+
+    // ═══════════════════════════════════════════════════════════════
+    // MMO EQUIPMENT HANDLERS
+    // ═══════════════════════════════════════════════════════════════
+
+    socket.on('mmo_update_equipment', async (data) => {
+      try {
+        console.log(`[MMO Equipment] 🔥 EVENT RECEIVED: mmo_update_equipment from ${socket.id}`);
+
+        let parsedData = data;
+        if (typeof data === 'string') {
+          parsedData = JSON.parse(data);
+        }
+
+        const player = activePlayers.get(socket.id);
+        if (!player) {
+          socket.emit('mmo_equipment_response', JSON.stringify({ success: false, message: 'Player not found' }));
+          return;
+        }
+
+        const { characterClass, weapon, armor, helmet, accessory } = parsedData;
+
+        console.log(`[MMO Equipment] ⚔️ ${player.username} updates equipment: Weapon=${weapon}, Armor=${armor}, Helmet=${helmet}, Accessory=${accessory}`);
+
+        const User = require('./models/User');
+        const Character = require('./models/Character');
+
+        const user = await User.findOne({ username: player.username });
+        if (!user) {
+          socket.emit('mmo_equipment_response', JSON.stringify({ success: false, message: 'User not found' }));
+          return;
+        }
+
+        const character = await Character.findOne({
+          userId: user._id,
+          characterClass: characterClass
+        });
+
+        if (!character) {
+          socket.emit('mmo_equipment_response', JSON.stringify({ success: false, message: 'Character not found' }));
+          return;
+        }
+
+        // Обновляем экипировку
+        character.equipment = {
+          weapon: weapon || "",
+          armor: armor || "",
+          helmet: helmet || "",
+          accessory: accessory || ""
+        };
+
+        await character.save();
+
+        console.log(`[MMO Equipment] ✅ Equipment saved for ${character.characterClass}`);
+
+        socket.emit('mmo_equipment_response', JSON.stringify({
+          success: true,
+          message: 'Equipment updated',
+          equipment: character.equipment
+        }));
+
+      } catch (error) {
+        console.error('[MMO Equipment Update] ❌ Error:', error.message);
+        socket.emit('mmo_equipment_response', JSON.stringify({ success: false, message: error.message }));
+      }
+    });
+
+    socket.on('mmo_load_equipment', async (data) => {
+      try {
+        console.log(`[MMO Equipment] 📥 EVENT RECEIVED: mmo_load_equipment from ${socket.id}`);
+
+        let parsedData = data;
+        if (typeof data === 'string') {
+          parsedData = JSON.parse(data);
+        }
+
+        const player = activePlayers.get(socket.id);
+        if (!player) {
+          socket.emit('mmo_equipment_response', JSON.stringify({ success: false, message: 'Player not found' }));
+          return;
+        }
+
+        const { characterClass } = parsedData;
+
+        const User = require('./models/User');
+        const Character = require('./models/Character');
+
+        const user = await User.findOne({ username: player.username });
+        if (!user) {
+          socket.emit('mmo_equipment_response', JSON.stringify({ success: false, message: 'User not found' }));
+          return;
+        }
+
+        const character = await Character.findOne({
+          userId: user._id,
+          characterClass: characterClass
+        });
+
+        if (!character) {
+          socket.emit('mmo_equipment_response', JSON.stringify({ success: false, message: 'Character not found' }));
+          return;
+        }
+
+        console.log(`[MMO Equipment] ✅ Loaded equipment for ${character.characterClass}`);
+
+        socket.emit('mmo_equipment_response', JSON.stringify({
+          success: true,
+          message: 'Equipment loaded',
+          equipment: character.equipment || { weapon: "", armor: "", helmet: "", accessory: "" }
+        }));
+
+      } catch (error) {
+        console.error('[MMO Equipment Load] ❌ Error:', error.message);
+        socket.emit('mmo_equipment_response', JSON.stringify({ success: false, message: error.message }));
+      }
+    });
+
+    socket.on('mmo_update_quantity', async (data) => {
+      try {
+        console.log(`[MMO Inventory] 🔢 EVENT RECEIVED: mmo_update_quantity from ${socket.id}`);
+
+        let parsedData = data;
+        if (typeof data === 'string') {
+          parsedData = JSON.parse(data);
+        }
+
+        const player = activePlayers.get(socket.id);
+        if (!player) {
+          socket.emit('mmo_inventory_response', JSON.stringify({ success: false, message: 'Player not found' }));
+          return;
+        }
+
+        const { characterClass, slotIndex, newQuantity } = parsedData;
+
+        console.log(`[MMO Inventory] 🔢 ${player.username} updates quantity in slot ${slotIndex} to ${newQuantity}`);
+
+        const User = require('./models/User');
+        const Character = require('./models/Character');
+
+        const user = await User.findOne({ username: player.username });
+        if (!user) {
+          socket.emit('mmo_inventory_response', JSON.stringify({ success: false, message: 'User not found' }));
+          return;
+        }
+
+        const character = await Character.findOne({
+          userId: user._id,
+          characterClass: characterClass
+        });
+
+        if (!character) {
+          socket.emit('mmo_inventory_response', JSON.stringify({ success: false, message: 'Character not found' }));
+          return;
+        }
+
+        // Находим предмет в слоте
+        const itemIndex = character.inventory.findIndex(item => item.slotIndex === slotIndex);
+
+        if (itemIndex === -1) {
+          socket.emit('mmo_inventory_response', JSON.stringify({ success: false, message: 'Item not found in slot' }));
+          return;
+        }
+
+        // Обновляем количество
+        character.inventory[itemIndex].quantity = newQuantity;
+
+        await character.save();
+
+        console.log(`[MMO Inventory] ✅ Quantity updated for slot ${slotIndex}`);
+
+        const snapshot = {
+          items: character.inventory || [],
+          equipment: character.equipment || {},
+          gold: character.gold || 0,
+          lastModified: Date.now()
+        };
+
+        socket.emit('mmo_inventory_response', JSON.stringify({
+          success: true,
+          message: 'Quantity updated',
+          snapshot: snapshot
+        }));
+
+      } catch (error) {
+        console.error('[MMO Inventory Update Quantity] ❌ Error:', error.message);
         socket.emit('mmo_inventory_response', JSON.stringify({ success: false, message: error.message }));
       }
     });
