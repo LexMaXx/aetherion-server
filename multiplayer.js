@@ -703,6 +703,47 @@ module.exports = (io) => {
       });
 
       console.log(`[Attack] ✅ player_attacked разослан в room ${player.roomId}`);
+
+      // НОВОЕ: Если атакуем врага (NPC), рассчитываем урон на сервере и отправляем обратно
+      if (parsedData.targetType === 'enemy') {
+        // Рассчитываем урон на основе SPECIAL статов игрока
+        const strength = parsedData.strength || 1;
+        const intelligence = parsedData.intelligence || 1;
+        const luck = parsedData.luck || 1;
+        const baseDamage = parsedData.baseDamage || 10;
+
+        // Формула урона (можно настроить)
+        // Физический урон = baseDamage + (strength * 2)
+        // Магический урон = baseDamage + (intelligence * 2)
+        // Берем максимум из двух
+        const physicalDamage = baseDamage + (strength * 2);
+        const magicalDamage = baseDamage + (intelligence * 2);
+        let finalDamage = Math.max(physicalDamage, magicalDamage);
+
+        // Шанс крита = luck * 2% (максимум 50%)
+        const critChance = Math.min(luck * 2, 50);
+        const isCritical = Math.random() * 100 < critChance;
+
+        if (isCritical) {
+          finalDamage *= 2; // Крит удваивает урон
+        }
+
+        finalDamage = Math.round(finalDamage);
+
+        console.log(`[Attack] 🎯 Серверный расчет урона: ${finalDamage} (STR=${strength}, INT=${intelligence}, LUCK=${luck}, Base=${baseDamage}, Crit=${isCritical})`);
+
+        // Отправляем рассчитанный урон ВСЕМ клиентам в комнате
+        io.to(player.roomId).emit('enemy_damaged_by_server', {
+          enemyId: parsedData.targetId,
+          damage: finalDamage,
+          isCritical: isCritical,
+          attackerSocketId: socket.id,
+          attackerName: player.username,
+          timestamp: Date.now()
+        });
+
+        console.log(`[Attack] ✅ enemy_damaged_by_server отправлен: враг ${parsedData.targetId}, урон ${finalDamage}${isCritical ? ' (КРИТ!)' : ''}`);
+      }
     });
 
     // ═══════════════════════════════════════════
