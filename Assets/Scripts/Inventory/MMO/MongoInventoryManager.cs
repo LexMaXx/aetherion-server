@@ -82,8 +82,9 @@ namespace AetherionMMO.Inventory
             if (isConnected)
             {
                 // Если подключены к серверу - загружаем ТОЛЬКО с сервера (не из PlayerPrefs!)
-                Debug.Log("[MongoInventory] 🌐 Подключен к серверу - загружаю инвентарь с MongoDB");
-                Invoke(nameof(LoadInventoryFromServer), 1f);
+                // УВЕЛИЧЕНА ЗАДЕРЖКА до 2 секунд, чтобы LoadCharacterClass() успел установить characterClass
+                Debug.Log("[MongoInventory] 🌐 Подключен к серверу - загружаю инвентарь с MongoDB через 2 секунды...");
+                Invoke(nameof(LoadInventoryFromServer), 2f);
             }
             else
             {

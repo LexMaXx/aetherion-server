@@ -574,15 +574,16 @@ public class BattleSceneManager : MonoBehaviour
         // Настраиваем оружие персонажа (ВАЖНО!)
         SetupWeaponSystem();
 
-        // Добавляем TargetableEntity на локального игрока (БЕЗ Enemy!)
-        SetupTargetableEntity();
-
         // НОВОЕ: Добавляем LevelingSystem для системы прокачки
         SetupLevelingSystem();
 
-        // КРИТИЧЕСКИ ВАЖНО: Принудительно инициализируем HealthSystem ПОСЛЕ CharacterStats
+        // КРИТИЧЕСКИ ВАЖНО: Принудительно инициализируем HealthSystem ПЕРЕД LocalPlayerEntity!
+        // LocalPlayerEntity.Start() требует что HealthSystem уже инициализирован
         // Unity может вызвать Start() в непредсказуемом порядке, поэтому делаем это вручную
         EnsureHealthSystemInitialized();
+
+        // Добавляем TargetableEntity на локального игрока ПОСЛЕ HealthSystem (БЕЗ Enemy!)
+        SetupTargetableEntity();
 
         // Настраиваем Fog of War (система видимости)
         SetupFogOfWar();
@@ -696,8 +697,10 @@ public class BattleSceneManager : MonoBehaviour
             {
                 if (SocketIOManager.Instance != null && SocketIOManager.Instance.IsConnected)
                 {
-                    Debug.Log($"[BattleSceneManager] 📦 ЗАГРУЖАЕМ MMO ИНВЕНТАРЬ! (попытка {i + 1})");
-                    AetherionMMO.Inventory.MongoInventoryManager.Instance.LoadInventoryFromServer();
+                    // НЕ вызываем LoadInventoryFromServer() напрямую!
+                    // MongoInventoryManager сам загрузит инвентарь в своём Start() методе
+                    // после того как LoadCharacterClass() установит characterClass
+                    Debug.Log($"[BattleSceneManager] ✅ MongoInventoryManager обнаружен, он сам загрузит инвентарь");
                     yield break;
                 }
                 else
