@@ -53,6 +53,46 @@ module.exports = (io) => {
         let { roomId, username, characterClass, userId } = parsedData;
 
         // ═══════════════════════════════════════════════════════════════════
+        // ЗАГРУЗКА СТАТОВ ИЗ MONGODB
+        // ═══════════════════════════════════════════════════════════════════
+        let characterStats = null;
+        let characterLevel = 1;
+        let maxHealth = 100;
+        let maxMana = 100;
+
+        if (userId && characterClass) {
+          try {
+            const Character = require('./models/Character');
+            const character = await Character.findOne({ userId, characterClass });
+
+            if (character && character.stats) {
+              characterStats = character.stats;
+              characterLevel = character.level || 1;
+
+              // Рассчитываем maxHealth и maxMana на основе статов
+              // HP = 200 + (Endurance * 40) + equipment bonuses
+              // MP = 50 + (Wisdom * 15) + equipment bonuses
+              const baseHealth = 200 + (characterStats.endurance * 40);
+              const baseMana = 50 + (characterStats.wisdom * 15);
+
+              maxHealth = baseHealth;
+              maxMana = baseMana;
+
+              console.log(`[Join Room] 📊 Loaded stats for ${characterClass}: END=${characterStats.endurance} WIS=${characterStats.wisdom} → HP=${maxHealth} MP=${maxMana}`);
+            } else {
+              console.log(`[Join Room] ⚠️ Character not found in DB, using default stats`);
+              characterStats = { strength: 1, perception: 1, endurance: 1, wisdom: 1, intelligence: 1, agility: 1, luck: 1 };
+            }
+          } catch (err) {
+            console.error(`[Join Room] ❌ Error loading character stats:`, err.message);
+            characterStats = { strength: 1, perception: 1, endurance: 1, wisdom: 1, intelligence: 1, agility: 1, luck: 1 };
+          }
+        } else {
+          console.log(`[Join Room] ⚠️ No userId or characterClass, using default stats`);
+          characterStats = { strength: 1, perception: 1, endurance: 1, wisdom: 1, intelligence: 1, agility: 1, luck: 1 };
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
         // MMO MODE: Все игроки подключаются к ОДНОЙ глобальной комнате
         // ═══════════════════════════════════════════════════════════════════
         if (USE_GLOBAL_ROOM) {
@@ -165,12 +205,16 @@ module.exports = (io) => {
           position: { x: 0, y: 0, z: 0 },
           rotation: { x: 0, y: 0, z: 0 },
           animation: 'Idle',
-          health: 0,         // ← Placeholder, будет обновлено через update_player_stats
-          maxHealth: 0,      // ← Placeholder, будет обновлено через update_player_stats
-          currentHealth: 0,  // ← Placeholder для совместимости с Server/server.js
+          health: maxHealth,         // Используем реальное значение из статов
+          maxHealth: maxHealth,      // Используем реальное значение из статов
+          currentHealth: maxHealth,  // Текущее HP = максимальному при входе
+          mana: maxMana,             // Добавляем ману
+          maxMana: maxMana,          // Максимальная мана
+          currentMana: maxMana,      // Текущая мана = максимальной при входе
+          stats: characterStats,     // Сохраняем статы персонажа
           connected: true,
           joinedAt: Date.now(),
-          level: 1,  // Добавляем level для party system
+          level: characterLevel,     // Используем реальный уровень
           spawnIndex: assignedSpawnIndex  // Присваиваем spawnIndex если игра уже идёт
         });
 
@@ -190,7 +234,11 @@ module.exports = (io) => {
               rotation: player.rotation,
               animation: player.animation,
               health: player.health,
-              maxHealth: player.maxHealth
+              maxHealth: player.maxHealth,
+              mana: player.mana || 0,
+              maxMana: player.maxMana || 0,
+              stats: player.stats || null,
+              level: player.level || 1
             });
           }
         }
@@ -220,7 +268,12 @@ module.exports = (io) => {
           spawnIndex: assignedSpawnIndex !== undefined ? assignedSpawnIndex : 0, // КРИТИЧНО для MMO режима!
           position: { x: 0, y: 0, z: 0 }, // Пока неизвестна, будет обновлена через player_update
           rotation: { x: 0, y: 0, z: 0 },
-          stats: null // TODO: Добавить передачу stats если нужно
+          stats: characterStats,      // Отправляем реальные статы
+          level: characterLevel,       // Отправляем уровень
+          health: maxHealth,           // Отправляем текущее HP
+          maxHealth: maxHealth,        // Отправляем максимальное HP
+          mana: maxMana,               // Отправляем текущую MP
+          maxMana: maxMana             // Отправляем максимальную MP
         });
 
         console.log(`✅ ${username} joined room ${roomId}. Total players: ${playersInRoom.length}`);
@@ -2213,6 +2266,70 @@ module.exports = (io) => {
           success: false,
           message: error.message
         }));
+      }
+    });
+
+    // Сохранить инвентарь на сервер
+    socket.on('mmo_save_inventory', async (data) => {
+      try {
+        let parsedData = data;
+        if (typeof data === 'string') {
+          parsedData = JSON.parse(data);
+        }
+
+        const player = activePlayers.get(socket.id);
+        if (!player) {
+          console.error('[MMO Inventory Save] ❌ Player not found:', socket.id);
+          return;
+        }
+
+        const { characterClass, inventory } = parsedData;
+
+        console.log(`[MMO Inventory] 💾 ${player.username} сохраняет инвентарь (${characterClass})`);
+        console.log(`[MMO Inventory] 📦 Items: ${inventory.items.length}, Gold: ${inventory.gold}`);
+
+        const User = require('./models/User');
+        const Character = require('./models/Character');
+
+        // Находим User по username
+        const user = await User.findOne({ username: player.username });
+        if (!user) {
+          console.error('[MMO Inventory Save] ❌ User not found:', player.username);
+          return;
+        }
+
+        // Загружаем или создаём Character
+        let character = await Character.findOne({
+          userId: user._id,
+          characterClass: characterClass
+        });
+
+        if (!character) {
+          console.log(`[MMO Inventory Save] 🆕 Создаём нового персонажа для ${player.username} (${characterClass})`);
+          character = new Character({
+            userId: user._id,
+            characterClass: characterClass,
+            level: 1,
+            experience: 0,
+            stats: { strength: 1, perception: 1, endurance: 1, wisdom: 1, intelligence: 1, agility: 1, luck: 1 },
+            availableStatPoints: 0,
+            inventory: [],
+            equipment: {},
+            gold: 0
+          });
+        }
+
+        // Обновляем инвентарь
+        character.inventory = inventory.items || [];
+        character.equipment = inventory.equipment || {};
+        character.gold = inventory.gold || 0;
+
+        await character.save();
+
+        console.log(`[MMO Inventory] ✅ Инвентарь сохранён для ${player.username}: ${character.inventory.length} предметов, ${character.gold} золота`);
+
+      } catch (error) {
+        console.error('[MMO Inventory Save] ❌ Error:', error.message);
       }
     });
 
