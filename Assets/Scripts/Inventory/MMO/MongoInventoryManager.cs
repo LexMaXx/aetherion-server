@@ -76,11 +76,21 @@ namespace AetherionMMO.Inventory
             RegisterSocketEvents();
 
             // НОВАЯ ЛОГИКА:
-            // 1. Сначала загружаем из PlayerPrefs (offline кэш)
-            LoadInventoryFromPlayerPrefs();
+            // Проверяем подключение к серверу
+            bool isConnected = SocketIOManager.Instance != null && SocketIOManager.Instance.IsConnected;
 
-            // 2. Потом пробуем синхронизировать с сервером (если подключен)
-            Invoke(nameof(LoadInventoryFromServer), 1f);
+            if (isConnected)
+            {
+                // Если подключены к серверу - загружаем ТОЛЬКО с сервера (не из PlayerPrefs!)
+                Debug.Log("[MongoInventory] 🌐 Подключен к серверу - загружаю инвентарь с MongoDB");
+                Invoke(nameof(LoadInventoryFromServer), 1f);
+            }
+            else
+            {
+                // Если НЕ подключены - используем локальный кэш
+                Debug.LogWarning("[MongoInventory] ⚠️ Нет подключения к серверу - загружаю из PlayerPrefs");
+                LoadInventoryFromPlayerPrefs();
+            }
         }
 
         void Update()
@@ -174,7 +184,21 @@ namespace AetherionMMO.Inventory
 
             if (string.IsNullOrEmpty(characterClass))
             {
-                Debug.LogWarning("[MongoInventory] ⚠️ Класс персонажа не найден в PlayerPrefs!");
+                // FALLBACK для тестирования: используем класс из SelectedCharacterId
+                string characterId = PlayerPrefs.GetString("SelectedCharacterId", "");
+                if (!string.IsNullOrEmpty(characterId))
+                {
+                    // Если есть ID персонажа, используем его как класс
+                    characterClass = characterId;
+                    Debug.LogWarning($"[MongoInventory] ⚠️ Класс не найден, использую SelectedCharacterId: {characterClass}");
+                }
+                else
+                {
+                    // Последний fallback - используем "Warrior" для тестирования
+                    characterClass = "Warrior";
+                    Debug.LogWarning($"[MongoInventory] ⚠️ Класс персонажа не найден в PlayerPrefs! Использую тестовый класс: {characterClass}");
+                    Debug.LogWarning("[MongoInventory] 💡 Для корректной работы зайдите через Character Selection!");
+                }
             }
             else
             {
@@ -310,48 +334,40 @@ namespace AetherionMMO.Inventory
         /// </summary>
         private void ApplySnapshot(MMOInventorySnapshot snapshot)
         {
-            Debug.Log($"[MongoInventory] 📸 ApplySnapshot() called with {snapshot.items.Count} items");
+            int oldGold = currentGold;
+            Debug.Log($"[MongoInventory] 📸 ApplySnapshot() called with {snapshot.items.Count} items, gold={snapshot.gold}");
+            Debug.LogWarning($"[MongoInventory] ⚠️ ВНИМАНИЕ: Золото будет перезаписано с {oldGold} на {snapshot.gold}");
 
             // Очищаем все слоты
             ClearAllSlots();
-            Debug.Log($"[MongoInventory] 🧹 All slots cleared");
 
             // Заполняем слоты из snapshot
             foreach (MMOItemStack itemStack in snapshot.items)
             {
-                Debug.Log($"[MongoInventory] 🔍 Processing item: {itemStack.itemName} (id={itemStack.itemId}) for slot {itemStack.slotIndex}, quantity={itemStack.quantity}");
-
                 if (itemStack.slotIndex >= 0 && itemStack.slotIndex < slots.Count)
                 {
                     ItemData itemData = FindItemById(itemStack.itemId);
                     if (itemData == null)
                     {
-                        Debug.LogWarning($"[MongoInventory] ⚠️ FindItemById({itemStack.itemId}) returned NULL, trying by name...");
                         itemData = FindItemByName(itemStack.itemName);
                     }
 
                     if (itemData != null)
                     {
-                        Debug.Log($"[MongoInventory] 🎯 Found ItemData: {itemData.itemName}, calling SetItem on slot {itemStack.slotIndex}");
                         slots[itemStack.slotIndex].SetItem(itemData, itemStack.quantity);
-                        Debug.Log($"[MongoInventory] ✅ Установлен предмет в слот {itemStack.slotIndex}: {itemData.itemName} x{itemStack.quantity}, icon={itemData.icon?.name ?? "NULL"}");
                     }
                     else
                     {
                         Debug.LogError($"[MongoInventory] ❌ Предмет не найден в itemDatabase: {itemStack.itemName} ({itemStack.itemId})");
                     }
                 }
-                else
-                {
-                    Debug.LogError($"[MongoInventory] ❌ Invalid slotIndex: {itemStack.slotIndex} (slots.Count={slots.Count})");
-                }
             }
-
-            Debug.Log($"[MongoInventory] 📸 ApplySnapshot() complete");
 
             // Обновляем золото
             currentGold = snapshot.gold;
             UpdateGoldDisplay();
+
+            Debug.Log($"[MongoInventory] 📸 ApplySnapshot() complete. Золото изменено: {oldGold} → {currentGold}");
         }
 
         /// <summary>
@@ -373,7 +389,82 @@ namespace AetherionMMO.Inventory
             if (goldText != null)
             {
                 goldText.text = $"{currentGold:N0}";
+                Debug.Log($"[MongoInventory] 💵 UpdateGoldDisplay: Отображаю {currentGold} золота");
             }
+            else
+            {
+                Debug.LogWarning("[MongoInventory] ⚠️ goldText == null! UI не обновится");
+            }
+        }
+
+        /// <summary>
+        /// Добавить золото
+        /// </summary>
+        public void AddGold(int amount)
+        {
+            Debug.Log($"[MongoInventory] 🔍 AddGold вызван: amount={amount}, currentGold ДО={currentGold}");
+
+            if (amount <= 0)
+            {
+                Debug.LogWarning($"[MongoInventory] ⚠️ Попытка добавить некорректное количество золота: {amount}");
+                return;
+            }
+
+            int oldGold = currentGold;
+            currentGold += amount;
+            UpdateGoldDisplay();
+
+            Debug.Log($"[MongoInventory] 💰 Добавлено золота: +{amount}. Было: {oldGold}, Стало: {currentGold}");
+
+            // Сохраняем на сервер
+            SaveInventoryToServer();
+        }
+
+        /// <summary>
+        /// Убрать золото (для покупок)
+        /// </summary>
+        public bool RemoveGold(int amount)
+        {
+            Debug.Log($"[MongoInventory] 🔍 RemoveGold вызван: amount={amount}, currentGold={currentGold}");
+
+            if (amount <= 0)
+            {
+                Debug.LogWarning($"[MongoInventory] ⚠️ Попытка убрать некорректное количество золота: {amount}");
+                return false;
+            }
+
+            if (currentGold < amount)
+            {
+                Debug.LogWarning($"[MongoInventory] ⚠️ Недостаточно золота! Требуется: {amount}, доступно: {currentGold}");
+                return false;
+            }
+
+            int oldGold = currentGold;
+            currentGold -= amount;
+            UpdateGoldDisplay();
+
+            Debug.Log($"[MongoInventory] 💰 Снято золота: -{amount}. Было: {oldGold}, Осталось: {currentGold}");
+
+            // Сохраняем на сервер
+            SaveInventoryToServer();
+
+            return true;
+        }
+
+        /// <summary>
+        /// Получить текущее количество золота
+        /// </summary>
+        public int GetGold()
+        {
+            return currentGold;
+        }
+
+        /// <summary>
+        /// Получить все слоты инвентаря (для MerchantUI)
+        /// </summary>
+        public List<MMOInventorySlot> GetAllSlots()
+        {
+            return slots;
         }
 
         /// <summary>
@@ -463,6 +554,69 @@ namespace AetherionMMO.Inventory
         }
 
         /// <summary>
+        /// Сохранить инвентарь на сервер (MongoDB)
+        /// </summary>
+        public void SaveInventoryToServer()
+        {
+            if (string.IsNullOrEmpty(characterClass))
+            {
+                Debug.LogWarning("[MongoInventory] ⚠️ Не могу сохранить на сервер - класс персонажа не задан");
+                return;
+            }
+
+            if (SocketIOManager.Instance == null || !SocketIOManager.Instance.IsConnected)
+            {
+                Debug.LogWarning("[MongoInventory] ⚠️ Не подключен к серверу, сохраняю только локально");
+                SaveInventoryToPlayerPrefs();
+                return;
+            }
+
+            // Создаём snapshot текущего состояния
+            var snapshot = new MMOInventorySnapshot
+            {
+                items = new List<MMOItemStack>(),
+                equipment = new MMOEquipmentData(),
+                gold = currentGold,
+                lastModified = System.DateTimeOffset.Now.ToUnixTimeMilliseconds()
+            };
+
+            // Собираем предметы из слотов
+            for (int i = 0; i < slots.Count; i++)
+            {
+                if (!slots[i].IsEmpty())
+                {
+                    var item = slots[i].CurrentItem;
+                    var quantity = slots[i].CurrentQuantity;
+
+                    snapshot.items.Add(new MMOItemStack
+                    {
+                        itemId = item.ItemId,
+                        itemName = item.itemName,
+                        quantity = quantity,
+                        slotIndex = i,
+                        timestamp = System.DateTimeOffset.Now.ToUnixTimeMilliseconds()
+                    });
+                }
+            }
+
+            // Формируем запрос
+            var saveRequest = new
+            {
+                characterClass = characterClass,
+                inventory = snapshot
+            };
+
+            string json = JsonUtility.ToJson(saveRequest);
+
+            // Отправляем на сервер
+            SocketIOManager.Instance.Emit("mmo_save_inventory", json);
+            Debug.Log($"[MongoInventory] 📤 Инвентарь отправлен на сервер: {snapshot.items.Count} предметов, {currentGold} золота");
+
+            // Также сохраняем локально (backup)
+            SaveInventoryToPlayerPrefs();
+        }
+
+        /// <summary>
         /// Найти предмет по ID
         /// </summary>
         private ItemData FindItemById(string itemId)
@@ -476,6 +630,14 @@ namespace AetherionMMO.Inventory
         private ItemData FindItemByName(string itemName)
         {
             return itemDatabase.FirstOrDefault(item => item.itemName == itemName);
+        }
+
+        /// <summary>
+        /// Найти предмет по имени (публичный метод для MMOEquipmentManager)
+        /// </summary>
+        public ItemData FindItemByNamePublic(string itemName)
+        {
+            return FindItemByName(itemName);
         }
 
         // ═══════════════════════════════════════════
@@ -529,6 +691,14 @@ namespace AetherionMMO.Inventory
             Debug.Log($"[MongoInventory] 🌐 SocketIOManager.Instance: {(hasSocketManager ? "EXISTS" : "NULL")}");
             Debug.Log($"[MongoInventory] 🔌 IsConnected: {isConnected}");
 
+            // СНАЧАЛА добавляем локально в UI
+            if (emptySlotIndex >= 0 && emptySlotIndex < slots.Count)
+            {
+                slots[emptySlotIndex].SetItem(item, quantity);
+                Debug.Log($"[MongoInventory] ✅ Локально установлен предмет в слот {emptySlotIndex}: {item.itemName} x{quantity}");
+            }
+
+            // ПОТОМ отправляем на сервер (если подключён)
             if (hasSocketManager && isConnected)
             {
                 // Отправляем запрос на сервер
@@ -546,8 +716,24 @@ namespace AetherionMMO.Inventory
 
                 SocketIOManager.Instance.EmitCustomEvent("mmo_add_item", json, (response) =>
                 {
-                    Debug.Log($"[MongoInventory] 📥 Response received from server");
-                    HandleInventoryUpdated(response);
+                    // НЕ вызываем HandleInventoryUpdated, чтобы не перезаписать золото!
+                    // Просто логируем успех
+                    try
+                    {
+                        MMOInventoryResponse res = JsonUtility.FromJson<MMOInventoryResponse>(response);
+                        if (res.success)
+                        {
+                            Debug.Log($"[MongoInventory] ✅ Предмет добавлен на сервере");
+                        }
+                        else
+                        {
+                            Debug.LogError($"[MongoInventory] ❌ Ошибка добавления на сервере: {res.message}");
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.LogError($"[MongoInventory] ❌ Ошибка парсинга ответа: {e.Message}");
+                    }
                 });
 
                 Debug.Log($"[MongoInventory] 📡 Запрос отправлен на сервер");
@@ -597,7 +783,24 @@ namespace AetherionMMO.Inventory
 
                 SocketIOManager.Instance.EmitCustomEvent("mmo_move_item", json, (response) =>
                 {
-                    HandleInventoryUpdated(response);
+                    // НЕ вызываем HandleInventoryUpdated, чтобы не перезаписать золото!
+                    // Просто логируем успех
+                    try
+                    {
+                        MMOInventoryResponse res = JsonUtility.FromJson<MMOInventoryResponse>(response);
+                        if (res.success)
+                        {
+                            Debug.Log($"[MongoInventory] ✅ Предмет перемещён на сервере");
+                        }
+                        else
+                        {
+                            Debug.LogError($"[MongoInventory] ❌ Ошибка перемещения на сервере: {res.message}");
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.LogError($"[MongoInventory] ❌ Ошибка парсинга ответа: {e.Message}");
+                    }
                 });
             }
             else
@@ -625,7 +828,7 @@ namespace AetherionMMO.Inventory
         }
 
         /// <summary>
-        /// Удалить предмет
+        /// Удалить предмет из слота по индексу
         /// </summary>
         public void RemoveItem(int slotIndex, int quantity = 0)
         {
@@ -644,7 +847,24 @@ namespace AetherionMMO.Inventory
 
                 SocketIOManager.Instance.EmitCustomEvent("mmo_remove_item", json, (response) =>
                 {
-                    HandleInventoryUpdated(response);
+                    // НЕ вызываем HandleInventoryUpdated, чтобы не перезаписать золото!
+                    // Просто логируем успех
+                    try
+                    {
+                        MMOInventoryResponse res = JsonUtility.FromJson<MMOInventoryResponse>(response);
+                        if (res.success)
+                        {
+                            Debug.Log($"[MongoInventory] ✅ Предмет удалён на сервере");
+                        }
+                        else
+                        {
+                            Debug.LogError($"[MongoInventory] ❌ Ошибка удаления на сервере: {res.message}");
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.LogError($"[MongoInventory] ❌ Ошибка парсинга ответа: {e.Message}");
+                    }
                 });
             }
             else
@@ -661,6 +881,14 @@ namespace AetherionMMO.Inventory
                     SaveInventoryToPlayerPrefs();
                 }
             }
+        }
+
+        /// <summary>
+        /// Удалить предмет из слота (альтернативное имя для совместимости)
+        /// </summary>
+        private void RemoveItemFromSlot(int slotIndex)
+        {
+            RemoveItem(slotIndex, 0);
         }
 
         /// <summary>
@@ -758,5 +986,167 @@ namespace AetherionMMO.Inventory
             }
             return null;
         }
+
+        /// <summary>
+        /// Удалить предмет из инвентаря
+        /// </summary>
+        public void RemoveItem(ItemData item, int quantity = 1)
+        {
+            if (item == null)
+            {
+                Debug.LogError("[MongoInventory] ❌ Cannot remove null item!");
+                return;
+            }
+
+            Debug.Log($"[MongoInventory] 🗑️ Removing {quantity}x {item.itemName}");
+
+            // Ищем предмет в инвентаре
+            for (int i = 0; i < slots.Count; i++)
+            {
+                MMOInventorySlot slot = slots[i];
+                if (!slot.IsEmpty() && slot.GetItem().ItemId == item.ItemId)
+                {
+                    int currentQuantity = slot.GetQuantity();
+
+                    if (currentQuantity <= quantity)
+                    {
+                        // Удаляем весь стак
+                        RemoveItemFromSlot(i);
+                        Debug.Log($"[MongoInventory] ✅ Removed all {currentQuantity}x {item.itemName} from slot {i}");
+                        return;
+                    }
+                    else
+                    {
+                        // Уменьшаем количество
+                        int newQuantity = currentQuantity - quantity;
+                        slot.SetItem(item, newQuantity);
+                        Debug.Log($"[MongoInventory] ✅ Reduced {item.itemName} quantity: {currentQuantity} → {newQuantity}");
+
+                        // Синхронизируем с сервером
+                        if (SocketIOManager.Instance != null && SocketIOManager.Instance.IsConnected)
+                        {
+                            var request = new UpdateQuantityRequest
+                            {
+                                characterClass = characterClass,
+                                slotIndex = i,
+                                newQuantity = newQuantity
+                            };
+
+                            string json = JsonUtility.ToJson(request);
+                            SocketIOManager.Instance.EmitCustomEvent("mmo_update_quantity", json, (response) =>
+                            {
+                                Debug.Log($"[MongoInventory] Quantity synced");
+                            });
+                        }
+                        return;
+                    }
+                }
+            }
+
+            Debug.LogWarning($"[MongoInventory] ⚠️ Item not found in inventory: {item.itemName}");
+        }
+
+        /// <summary>
+        /// Использовать расходуемый предмет (зелье)
+        /// </summary>
+        public void UseConsumable(ItemData item)
+        {
+            if (item == null || item.itemType != ItemType.Consumable)
+            {
+                Debug.LogWarning($"[MongoInventory] Cannot use item: {item?.itemName ?? "null"}");
+                return;
+            }
+
+            Debug.Log($"[MongoInventory] 🍾 Using consumable: {item.itemName}");
+            Debug.Log($"[MongoInventory] 📊 Item stats: healAmount={item.healAmount}, manaRestoreAmount={item.manaRestoreAmount}");
+
+            // Применяем эффект зелья
+            bool effectApplied = false;
+
+            if (item.healAmount > 0)
+            {
+                // Восстанавливаем HP через HealthSystem
+                HealthSystem healthSystem = FindObjectOfType<HealthSystem>();
+                if (healthSystem != null)
+                {
+                    healthSystem.Heal(item.healAmount);
+                    Debug.Log($"[MongoInventory] ✅ Healed {item.healAmount} HP");
+                    effectApplied = true;
+
+                    // Отправляем на сервер для синхронизации
+                    SendPotionUseToServer("health", item.healAmount, healthSystem.CurrentHealth, healthSystem.MaxHealth);
+                }
+                else
+                {
+                    Debug.LogWarning("[MongoInventory] ⚠️ HealthSystem not found!");
+                }
+            }
+
+            if (item.manaRestoreAmount > 0)
+            {
+                // Восстанавливаем ману через ManaSystem
+                ManaSystem manaSystem = FindObjectOfType<ManaSystem>();
+                if (manaSystem != null)
+                {
+                    manaSystem.RestoreMana(item.manaRestoreAmount);
+                    Debug.Log($"[MongoInventory] ✅ Restored {item.manaRestoreAmount} Mana");
+                    effectApplied = true;
+
+                    // Отправляем на сервер для синхронизации
+                    SendPotionUseToServer("mana", item.manaRestoreAmount, manaSystem.CurrentMana, manaSystem.MaxMana);
+                }
+                else
+                {
+                    Debug.LogWarning("[MongoInventory] ⚠️ ManaSystem not found!");
+                }
+            }
+
+            if (effectApplied)
+            {
+                // Удаляем 1 предмет из инвентаря
+                RemoveItem(item, 1);
+            }
+            else
+            {
+                Debug.LogWarning($"[MongoInventory] ⚠️ Consumable has no effect: {item.itemName}");
+            }
+        }
+
+        /// <summary>
+        /// Отправить использование зелья на сервер для синхронизации
+        /// </summary>
+        private void SendPotionUseToServer(string potionType, float restoreAmount, float currentValue, float maxValue)
+        {
+            var socketManager = FindObjectOfType<SocketIOManager>();
+            if (socketManager != null && socketManager.IsConnected)
+            {
+                var data = new
+                {
+                    potionType = potionType, // "health" или "mana"
+                    restoreAmount = restoreAmount,
+                    currentValue = currentValue,
+                    maxValue = maxValue
+                };
+
+                string json = Newtonsoft.Json.JsonConvert.SerializeObject(data);
+                socketManager.Emit("use_potion", json);
+                Debug.Log($"[MongoInventory] 📡 Sent potion use to server: {potionType} +{restoreAmount} (now: {currentValue}/{maxValue})");
+            }
+            else
+            {
+                Debug.LogWarning("[MongoInventory] ⚠️ Not connected to server, potion effect local only");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Запрос на обновление количества предмета
+    /// </summary>
+    [Serializable]
+    public class UpdateQuantityRequest
+    {
+        public string characterClass;
+        public int slotIndex;
+        public int newQuantity;
     }
 }
