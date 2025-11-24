@@ -94,7 +94,7 @@ public class DiagnosePlayerComponents : MonoBehaviour
         if (AetherionMMO.Inventory.MongoInventoryManager.Instance != null)
         {
             Debug.Log("✅ MongoInventoryManager.Instance существует");
-            Debug.Log($"   Gold: {AetherionMMO.Inventory.MongoInventoryManager.Instance.CurrentGold}");
+            Debug.Log($"   Gold: {AetherionMMO.Inventory.MongoInventoryManager.Instance.GetGold()}");
         }
         else
         {
