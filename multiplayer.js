@@ -11,9 +11,6 @@ const activePlayers = new Map(); // socketId => { roomId, username, characterCla
 // LOBBY SYSTEM: Хранилище лобби комнат
 const roomLobbies = new Map(); // roomId => { waitTime, startTime, countdownTimer, gameStarted }
 
-// DEBOUNCE: Хранилище таймеров для отложенного сохранения статов
-const statsSaveTimers = new Map(); // socketId => { timer, pendingData }
-
 module.exports = (io) => {
   console.log('🎮 Multiplayer module loaded');
 
@@ -1492,14 +1489,6 @@ module.exports = (io) => {
       if (player) {
         console.log(`❌ Player disconnected: ${player.username} (${socket.id})`);
 
-        // Отменяем и очищаем таймер debounce сохранения статов
-        const existingTimer = statsSaveTimers.get(socket.id);
-        if (existingTimer) {
-          clearTimeout(existingTimer.timer);
-          statsSaveTimers.delete(socket.id);
-          console.log(`[Disconnect] 🧹 Cleared stats save timer for ${player.username}`);
-        }
-
         // Удаляем игрока из MongoDB
         try {
           const room = await Room.findOne({ roomId: player.roomId });
@@ -1595,9 +1584,8 @@ module.exports = (io) => {
             updateData.experience = currentExperience;
           }
 
-          // ВАЖНО: player.userId это CHARACTER _id (не User userId!)
-          const result = await Character.findByIdAndUpdate(
-            player.userId,  // Character _id
+          const result = await Character.findOneAndUpdate(
+            { userId: player.userId, characterClass: characterClass },
             { $set: updateData },
             { new: true }
           );
@@ -1605,7 +1593,7 @@ module.exports = (io) => {
           if (result) {
             console.log(`[Level Up] 💾 Сохранено в MongoDB: ${player.username} Level ${newLevel}, StatPoints ${availableStatPoints}, XP ${currentExperience || 'N/A'}`);
           } else {
-            console.warn(`[Level Up] ⚠️ Character not found in DB: characterId=${player.userId}`);
+            console.warn(`[Level Up] ⚠️ Character not found in DB: userId=${player.userId}, class=${characterClass}`);
           }
         } catch (dbError) {
           console.error('[Level Up] ❌ MongoDB save error:', dbError.message);
@@ -1665,7 +1653,7 @@ module.exports = (io) => {
     });
 
     // Полная синхронизация статов игрока
-    socket.on('player_stats_sync', async (data) => {
+    socket.on('player_stats_sync', (data) => {
       try {
         let parsedData = data;
         if (typeof data === 'string') {
@@ -1698,54 +1686,6 @@ module.exports = (io) => {
           characterClass: player.characterClass,
           stats,
           timestamp: Date.now()
-        });
-
-        // КРИТИЧЕСКИ ВАЖНО: Сохраняем в MongoDB с DEBOUNCE!
-        // Unity отправляет множество событий одновременно - используем дебаунс
-        // чтобы сохранить только последнее значение через 500ms
-
-        // Отменяем предыдущий таймер если есть
-        const existingTimer = statsSaveTimers.get(socket.id);
-        if (existingTimer) {
-          clearTimeout(existingTimer.timer);
-        }
-
-        // Создаём новый таймер для отложенного сохранения
-        const saveTimer = setTimeout(async () => {
-          try {
-            const Character = require('./models/Character');
-            const updateData = {
-              level: level,
-              experience: experience,
-              availableStatPoints: availableStatPoints,
-              stats: stats
-            };
-
-            // ВАЖНО: player.userId это CHARACTER _id (не User userId!)
-            const result = await Character.findByIdAndUpdate(
-              player.userId,  // Character _id
-              { $set: updateData },
-              { new: true }
-            );
-
-            if (result) {
-              console.log(`[Stats Sync] 💾 Сохранено в MongoDB (debounced): ${player.username} Level ${level}, StatPoints ${availableStatPoints}, XP ${experience}`);
-            } else {
-              console.warn(`[Stats Sync] ⚠️ Character not found in DB: characterId=${player.userId}`);
-            }
-
-            // Удаляем таймер из Map
-            statsSaveTimers.delete(socket.id);
-          } catch (dbError) {
-            console.error('[Stats Sync] ❌ MongoDB save error:', dbError.message);
-            statsSaveTimers.delete(socket.id);
-          }
-        }, 500); // Debounce 500ms
-
-        // Сохраняем таймер в Map
-        statsSaveTimers.set(socket.id, {
-          timer: saveTimer,
-          pendingData: { level, experience, availableStatPoints, stats }
         });
 
       } catch (error) {

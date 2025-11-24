@@ -217,9 +217,25 @@ exports.saveProgress = async (req, res) => {
       availableStatPoints: character.availableStatPoints
     });
 
+    // ВАЖНО: Возвращаем СОХРАНЕННЫЕ данные обратно клиенту
+    // Unity ожидает получить CharacterProgressResponse со stats и leveling
     res.json({
       success: true,
-      message: 'Прогресс сохранен'
+      message: 'Прогресс сохранен',
+      stats: {
+        strength: character.stats.strength,
+        perception: character.stats.perception,
+        endurance: character.stats.endurance,
+        wisdom: character.stats.wisdom,
+        intelligence: character.stats.intelligence,
+        agility: character.stats.agility,
+        luck: character.stats.luck
+      },
+      leveling: {
+        level: character.level,
+        experience: character.experience,
+        availableStatPoints: character.availableStatPoints
+      }
     });
 
   } catch (error) {
