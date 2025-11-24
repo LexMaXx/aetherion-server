@@ -1584,8 +1584,9 @@ module.exports = (io) => {
             updateData.experience = currentExperience;
           }
 
-          const result = await Character.findOneAndUpdate(
-            { userId: player.userId, characterClass: characterClass },
+          // ВАЖНО: player.userId это CHARACTER _id (не User userId!)
+          const result = await Character.findByIdAndUpdate(
+            player.userId,  // Character _id
             { $set: updateData },
             { new: true }
           );
@@ -1593,7 +1594,7 @@ module.exports = (io) => {
           if (result) {
             console.log(`[Level Up] 💾 Сохранено в MongoDB: ${player.username} Level ${newLevel}, StatPoints ${availableStatPoints}, XP ${currentExperience || 'N/A'}`);
           } else {
-            console.warn(`[Level Up] ⚠️ Character not found in DB: userId=${player.userId}, class=${characterClass}`);
+            console.warn(`[Level Up] ⚠️ Character not found in DB: characterId=${player.userId}`);
           }
         } catch (dbError) {
           console.error('[Level Up] ❌ MongoDB save error:', dbError.message);
@@ -1699,8 +1700,10 @@ module.exports = (io) => {
             stats: stats
           };
 
-          const result = await Character.findOneAndUpdate(
-            { userId: player.userId, characterClass: characterClass },
+          // ВАЖНО: player.userId это CHARACTER _id (не User userId!)
+          // Unity отправляет SelectedCharacterId который является Character document _id
+          const result = await Character.findByIdAndUpdate(
+            player.userId,  // Character _id
             { $set: updateData },
             { new: true }
           );
@@ -1708,7 +1711,7 @@ module.exports = (io) => {
           if (result) {
             console.log(`[Stats Sync] 💾 Сохранено в MongoDB: ${player.username} Level ${level}, StatPoints ${availableStatPoints}, XP ${experience}`);
           } else {
-            console.warn(`[Stats Sync] ⚠️ Character not found in DB: userId=${player.userId}, class=${characterClass}`);
+            console.warn(`[Stats Sync] ⚠️ Character not found in DB: characterId=${player.userId}`);
           }
         } catch (dbError) {
           console.error('[Stats Sync] ❌ MongoDB save error:', dbError.message);
