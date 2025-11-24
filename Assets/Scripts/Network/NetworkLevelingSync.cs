@@ -182,7 +182,8 @@ public class NetworkLevelingSync : MonoBehaviour
         {
             newLevel = newLevel,
             characterClass = characterClass,
-            availableStatPoints = levelingSystem.AvailableStatPoints
+            availableStatPoints = levelingSystem.AvailableStatPoints,
+            currentExperience = levelingSystem.CurrentExperience // Отправляем текущий опыт для сохранения
         });
 
         socketManager.Emit("player_level_up", json);
@@ -471,6 +472,7 @@ public class LevelUpEvent
     public int newLevel;
     public string characterClass;
     public int availableStatPoints;
+    public int currentExperience; // Добавлено для сохранения опыта в MongoDB
 }
 
 /// <summary>
