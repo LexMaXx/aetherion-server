@@ -156,6 +156,12 @@ exports.saveProgress = async (req, res) => {
     const userId = req.user.id;
     const { characterClass, stats, leveling } = req.body;
 
+    console.log('[saveProgress] 📥 Получен запрос:', {
+      userId,
+      characterClass,
+      leveling: leveling
+    });
+
     // Валидация
     if (!characterClass || !stats || !leveling) {
       return res.status(400).json({
@@ -174,10 +180,22 @@ exports.saveProgress = async (req, res) => {
       });
     }
 
+    console.log('[saveProgress] 📊 ДО обновления:', {
+      level: character.level,
+      experience: character.experience,
+      availableStatPoints: character.availableStatPoints
+    });
+
     // Обновляем данные
     character.level = leveling.level;
     character.experience = leveling.experience;
     character.availableStatPoints = leveling.availableStatPoints;
+
+    console.log('[saveProgress] 📊 ПОСЛЕ обновления:', {
+      level: character.level,
+      experience: character.experience,
+      availableStatPoints: character.availableStatPoints
+    });
 
     // Обновляем SPECIAL stats
     character.stats.strength = stats.strength;
@@ -190,6 +208,12 @@ exports.saveProgress = async (req, res) => {
 
     character.lastPlayed = Date.now();
     await character.save();
+
+    console.log('[saveProgress] ✅ Сохранено в MongoDB:', {
+      level: character.level,
+      experience: character.experience,
+      availableStatPoints: character.availableStatPoints
+    });
 
     res.json({
       success: true,
@@ -226,6 +250,13 @@ exports.loadProgress = async (req, res) => {
         message: 'Персонаж не найден'
       });
     }
+
+    console.log('[loadProgress] 📤 Отправка данных клиенту:', {
+      characterClass,
+      level: character.level,
+      experience: character.experience,
+      availableStatPoints: character.availableStatPoints
+    });
 
     res.json({
       success: true,
