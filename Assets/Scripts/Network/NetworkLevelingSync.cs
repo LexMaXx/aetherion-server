@@ -143,6 +143,13 @@ public class NetworkLevelingSync : MonoBehaviour
 
         // При изменении очков также отправляем полную синхронизацию
         BroadcastFullStats();
+
+        // КРИТИЧЕСКИ ВАЖНО: НЕ вызываем автосохранение здесь!
+        // LevelingSystem.SpendStatPoint() уже вызывает SaveToServer() НЕМЕДЛЕННО
+        // Если мы вызовем ScheduleSaveToServer() здесь, это создаст RACE CONDITION:
+        // - SpendStatPoint сохраняет availableStatPoints=0 сразу
+        // - Через 2 секунды наша корутина может сохранить СТАРОЕ значение
+        // Поэтому сохранение делает ТОЛЬКО LevelingSystem!
     }
 
     /// <summary>
