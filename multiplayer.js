@@ -1544,10 +1544,14 @@ module.exports = (io) => {
         let baseMana = 100;
         let baseAttack = 10;
 
+        console.log(`[Equipment] 🔍 Looking for character: userId='${player.userId}' class='${player.characterClass}'`);
+
         if (player.userId && player.characterClass) {
           try {
             const Character = require('./models/Character');
             const character = await Character.findOne({ userId: player.userId, characterClass: player.characterClass });
+
+            console.log(`[Equipment] 🔍 Database query result: ${character ? 'FOUND' : 'NOT FOUND'}`);
 
             if (character && character.stats) {
               characterStats = character.stats;
@@ -1568,6 +1572,8 @@ module.exports = (io) => {
           } catch (err) {
             console.error(`[Equipment] ❌ Error loading character stats:`, err.message);
           }
+        } else {
+          console.warn(`[Equipment] ⚠️ Missing userId or characterClass on player object!`);
         }
 
         // Рассчитываем финальные значения С ЭКИПИРОВКОЙ (server-authoritative!)
