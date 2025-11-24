@@ -865,12 +865,6 @@ namespace AetherionMMO.Inventory
 
                 string json = JsonUtility.ToJson(request);
 
-                // КРИТИЧЕСКИ ВАЖНО: Удаляем предмет из UI СРАЗУ, не дожидаясь ответа сервера
-                // Это предотвращает race condition при двойном клике
-                Debug.Log($"[MongoInventory] 🗑️ Локально удаляю {itemName} из слота {slotIndex}...");
-                slots[slotIndex].Clear();
-                Debug.Log($"[MongoInventory] ✅ UI обновлён, слот {slotIndex} очищен");
-
                 SocketIOManager.Instance.EmitCustomEvent("mmo_remove_item", json, (response) =>
                 {
                     // НЕ вызываем HandleInventoryUpdated, чтобы не перезаписать золото!
@@ -881,11 +875,13 @@ namespace AetherionMMO.Inventory
                         if (res.success)
                         {
                             Debug.Log($"[MongoInventory] ✅ Предмет {itemName} удалён на сервере");
+                            // Удаляем из UI ПОСЛЕ успешного ответа сервера
+                            slots[slotIndex].Clear();
+                            Debug.Log($"[MongoInventory] ✅ UI обновлён, слот {slotIndex} очищен");
                         }
                         else
                         {
                             Debug.LogError($"[MongoInventory] ❌ Ошибка удаления на сервере: {res.message}");
-                            // TODO: В случае ошибки можно восстановить предмет в UI из snapshot
                         }
                     }
                     catch (Exception e)
