@@ -16,6 +16,7 @@ exports.getCharacters = async (req, res) => {
         characterClass: char.characterClass,
         level: char.level,
         experience: char.experience,
+        availableStatPoints: char.availableStatPoints, // ВАЖНО: Свободные очки характеристик
         gold: char.gold,
         stats: char.stats,
         health: char.health,
@@ -98,6 +99,7 @@ exports.selectOrCreateCharacter = async (req, res) => {
         characterClass: character.characterClass,
         level: character.level,
         experience: character.experience,
+        availableStatPoints: character.availableStatPoints, // ВАЖНО: Свободные очки характеристик
         gold: character.gold,
         stats: character.stats,
         health: character.health,
