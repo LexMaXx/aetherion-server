@@ -293,9 +293,11 @@ namespace AetherionMMO.Inventory
 
             isLoadingFromServer = true;
 
-            // Отправляем запрос на сервер
+            // Отправляем запрос на сервер (используем Newtonsoft.Json для правильной сериализации)
             var request = new { characterClass = characterClass };
-            string json = JsonUtility.ToJson(request);
+            string json = Newtonsoft.Json.JsonConvert.SerializeObject(request);
+
+            Debug.Log($"[MongoInventory] 📤 Отправка запроса: {json}");
 
             SocketIOManager.Instance.EmitCustomEvent("mmo_load_inventory", json, (response) =>
             {
@@ -600,14 +602,14 @@ namespace AetherionMMO.Inventory
                 }
             }
 
-            // Формируем запрос
+            // Формируем запрос (используем Newtonsoft.Json для правильной сериализации)
             var saveRequest = new
             {
                 characterClass = characterClass,
                 inventory = snapshot
             };
 
-            string json = JsonUtility.ToJson(saveRequest);
+            string json = Newtonsoft.Json.JsonConvert.SerializeObject(saveRequest);
 
             // Отправляем на сервер
             SocketIOManager.Instance.Emit("mmo_save_inventory", json);
@@ -835,6 +837,23 @@ namespace AetherionMMO.Inventory
         {
             Debug.Log($"[MongoInventory] 🗑️ Удаление предмета из слота {slotIndex}");
 
+            // ВАЖНО: Проверяем валидность слота
+            if (slotIndex < 0 || slotIndex >= slots.Count)
+            {
+                Debug.LogError($"[MongoInventory] ❌ Недопустимый индекс слота: {slotIndex}");
+                return;
+            }
+
+            // ВАЖНО: Проверяем что слот не пустой
+            if (slots[slotIndex].IsEmpty())
+            {
+                Debug.LogWarning($"[MongoInventory] ⚠️ Слот {slotIndex} уже пуст!");
+                return;
+            }
+
+            // Получаем имя предмета для логирования
+            string itemName = slots[slotIndex].GetItem()?.itemName ?? "Unknown";
+
             if (SocketIOManager.Instance != null && SocketIOManager.Instance.IsConnected)
             {
                 var request = new RemoveItemRequest
@@ -846,6 +865,12 @@ namespace AetherionMMO.Inventory
 
                 string json = JsonUtility.ToJson(request);
 
+                // КРИТИЧЕСКИ ВАЖНО: Удаляем предмет из UI СРАЗУ, не дожидаясь ответа сервера
+                // Это предотвращает race condition при двойном клике
+                Debug.Log($"[MongoInventory] 🗑️ Локально удаляю {itemName} из слота {slotIndex}...");
+                slots[slotIndex].Clear();
+                Debug.Log($"[MongoInventory] ✅ UI обновлён, слот {slotIndex} очищен");
+
                 SocketIOManager.Instance.EmitCustomEvent("mmo_remove_item", json, (response) =>
                 {
                     // НЕ вызываем HandleInventoryUpdated, чтобы не перезаписать золото!
@@ -855,11 +880,12 @@ namespace AetherionMMO.Inventory
                         MMOInventoryResponse res = JsonUtility.FromJson<MMOInventoryResponse>(response);
                         if (res.success)
                         {
-                            Debug.Log($"[MongoInventory] ✅ Предмет удалён на сервере");
+                            Debug.Log($"[MongoInventory] ✅ Предмет {itemName} удалён на сервере");
                         }
                         else
                         {
                             Debug.LogError($"[MongoInventory] ❌ Ошибка удаления на сервере: {res.message}");
+                            // TODO: В случае ошибки можно восстановить предмет в UI из snapshot
                         }
                     }
                     catch (Exception e)
@@ -873,14 +899,11 @@ namespace AetherionMMO.Inventory
                 // РЕЖИМ БЕЗ СЕРВЕРА: Локальное удаление
                 Debug.LogWarning("[MongoInventory] ⚠️ Сервер не подключен - локальное удаление");
 
-                if (slotIndex >= 0 && slotIndex < slots.Count)
-                {
-                    slots[slotIndex].Clear();
-                    Debug.Log($"[MongoInventory] ✅ Локально удалено из слота {slotIndex}");
+                slots[slotIndex].Clear();
+                Debug.Log($"[MongoInventory] ✅ Локально удалено {itemName} из слота {slotIndex}");
 
-                    // Автосохранение в PlayerPrefs
-                    SaveInventoryToPlayerPrefs();
-                }
+                // Автосохранение в PlayerPrefs
+                SaveInventoryToPlayerPrefs();
             }
         }
 
@@ -1060,18 +1083,21 @@ namespace AetherionMMO.Inventory
 
             Debug.Log($"[MongoInventory] 🍾 Using consumable: {item.itemName}");
             Debug.Log($"[MongoInventory] 📊 Item stats: healAmount={item.healAmount}, manaRestoreAmount={item.manaRestoreAmount}");
+            Debug.Log($"[MongoInventory] 📊 Item ItemId: {item.ItemId}");
 
             // Применяем эффект зелья
             bool effectApplied = false;
 
             if (item.healAmount > 0)
             {
+                Debug.Log($"[MongoInventory] 🔍 Searching for HealthSystem...");
                 // Восстанавливаем HP через HealthSystem
                 HealthSystem healthSystem = FindObjectOfType<HealthSystem>();
                 if (healthSystem != null)
                 {
+                    Debug.Log($"[MongoInventory] ✅ HealthSystem found! HP before: {healthSystem.CurrentHealth}/{healthSystem.MaxHealth}");
                     healthSystem.Heal(item.healAmount);
-                    Debug.Log($"[MongoInventory] ✅ Healed {item.healAmount} HP");
+                    Debug.Log($"[MongoInventory] ✅ Healed {item.healAmount} HP. HP after: {healthSystem.CurrentHealth}/{healthSystem.MaxHealth}");
                     effectApplied = true;
 
                     // Отправляем на сервер для синхронизации
@@ -1079,18 +1105,24 @@ namespace AetherionMMO.Inventory
                 }
                 else
                 {
-                    Debug.LogWarning("[MongoInventory] ⚠️ HealthSystem not found!");
+                    Debug.LogError("[MongoInventory] ❌ HealthSystem not found! Зелье НЕ БУДЕТ удалено!");
                 }
+            }
+            else
+            {
+                Debug.Log($"[MongoInventory] ⚠️ healAmount = 0, пропускаем восстановление HP");
             }
 
             if (item.manaRestoreAmount > 0)
             {
+                Debug.Log($"[MongoInventory] 🔍 Searching for ManaSystem...");
                 // Восстанавливаем ману через ManaSystem
                 ManaSystem manaSystem = FindObjectOfType<ManaSystem>();
                 if (manaSystem != null)
                 {
+                    Debug.Log($"[MongoInventory] ✅ ManaSystem found! Mana before: {manaSystem.CurrentMana}/{manaSystem.MaxMana}");
                     manaSystem.RestoreMana(item.manaRestoreAmount);
-                    Debug.Log($"[MongoInventory] ✅ Restored {item.manaRestoreAmount} Mana");
+                    Debug.Log($"[MongoInventory] ✅ Restored {item.manaRestoreAmount} Mana. Mana after: {manaSystem.CurrentMana}/{manaSystem.MaxMana}");
                     effectApplied = true;
 
                     // Отправляем на сервер для синхронизации
@@ -1098,18 +1130,36 @@ namespace AetherionMMO.Inventory
                 }
                 else
                 {
-                    Debug.LogWarning("[MongoInventory] ⚠️ ManaSystem not found!");
+                    Debug.LogError("[MongoInventory] ❌ ManaSystem not found! Зелье НЕ БУДЕТ удалено!");
                 }
-            }
-
-            if (effectApplied)
-            {
-                // Удаляем 1 предмет из инвентаря
-                RemoveItem(item, 1);
             }
             else
             {
-                Debug.LogWarning($"[MongoInventory] ⚠️ Consumable has no effect: {item.itemName}");
+                Debug.Log($"[MongoInventory] ⚠️ manaRestoreAmount = 0, пропускаем восстановление маны");
+            }
+
+            Debug.Log($"[MongoInventory] 📊 effectApplied = {effectApplied}");
+
+            // ИЗМЕНЕНИЕ ЛОГИКИ: Удаляем зелье ВСЕГДА, даже если HealthSystem/ManaSystem не найдены
+            // Это предотвращает "зависание" зелий в инвентаре
+            // Если системы не найдены - это проблема настройки сцены, но зелье должно исчезнуть
+            if (item.healAmount > 0 || item.manaRestoreAmount > 0)
+            {
+                Debug.Log($"[MongoInventory] 🗑️ Вызываю RemoveItem({item.itemName}, 1)...");
+                // Удаляем 1 предмет из инвентаря
+                RemoveItem(item, 1);
+                Debug.Log($"[MongoInventory] ✅ RemoveItem завершён");
+
+                if (!effectApplied)
+                {
+                    Debug.LogWarning($"[MongoInventory] ⚠️ Зелье {item.itemName} удалено, но эффект НЕ применён!");
+                    Debug.LogWarning($"[MongoInventory] ⚠️ Причина: HealthSystem или ManaSystem не найдены в сцене!");
+                }
+            }
+            else
+            {
+                Debug.LogError($"[MongoInventory] ❌ Зелье {item.itemName} имеет healAmount=0 и manaRestoreAmount=0!");
+                Debug.LogError($"[MongoInventory] ❌ Это ошибка конфигурации ItemData! Проверьте настройки зелья в Inspector!");
             }
         }
 
