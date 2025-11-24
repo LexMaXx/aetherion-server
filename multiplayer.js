@@ -1550,7 +1550,7 @@ module.exports = (io) => {
     // ═══════════════════════════════════════════
 
     // Получение уровня игроком
-    socket.on('player_level_up', (data) => {
+    socket.on('player_level_up', async (data) => {
       try {
         let parsedData = data;
         if (typeof data === 'string') {
@@ -1563,13 +1563,41 @@ module.exports = (io) => {
           return;
         }
 
-        const { newLevel, characterClass, availableStatPoints } = parsedData;
+        const { newLevel, characterClass, availableStatPoints, currentExperience } = parsedData;
 
         console.log(`[Level Up] 🎉 ${player.username} достиг уровня ${newLevel}!`);
 
         // Обновляем уровень в памяти
         player.level = newLevel;
         player.availableStatPoints = availableStatPoints;
+
+        // НОВОЕ: Сохраняем в MongoDB
+        try {
+          const Character = require('./models/Character');
+          const updateData = {
+            level: newLevel,
+            availableStatPoints: availableStatPoints
+          };
+
+          // Если передан текущий опыт, тоже сохраняем
+          if (currentExperience !== undefined) {
+            updateData.experience = currentExperience;
+          }
+
+          const result = await Character.findOneAndUpdate(
+            { userId: player.userId, characterClass: characterClass },
+            { $set: updateData },
+            { new: true }
+          );
+
+          if (result) {
+            console.log(`[Level Up] 💾 Сохранено в MongoDB: ${player.username} Level ${newLevel}, StatPoints ${availableStatPoints}, XP ${currentExperience || 'N/A'}`);
+          } else {
+            console.warn(`[Level Up] ⚠️ Character not found in DB: userId=${player.userId}, class=${characterClass}`);
+          }
+        } catch (dbError) {
+          console.error('[Level Up] ❌ MongoDB save error:', dbError.message);
+        }
 
         // Broadcast всем игрокам в комнате (включая отправителя для подтверждения)
         io.to(player.roomId).emit('player_level_up', {
