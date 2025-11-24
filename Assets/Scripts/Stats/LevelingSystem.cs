@@ -241,7 +241,10 @@ public class LevelingSystem : MonoBehaviour
     private void TestAddStatPoint()
     {
         availableStatPoints++;
-        Debug.Log($"[Test] Добавлено очко. Всего: {availableStatPoints}");
+        OnStatPointsChanged?.Invoke(availableStatPoints); // ВАЖНО: Вызываем событие для синхронизации
+        Debug.LogWarning($"[Test] ⚠️ ТЕСТОВЫЙ МЕТОД! Добавлено очко вручную. Всего: {availableStatPoints}");
+        Debug.LogWarning($"[Test] ⚠️ Это НЕ должно использоваться в продакшене! Только для отладки!");
+        SaveToServer(); // Сохраняем сразу
     }
 
     // ═══════════════════════════════════════════════════════
