@@ -1347,42 +1347,70 @@ module.exports = (io) => {
 
         const { potionType, restoreAmount, currentValue, maxValue } = parsedData;
 
-        console.log(`[Potion] 🍾 ${player.username} used ${potionType} potion: +${restoreAmount} (${currentValue}/${maxValue})`);
+        console.log(`[Potion] 🍾 ${player.username} used ${potionType} potion`);
+        console.log(`[Potion] 📊 Received: restoreAmount=${restoreAmount}, currentValue=${currentValue}, maxValue=${maxValue}`);
 
-        // Обновляем значение на сервере
+        // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Вычисляем новое значение на сервере
+        // currentValue от клиента - это ТЕКУЩЕЕ значение ДО использования зелья
+        let newValue;
+
         if (potionType === 'health') {
-          player.health = currentValue;
-          player.maxHealth = maxValue;
-          player.currentHealth = currentValue; // Для совместимости с другими системами
+          // Получаем ТЕКУЩИЙ HP игрока на сервере (server-authoritative)
+          const serverCurrentHP = player.health || player.currentHealth || currentValue;
+          const serverMaxHP = player.maxHealth || maxValue;
 
-          console.log(`[Potion] ❤️ ${player.username} HP updated: ${player.health}/${player.maxHealth}`);
+          console.log(`[Potion] 📊 Server HP BEFORE potion: ${serverCurrentHP}/${serverMaxHP}`);
+
+          // Вычисляем новый HP = текущий + восстановление
+          newValue = Math.min(serverCurrentHP + restoreAmount, serverMaxHP);
+
+          // Обновляем на сервере
+          player.health = newValue;
+          player.maxHealth = serverMaxHP;
+          player.currentHealth = newValue; // Для совместимости
+
+          console.log(`[Potion] ❤️ ${player.username} HP AFTER potion: ${newValue}/${serverMaxHP} (+${restoreAmount})`);
         } else if (potionType === 'mana') {
-          player.mana = currentValue;
-          player.maxMana = maxValue;
-          player.currentMana = currentValue; // Для совместимости
+          // Получаем ТЕКУЩУЮ ману игрока на сервере
+          const serverCurrentMana = player.mana || player.currentMana || currentValue;
+          const serverMaxMana = player.maxMana || maxValue;
 
-          console.log(`[Potion] 💙 ${player.username} Mana updated: ${player.mana}/${player.maxMana}`);
+          console.log(`[Potion] 📊 Server Mana BEFORE potion: ${serverCurrentMana}/${serverMaxMana}`);
+
+          // Вычисляем новую ману = текущая + восстановление
+          newValue = Math.min(serverCurrentMana + restoreAmount, serverMaxMana);
+
+          // Обновляем на сервере
+          player.mana = newValue;
+          player.maxMana = serverMaxMana;
+          player.currentMana = newValue; // Для совместимости
+
+          console.log(`[Potion] 💙 ${player.username} Mana AFTER potion: ${newValue}/${serverMaxMana} (+${restoreAmount})`);
         }
 
         // Отправляем обновление всем игрокам в комнате (включая использовавшего зелье)
-        io.to(player.roomId).emit('potion_used', {
+        const broadcastData = {
           socketId: socket.id,
           username: player.username,
           potionType: potionType,
           restoreAmount: restoreAmount,
-          currentValue: currentValue,
-          maxValue: maxValue,
+          currentValue: potionType === 'health' ? player.health : player.mana, // НОВОЕ значение от сервера
+          maxValue: potionType === 'health' ? player.maxHealth : player.maxMana,
           health: player.health,
           maxHealth: player.maxHealth,
           mana: player.mana || 0,
           maxMana: player.maxMana || 0,
           timestamp: Date.now()
-        });
+        };
+
+        io.to(player.roomId).emit('potion_used', broadcastData);
 
         console.log(`[Potion] ✅ ${player.username} potion effect broadcasted to room ${player.roomId}`);
+        console.log(`[Potion] 📤 Broadcast data:`, JSON.stringify(broadcastData));
 
       } catch (error) {
         console.error('[Potion] ❌ Error:', error.message);
+        console.error('[Potion] Stack:', error.stack);
       }
     });
 
