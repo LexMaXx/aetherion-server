@@ -310,15 +310,22 @@ public class SocketIOManager : MonoBehaviour
 
         currentRoomId = roomId;
         myUsername = PlayerPrefs.GetString("Username", "Player");
-        myUserId = PlayerPrefs.GetString("UserId", "");
+
+        // КРИТИЧЕСКИ ВАЖНО: Используем SelectedCharacterId (MongoDB ObjectId) вместо UserId (UUID)
+        // SelectedCharacterId сохраняется в CharacterSelectionManager.SelectOrCreateCharacter() после логина
+        myUserId = PlayerPrefs.GetString("SelectedCharacterId", "");
 
         // КРИТИЧНО: userId не должен быть пустым для MMO режима
         if (string.IsNullOrEmpty(myUserId))
         {
+            Debug.LogError($"[SocketIO] ❌ SelectedCharacterId не найден в PlayerPrefs!");
+            Debug.LogError($"[SocketIO] ❌ Игрок должен сначала выбрать персонажа через CharacterSelectionManager!");
+            Debug.LogError($"[SocketIO] ❌ Генерируем временный UUID (НЕ будет работать с MongoDB!)");
             myUserId = System.Guid.NewGuid().ToString();
-            PlayerPrefs.SetString("UserId", myUserId);
-            PlayerPrefs.Save();
-            Debug.LogError($"[SocketIO] 🆔 userId был пустой, сгенерирован новый: {myUserId}");
+        }
+        else
+        {
+            Debug.Log($"[SocketIO] ✅ SelectedCharacterId (MongoDB ObjectId) загружен из PlayerPrefs: {myUserId}");
         }
 
         Debug.LogError($"[SocketIO] 🔍🔍🔍 ДИАГНОСТИКА JoinRoom:");
