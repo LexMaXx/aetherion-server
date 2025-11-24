@@ -998,34 +998,35 @@ public class BattleSceneManager : MonoBehaviour
 
         // Проверяем есть ли уже LevelingSystem (на том же объекте где CharacterStats)
         LevelingSystem levelingSystem = characterStats.GetComponent<LevelingSystem>();
-        if (levelingSystem != null)
+        if (levelingSystem == null)
+        {
+            // Добавляем LevelingSystem на тот же GameObject где CharacterStats
+            levelingSystem = characterStats.gameObject.AddComponent<LevelingSystem>();
+            Debug.Log($"[BattleSceneManager] ⭐ ДОБАВЛЕН LevelingSystem на {characterStats.gameObject.name}");
+        }
+        else
         {
             Debug.Log($"[BattleSceneManager] ✓ LevelingSystem уже существует на {characterStats.gameObject.name}");
-            Debug.Log($"[BattleSceneManager] ✓ Текущий Level: {levelingSystem.CurrentLevel}, XP: {levelingSystem.CurrentExperience}, Points: {levelingSystem.AvailableStatPoints}");
-
-            // Даже если LevelingSystem существует, нужно добавить NetworkLevelingSync и ExperienceRewardSystem для онлайна
-            if (isMultiplayer)
-            {
-                NetworkLevelingSync networkLevelingSync = characterStats.GetComponent<NetworkLevelingSync>();
-                if (networkLevelingSync == null)
-                {
-                    networkLevelingSync = characterStats.gameObject.AddComponent<NetworkLevelingSync>();
-                    Debug.Log($"[BattleSceneManager] ⭐ Добавлен NetworkLevelingSync на {characterStats.gameObject.name} (LevelingSystem был в префабе)");
-                }
-
-                ExperienceRewardSystem experienceReward = characterStats.GetComponent<ExperienceRewardSystem>();
-                if (experienceReward == null)
-                {
-                    experienceReward = characterStats.gameObject.AddComponent<ExperienceRewardSystem>();
-                    Debug.Log($"[BattleSceneManager] ⭐ Добавлен ExperienceRewardSystem на {characterStats.gameObject.name} (LevelingSystem был в префабе)");
-                }
-            }
-            return;
+            Debug.Log($"[BattleSceneManager] ✓ Текущий Level (ДО загрузки): {levelingSystem.CurrentLevel}, XP: {levelingSystem.CurrentExperience}, Points: {levelingSystem.AvailableStatPoints}");
         }
 
-        // Добавляем LevelingSystem на тот же GameObject где CharacterStats
-        levelingSystem = characterStats.gameObject.AddComponent<LevelingSystem>();
-        Debug.Log($"[BattleSceneManager] ⭐ ДОБАВЛЕН LevelingSystem на {characterStats.gameObject.name}");
+        // Даже если LevelingSystem существует, нужно добавить NetworkLevelingSync и ExperienceRewardSystem для онлайна
+        if (isMultiplayer)
+        {
+            NetworkLevelingSync networkLevelingSync = characterStats.GetComponent<NetworkLevelingSync>();
+            if (networkLevelingSync == null)
+            {
+                networkLevelingSync = characterStats.gameObject.AddComponent<NetworkLevelingSync>();
+                Debug.Log($"[BattleSceneManager] ⭐ Добавлен NetworkLevelingSync на {characterStats.gameObject.name}");
+            }
+
+            ExperienceRewardSystem experienceReward = characterStats.GetComponent<ExperienceRewardSystem>();
+            if (experienceReward == null)
+            {
+                experienceReward = characterStats.gameObject.AddComponent<ExperienceRewardSystem>();
+                Debug.Log($"[BattleSceneManager] ⭐ Добавлен ExperienceRewardSystem на {characterStats.gameObject.name}");
+            }
+        }
 
         // Загружаем прогресс прокачки с сервера/PlayerPrefs
         string token = PlayerPrefs.GetString("UserToken", "");
