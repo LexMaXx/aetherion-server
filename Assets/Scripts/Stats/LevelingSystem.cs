@@ -286,16 +286,11 @@ public class LevelingSystem : MonoBehaviour
     /// </summary>
     private void ScheduleSaveToServer()
     {
-        // Проверяем наличие NetworkLevelingSync - в multiplayer он сам сохраняет
-        NetworkLevelingSync networkSync = GetComponent<NetworkLevelingSync>();
-        if (networkSync != null)
-        {
-            // В multiplayer NetworkLevelingSync сам вызовет SaveToServer через свою задержку
-            Debug.Log("[LevelingSystem] NetworkLevelingSync обнаружен - пропускаем дублирование сохранения");
-            return;
-        }
+        // ИСПРАВЛЕНИЕ: Убрана проверка на NetworkLevelingSync
+        // Проблема была: NetworkLevelingSync вызывает SaveToServer(),
+        // но SaveToServer() проверял наличие NetworkLevelingSync и выходил (deadlock)
+        // Теперь сохранение работает всегда, независимо от режима
 
-        // В singleplayer NetworkLevelingSync отсутствует - сохраняем сами
         if (saveCoroutine != null)
         {
             StopCoroutine(saveCoroutine);
