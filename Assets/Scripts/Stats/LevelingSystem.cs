@@ -127,9 +127,12 @@ public class LevelingSystem : MonoBehaviour
             OnStatPointsChanged?.Invoke(availableStatPoints);
             Debug.Log($"[LevelingSystem] Прокачана характеристика {statName}. Осталось очков: {availableStatPoints}");
 
-            // Сохраняем на сервер (NetworkLevelingSync сделает это с задержкой в multiplayer)
-            // Но в singleplayer NetworkLevelingSync отсутствует, поэтому вызываем напрямую
-            ScheduleSaveToServer();
+            // КРИТИЧЕСКИ ВАЖНО: Сохраняем НЕМЕДЛЕННО без задержки!
+            // Проблема была: ScheduleSaveToServer() имеет задержку 1 сек
+            // За эту секунду может произойти level up → availableStatPoints снова увеличится
+            // Старая корутина отменяется и сохраняется уже НОВОЕ значение (с добавленным очком)
+            // Решение: Сохранять немедленно при трате очка
+            SaveToServer();
 
             return true;
         }
