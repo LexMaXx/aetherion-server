@@ -16,6 +16,7 @@ exports.getCharacters = async (req, res) => {
         characterClass: char.characterClass,
         level: char.level,
         experience: char.experience,
+        availableStatPoints: char.availableStatPoints, // ВАЖНО: Свободные очки характеристик
         gold: char.gold,
         stats: char.stats,
         health: char.health,
@@ -98,6 +99,7 @@ exports.selectOrCreateCharacter = async (req, res) => {
         characterClass: character.characterClass,
         level: character.level,
         experience: character.experience,
+        availableStatPoints: character.availableStatPoints, // ВАЖНО: Свободные очки характеристик
         gold: character.gold,
         stats: character.stats,
         health: character.health,
@@ -215,9 +217,25 @@ exports.saveProgress = async (req, res) => {
       availableStatPoints: character.availableStatPoints
     });
 
+    // ВАЖНО: Возвращаем СОХРАНЕННЫЕ данные обратно клиенту
+    // Unity ожидает получить CharacterProgressResponse со stats и leveling
     res.json({
       success: true,
-      message: 'Прогресс сохранен'
+      message: 'Прогресс сохранен',
+      stats: {
+        strength: character.stats.strength,
+        perception: character.stats.perception,
+        endurance: character.stats.endurance,
+        wisdom: character.stats.wisdom,
+        intelligence: character.stats.intelligence,
+        agility: character.stats.agility,
+        luck: character.stats.luck
+      },
+      leveling: {
+        level: character.level,
+        experience: character.experience,
+        availableStatPoints: character.availableStatPoints
+      }
     });
 
   } catch (error) {
