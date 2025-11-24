@@ -1119,12 +1119,22 @@ module.exports = (io) => {
         const roomId = target.roomId;
         console.log(`[Heal] 🏠 Комната: ${roomId}`);
 
-        // Обновляем HP цели на сервере
-        target.health = currentHealth;
-        target.currentHealth = currentHealth;
-        target.maxHealth = maxHealth;
+        // КРИТИЧЕСКОЕ: Вычисляем новый HP на сервере (server-authoritative!)
+        // Получаем ТЕКУЩИЙ HP цели на сервере (может отличаться от клиента из-за урона)
+        const serverCurrentHP = target.health || target.currentHealth || 0;
+        const serverMaxHP = target.maxHealth || maxHealth;
 
-        console.log(`[Heal] ✅ HP цели обновлено: ${target.username} → ${target.health}/${target.maxHealth}`);
+        console.log(`[Heal] 📊 Server HP BEFORE heal: ${serverCurrentHP}/${serverMaxHP}`);
+
+        // Вычисляем новый HP = текущий на сервере + лечение
+        const newHP = Math.min(serverCurrentHP + healAmount, serverMaxHP);
+
+        // Обновляем HP цели на сервере
+        target.health = newHP;
+        target.currentHealth = newHP;
+        target.maxHealth = serverMaxHP;
+
+        console.log(`[Heal] ✅ ${target.username} HP AFTER heal: ${newHP}/${serverMaxHP} (+${healAmount})`);
 
         // Рассылаем событие лечения всем игрокам в комнате
         io.to(roomId).emit('player_healed', {
@@ -1132,8 +1142,8 @@ module.exports = (io) => {
           healerSocketId: healerSocketId || socket.id,
           healerName: healer.username,
           healAmount: healAmount,
-          currentHealth: currentHealth,
-          maxHealth: maxHealth,
+          currentHealth: newHP,  // ← ВАЖНО: Отправляем вычисленное значение от сервера!
+          maxHealth: serverMaxHP,
           timestamp: Date.now()
         });
 
