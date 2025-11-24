@@ -25,7 +25,7 @@ public class LevelingSystem : MonoBehaviour
 
     [Header("Auto Save")]
     [Tooltip("Задержка перед автосохранением (секунды)")]
-    [SerializeField] private float autoSaveDelay = 3f;
+    [SerializeField] private float autoSaveDelay = 1f;
 
     // Ссылка на CharacterStats
     private CharacterStats characterStats;
@@ -328,6 +328,8 @@ public class LevelingSystem : MonoBehaviour
         LevelingData levelingData = ExportData();
         CharacterStatsData statsData = characterStats.ExportData();
 
+        Debug.Log($"[LevelingSystem] 📊 Сохранение прогресса: Level={levelingData.level}, XP={levelingData.experience}, AvailablePoints={levelingData.availableStatPoints}");
+
         string token = PlayerPrefs.GetString("UserToken", "");
         string characterId = PlayerPrefs.GetString("SelectedCharacterId", "");
 
@@ -353,6 +355,33 @@ public class LevelingSystem : MonoBehaviour
             {
                 Debug.LogError($"[LevelingSystem] ❌ Ошибка сохранения прогресса: {error}");
             });
+    }
+
+    /// <summary>
+    /// Принудительное сохранение при выходе из игры или смене сцены
+    /// </summary>
+    void OnDestroy()
+    {
+        // Останавливаем корутину автосохранения если она запущена
+        if (saveCoroutine != null)
+        {
+            StopCoroutine(saveCoroutine);
+            saveCoroutine = null;
+        }
+
+        // КРИТИЧЕСКИ ВАЖНО: Принудительно сохраняем прогресс при выходе
+        // Это гарантирует что потраченные очки характеристик не потеряются
+        Debug.Log("[LevelingSystem] 💾 OnDestroy: принудительное сохранение прогресса...");
+        SaveToServer();
+    }
+
+    /// <summary>
+    /// Принудительное сохранение при выходе из приложения
+    /// </summary>
+    void OnApplicationQuit()
+    {
+        Debug.Log("[LevelingSystem] 🚪 OnApplicationQuit: принудительное сохранение прогресса...");
+        SaveToServer();
     }
 }
 
