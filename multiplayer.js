@@ -1156,6 +1156,78 @@ module.exports = (io) => {
     });
 
     // ═══════════════════════════════════════════
+    // ОБРАБОТКА ВОССТАНОВЛЕНИЯ МАНЫ
+    // ═══════════════════════════════════════════
+    socket.on('player_mana_restored', (data) => {
+      try {
+        console.log('[Mana] 📥 ========== ПОЛУЧЕНО player_mana_restored ==========');
+
+        // Парсим данные (может быть строкой или объектом)
+        let parsedData = data;
+        if (typeof data === 'string') {
+          parsedData = JSON.parse(data);
+        }
+
+        const { targetSocketId, manaAmount, currentMana, maxMana, restorerSocketId } = parsedData;
+
+        console.log(`[Mana] 💙 Восстановление маны: ${manaAmount}`);
+        console.log(`[Mana] 🎯 Target: ${targetSocketId}`);
+        console.log(`[Mana] 📊 Client reported: ${currentMana}/${maxMana} (IGNORED - will use server values)`);
+
+        // Получаем цель и восстанавливающего из activePlayers
+        const target = activePlayers.get(targetSocketId);
+        const restorer = activePlayers.get(restorerSocketId || socket.id);
+
+        if (!target) {
+          console.error(`[Mana] ❌ Target not found: ${targetSocketId}`);
+          return;
+        }
+
+        if (!restorer) {
+          console.error(`[Mana] ❌ Restorer not found: ${restorerSocketId || socket.id}`);
+          return;
+        }
+
+        const roomId = target.roomId;
+        console.log(`[Mana] 🏠 Комната: ${roomId}`);
+
+        // КРИТИЧЕСКОЕ: Вычисляем новую ману на сервере (server-authoritative!)
+        // Получаем ТЕКУЩУЮ ману цели на сервере (может отличаться от клиента из-за использования)
+        const serverCurrentMana = target.mana || target.currentMana || 0;
+        const serverMaxMana = target.maxMana || maxMana;
+
+        console.log(`[Mana] 📊 Server Mana BEFORE restore: ${serverCurrentMana}/${serverMaxMana}`);
+
+        // Вычисляем новую ману = текущая на сервере + восстановление
+        const newMana = Math.min(serverCurrentMana + manaAmount, serverMaxMana);
+
+        // Обновляем ману цели на сервере
+        target.mana = newMana;
+        target.currentMana = newMana;
+        target.maxMana = serverMaxMana;
+
+        console.log(`[Mana] ✅ ${target.username} Mana AFTER restore: ${newMana}/${serverMaxMana} (+${manaAmount})`);
+
+        // Рассылаем событие восстановления маны всем игрокам в комнате
+        io.to(roomId).emit('player_mana_restored', {
+          targetSocketId: targetSocketId,
+          restorerSocketId: restorerSocketId || socket.id,
+          restorerName: restorer.username,
+          manaAmount: manaAmount,
+          currentMana: newMana,  // ← ВАЖНО: Отправляем вычисленное значение от сервера!
+          maxMana: serverMaxMana,
+          timestamp: Date.now()
+        });
+
+        console.log(`[Mana] 📤 Broadcasted mana restore to room ${roomId}`);
+
+      } catch (error) {
+        console.error('[Mana] ❌ Error processing mana restore:', error.message);
+        console.error('[Mana] Stack:', error.stack);
+      }
+    });
+
+    // ═══════════════════════════════════════════
     // PVP: ОБРАБОТКА УРОНА МЕЖДУ ИГРОКАМИ
     // ═══════════════════════════════════════════
     socket.on('player_damage', (data) => {
