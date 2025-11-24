@@ -1500,7 +1500,7 @@ module.exports = (io) => {
     // ИЗМЕНЕНИЕ ЭКИПИРОВКИ
     // ═══════════════════════════════════════════
 
-    socket.on('equipment_changed', (data) => {
+    socket.on('equipment_changed', async (data) => {
       try {
         const player = activePlayers.get(socket.id);
         if (!player) {
@@ -1534,15 +1534,68 @@ module.exports = (io) => {
         console.log(`[Equipment] 📊 Item bonuses: ATK+${attackBonus} DEF+${defenseBonus} HP+${healthBonus} MP+${manaBonus}`);
         console.log(`[Equipment] 📊 Total bonuses: ATK+${totalAttackBonus} DEF+${totalDefenseBonus} HP+${totalHealthBonus} MP+${totalManaBonus}`);
 
-        // Обновляем данные игрока на сервере
-        player.maxHealth = maxHealth;
-        player.health = currentHealth;
-        player.currentHealth = currentHealth;
-        player.maxMana = maxMana;
-        player.mana = currentMana;
-        player.currentMana = currentMana;
-        player.attack = attack;
-        player.defense = defense;
+        // ═══════════════════════════════════════════════════════════════════
+        // SERVER-AUTHORITATIVE: Сервер сам рассчитывает HP/MP/ATK/DEF
+        // ═══════════════════════════════════════════════════════════════════
+
+        // Загружаем статы персонажа из БД для точного расчёта
+        let characterStats = null;
+        let baseHealth = 100;
+        let baseMana = 100;
+        let baseAttack = 10;
+
+        if (player.userId && player.characterClass) {
+          try {
+            const Character = require('./models/Character');
+            const character = await Character.findOne({ userId: player.userId, characterClass: player.characterClass });
+
+            if (character && character.stats) {
+              characterStats = character.stats;
+
+              // Рассчитываем базовые значения на основе РЕАЛЬНЫХ статов персонажа
+              // HP = 200 + (Endurance * 40)
+              // MP = 50 + (Wisdom * 15)
+              // ATK = STR * 5 + INT * 3 (физическая + магическая атака)
+              baseHealth = 200 + (characterStats.endurance * 40);
+              baseMana = 50 + (characterStats.wisdom * 15);
+              baseAttack = (characterStats.strength * 5) + (characterStats.intelligence * 3);
+
+              console.log(`[Equipment] 📊 ${player.characterClass} base stats: END=${characterStats.endurance} WIS=${characterStats.wisdom} STR=${characterStats.strength} INT=${characterStats.intelligence}`);
+              console.log(`[Equipment] 📊 Calculated base: HP=${baseHealth} MP=${baseMana} ATK=${baseAttack}`);
+            } else {
+              console.warn(`[Equipment] ⚠️ Character not found in DB, using default stats`);
+            }
+          } catch (err) {
+            console.error(`[Equipment] ❌ Error loading character stats:`, err.message);
+          }
+        }
+
+        // Рассчитываем финальные значения С ЭКИПИРОВКОЙ (server-authoritative!)
+        const serverMaxHealth = baseHealth + totalHealthBonus;
+        const serverMaxMana = baseMana + totalManaBonus;
+        const serverAttack = baseAttack + totalAttackBonus;
+        const serverDefense = 0 + totalDefenseBonus; // У нас нет базовой защиты, только от экипировки
+
+        // Сохраняем текущий % HP/MP чтобы не сбрасывать прогресс
+        const healthPercent = player.maxHealth > 0 ? (player.currentHealth / player.maxHealth) : 1;
+        const manaPercent = player.maxMana > 0 ? (player.currentMana / player.maxMana) : 1;
+
+        // Применяем новый maxHP/maxMP но сохраняем % заполненности
+        const serverCurrentHealth = Math.min(serverMaxHealth, Math.round(serverMaxHealth * healthPercent));
+        const serverCurrentMana = Math.min(serverMaxMana, Math.round(serverMaxMana * manaPercent));
+
+        console.log(`[Equipment] 🔧 Server recalculated: HP=${serverCurrentHealth}/${serverMaxHealth} MP=${serverCurrentMana}/${serverMaxMana} ATK=${serverAttack} DEF=${serverDefense}`);
+        console.log(`[Equipment] 📊 Client sent: HP=${currentHealth}/${maxHealth} MP=${currentMana}/${maxMana} ATK=${attack} DEF=${defense}`);
+
+        // Обновляем данные игрока на сервере (используем СЕРВЕРНЫЕ значения!)
+        player.maxHealth = serverMaxHealth;
+        player.health = serverCurrentHealth;
+        player.currentHealth = serverCurrentHealth;
+        player.maxMana = serverMaxMana;
+        player.mana = serverCurrentMana;
+        player.currentMana = serverCurrentMana;
+        player.attack = serverAttack;
+        player.defense = serverDefense;
 
         // Сохраняем информацию о бонусах экипировки
         if (!player.equipment) {
@@ -1553,9 +1606,9 @@ module.exports = (io) => {
         player.equipment.totalHealthBonus = totalHealthBonus;
         player.equipment.totalManaBonus = totalManaBonus;
 
-        console.log(`[Equipment] ✅ ${player.username} stats updated: HP=${currentHealth}/${maxHealth} MP=${currentMana}/${maxMana} ATK=${attack} DEF=${defense}`);
+        console.log(`[Equipment] ✅ ${player.username} stats updated (SERVER-AUTHORITATIVE): HP=${serverCurrentHealth}/${serverMaxHealth} MP=${serverCurrentMana}/${serverMaxMana} ATK=${serverAttack} DEF=${serverDefense}`);
 
-        // Broadcast всем игрокам в комнате
+        // Broadcast всем игрокам в комнате (отправляем СЕРВЕРНЫЕ значения!)
         io.to(player.roomId).emit('player_equipment_changed', {
           socketId: socket.id,
           username: player.username,
@@ -1572,13 +1625,13 @@ module.exports = (io) => {
           totalDefenseBonus: totalDefenseBonus,
           totalHealthBonus: totalHealthBonus,
           totalManaBonus: totalManaBonus,
-          // Текущие значения
-          health: currentHealth,
-          maxHealth: maxHealth,
-          mana: currentMana,
-          maxMana: maxMana,
-          attack: attack,
-          defense: defense,
+          // Текущие значения (SERVER-AUTHORITATIVE!)
+          health: serverCurrentHealth,
+          maxHealth: serverMaxHealth,
+          mana: serverCurrentMana,
+          maxMana: serverMaxMana,
+          attack: serverAttack,
+          defense: serverDefense,
           timestamp: Date.now()
         });
 
