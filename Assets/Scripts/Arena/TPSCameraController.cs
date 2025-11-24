@@ -65,6 +65,13 @@ public class TPSCameraController : MonoBehaviour
     /// </summary>
     private void HandleInput()
     {
+        // ESCAPE для принудительной разблокировки курсора (для тестирования в редакторе)
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
+
         // Вращение камеры (ПКМ + движение мыши)
         if (Input.GetKey(rotateButton))
         {
