@@ -1653,7 +1653,7 @@ module.exports = (io) => {
     });
 
     // Полная синхронизация статов игрока
-    socket.on('player_stats_sync', (data) => {
+    socket.on('player_stats_sync', async (data) => {
       try {
         let parsedData = data;
         if (typeof data === 'string') {
@@ -1687,6 +1687,32 @@ module.exports = (io) => {
           stats,
           timestamp: Date.now()
         });
+
+        // КРИТИЧЕСКИ ВАЖНО: Сохраняем в MongoDB!
+        // Без этого изменения теряются при перезаходе в игру
+        try {
+          const Character = require('./models/Character');
+          const updateData = {
+            level: level,
+            experience: experience,
+            availableStatPoints: availableStatPoints,
+            stats: stats
+          };
+
+          const result = await Character.findOneAndUpdate(
+            { userId: player.userId, characterClass: characterClass },
+            { $set: updateData },
+            { new: true }
+          );
+
+          if (result) {
+            console.log(`[Stats Sync] 💾 Сохранено в MongoDB: ${player.username} Level ${level}, StatPoints ${availableStatPoints}, XP ${experience}`);
+          } else {
+            console.warn(`[Stats Sync] ⚠️ Character not found in DB: userId=${player.userId}, class=${characterClass}`);
+          }
+        } catch (dbError) {
+          console.error('[Stats Sync] ❌ MongoDB save error:', dbError.message);
+        }
 
       } catch (error) {
         console.error('[Stats Sync] ❌ Error:', error.message);
