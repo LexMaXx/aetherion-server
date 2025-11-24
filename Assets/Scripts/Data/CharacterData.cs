@@ -93,6 +93,7 @@ public class CharacterInfo
 
     public int level;
     public int experience;
+    public int availableStatPoints; // Свободные очки характеристик
     public int gold;
     public CharacterStatsDTO stats; // DEPRECATED: старая структура
     public CharacterResource health;
