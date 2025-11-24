@@ -255,32 +255,35 @@ exports.loadProgress = async (req, res) => {
 };
 
 // Получить базовые характеристики класса
+// ВАЖНО: Эти значения должны соответствовать Unity ClassStatsPreset файлам!
+// (Assets/Resources/ClassStats/*.asset)
+// Сумма SPECIAL характеристик = 15 (баланс)
 function getClassBaseStats(characterClass) {
   const classStats = {
     Warrior: {
-      stats: { strength: 7, perception: 5, endurance: 8, wisdom: 4, intelligence: 3, agility: 6, luck: 5 },
-      health: { current: 150, max: 150 },
-      mana: { current: 30, max: 30 }
+      stats: { strength: 4, perception: 2, endurance: 3, wisdom: 1, intelligence: 1, agility: 3, luck: 1 }, // Сумма = 15
+      health: { current: 100, max: 100 },
+      mana: { current: 50, max: 50 }
     },
     Mage: {
-      stats: { strength: 2, perception: 6, endurance: 3, wisdom: 8, intelligence: 9, agility: 4, luck: 6 },
-      health: { current: 80, max: 80 },
-      mana: { current: 150, max: 150 }
+      stats: { strength: 1, perception: 3, endurance: 1, wisdom: 3, intelligence: 3, agility: 3, luck: 1 }, // Сумма = 15
+      health: { current: 100, max: 100 },
+      mana: { current: 50, max: 50 }
     },
     Archer: {
-      stats: { strength: 5, perception: 9, endurance: 5, wisdom: 4, intelligence: 4, agility: 8, luck: 5 },
+      stats: { strength: 4, perception: 3, endurance: 1, wisdom: 1, intelligence: 1, agility: 3, luck: 2 }, // Сумма = 15
       health: { current: 100, max: 100 },
       mana: { current: 50, max: 50 }
     },
     Rogue: {
-      stats: { strength: 5, perception: 7, endurance: 4, wisdom: 4, intelligence: 5, agility: 9, luck: 8 },
-      health: { current: 90, max: 90 },
-      mana: { current: 40, max: 40 }
+      stats: { strength: 1, perception: 2, endurance: 2, wisdom: 3, intelligence: 3, agility: 3, luck: 1 }, // Сумма = 15
+      health: { current: 100, max: 100 },
+      mana: { current: 50, max: 50 }
     },
     Paladin: {
-      stats: { strength: 7, perception: 5, endurance: 7, wisdom: 6, intelligence: 5, agility: 5, luck: 4 },
-      health: { current: 130, max: 130 },
-      mana: { current: 80, max: 80 }
+      stats: { strength: 2, perception: 2, endurance: 4, wisdom: 2, intelligence: 1, agility: 3, luck: 1 }, // Сумма = 15
+      health: { current: 100, max: 100 },
+      mana: { current: 50, max: 50 }
     }
   };
 
