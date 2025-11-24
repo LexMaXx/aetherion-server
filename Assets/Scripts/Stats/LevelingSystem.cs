@@ -1,5 +1,6 @@
 using UnityEngine;
 using System;
+using System.Collections;
 
 /// <summary>
 /// Система прокачки персонажа (уровни и распределение очков)
@@ -22,8 +23,15 @@ public class LevelingSystem : MonoBehaviour
     [Tooltip("Множитель роста опыта (каждый уровень требует больше)")]
     [SerializeField] private float expGrowthMultiplier = 1.5f;
 
+    [Header("Auto Save")]
+    [Tooltip("Задержка перед автосохранением (секунды)")]
+    [SerializeField] private float autoSaveDelay = 3f;
+
     // Ссылка на CharacterStats
     private CharacterStats characterStats;
+
+    // Автосохранение
+    private Coroutine saveCoroutine;
 
     // События
     public event Action<int> OnLevelUp;           // Новый уровень
@@ -89,8 +97,9 @@ public class LevelingSystem : MonoBehaviour
         OnLevelUp?.Invoke(currentLevel);
         OnStatPointsChanged?.Invoke(availableStatPoints);
 
-        // ИСПРАВЛЕНИЕ: NetworkLevelingSync сам вызовет SaveToServer через задержку
-        // Не вызываем напрямую чтобы избежать дублирования запросов
+        // Сохраняем на сервер (NetworkLevelingSync сделает это с задержкой в multiplayer)
+        // Но в singleplayer NetworkLevelingSync отсутствует, поэтому вызываем напрямую
+        ScheduleSaveToServer();
     }
 
     /// <summary>
@@ -118,8 +127,9 @@ public class LevelingSystem : MonoBehaviour
             OnStatPointsChanged?.Invoke(availableStatPoints);
             Debug.Log($"[LevelingSystem] Прокачана характеристика {statName}. Осталось очков: {availableStatPoints}");
 
-            // ИСПРАВЛЕНИЕ: NetworkLevelingSync сам вызовет SaveToServer через задержку
-            // Не вызываем напрямую чтобы избежать дублирования запросов
+            // Сохраняем на сервер (NetworkLevelingSync сделает это с задержкой в multiplayer)
+            // Но в singleplayer NetworkLevelingSync отсутствует, поэтому вызываем напрямую
+            ScheduleSaveToServer();
 
             return true;
         }
@@ -269,6 +279,38 @@ public class LevelingSystem : MonoBehaviour
         OnLevelUp?.Invoke(currentLevel);
         OnExperienceGained?.Invoke(currentExperience);
         OnStatPointsChanged?.Invoke(availableStatPoints);
+    }
+
+    /// <summary>
+    /// Запланировать сохранение на сервер с задержкой (избегаем спама)
+    /// </summary>
+    private void ScheduleSaveToServer()
+    {
+        // Проверяем наличие NetworkLevelingSync - в multiplayer он сам сохраняет
+        NetworkLevelingSync networkSync = GetComponent<NetworkLevelingSync>();
+        if (networkSync != null)
+        {
+            // В multiplayer NetworkLevelingSync сам вызовет SaveToServer через свою задержку
+            Debug.Log("[LevelingSystem] NetworkLevelingSync обнаружен - пропускаем дублирование сохранения");
+            return;
+        }
+
+        // В singleplayer NetworkLevelingSync отсутствует - сохраняем сами
+        if (saveCoroutine != null)
+        {
+            StopCoroutine(saveCoroutine);
+        }
+        saveCoroutine = StartCoroutine(SaveToServerDelayed());
+    }
+
+    /// <summary>
+    /// Корутина для отложенного сохранения
+    /// </summary>
+    private IEnumerator SaveToServerDelayed()
+    {
+        yield return new WaitForSeconds(autoSaveDelay);
+        Debug.Log("[LevelingSystem] ⏰ Автосохранение на сервер через задержку...");
+        SaveToServer();
     }
 
     /// <summary>
