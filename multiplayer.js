@@ -1549,7 +1549,17 @@ module.exports = (io) => {
         if (player.userId && player.characterClass) {
           try {
             const Character = require('./models/Character');
-            const character = await Character.findOne({ userId: player.userId, characterClass: player.characterClass });
+            const mongoose = require('mongoose');
+
+            // ВАЖНО: Конвертируем userId в ObjectId для MongoDB запроса
+            // В схеме Character userId это ObjectId, но player.userId это строка
+            let userIdQuery = player.userId;
+            if (typeof player.userId === 'string' && mongoose.Types.ObjectId.isValid(player.userId)) {
+              userIdQuery = new mongoose.Types.ObjectId(player.userId);
+              console.log(`[Equipment] 🔧 Converted userId string to ObjectId`);
+            }
+
+            const character = await Character.findOne({ userId: userIdQuery, characterClass: player.characterClass });
 
             console.log(`[Equipment] 🔍 Database query result: ${character ? 'FOUND' : 'NOT FOUND'}`);
 
