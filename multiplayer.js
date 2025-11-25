@@ -1563,6 +1563,12 @@ module.exports = (io) => {
 
             console.log(`[Equipment] 🔍 Database query result: ${character ? 'FOUND' : 'NOT FOUND'}`);
 
+            // DEBUG: Если не найден, покажем все персонажи этого userId
+            if (!character) {
+              const allChars = await Character.find({ userId: userIdQuery });
+              console.log(`[Equipment] 🔍 DEBUG: All characters for this userId: ${allChars.map(c => c.characterClass).join(', ') || 'NONE'}`);
+            }
+
             if (character && character.stats) {
               characterStats = character.stats;
 
