@@ -1583,7 +1583,16 @@ module.exports = (io) => {
               console.log(`[Equipment] 📊 ${player.characterClass} base stats: END=${characterStats.endurance} WIS=${characterStats.wisdom} STR=${characterStats.strength} INT=${characterStats.intelligence}`);
               console.log(`[Equipment] 📊 Calculated base: HP=${baseHealth} MP=${baseMana} ATK=${baseAttack}`);
             } else {
-              console.warn(`[Equipment] ⚠️ Character not found in DB, using default stats`);
+              // FALLBACK: Персонаж не найден в БД - доверяем значениям от клиента
+              // Это происходит когда игрок ещё не сохранил персонажа в MongoDB
+              console.warn(`[Equipment] ⚠️ Character not found in DB, using CLIENT values as fallback!`);
+
+              // Вычисляем базовые значения из клиентских данных минус бонусы экипировки
+              baseHealth = maxHealth - totalHealthBonus;
+              baseMana = maxMana - totalManaBonus;
+              baseAttack = attack - totalAttackBonus;
+
+              console.log(`[Equipment] 📊 Fallback base (from client): HP=${baseHealth} MP=${baseMana} ATK=${baseAttack}`);
             }
           } catch (err) {
             console.error(`[Equipment] ❌ Error loading character stats:`, err.message);
