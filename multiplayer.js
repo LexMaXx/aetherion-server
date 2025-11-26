@@ -2176,20 +2176,28 @@ module.exports = (io) => {
 
         const { partyId, memberSocketIds } = parsedData;
 
-        console.log(`[Party Leave] 👋 ${player.username} покинул группу ${partyId}`);
+        console.log(`[Party Leave] 👋 ${player.username} (${socket.id}) покинул группу ${partyId}`);
+        console.log(`[Party Leave] 📝 memberSocketIds получены: ${JSON.stringify(memberSocketIds)}`);
 
         // Уведомляем всех членов группы о выходе
         if (memberSocketIds && Array.isArray(memberSocketIds)) {
+          console.log(`[Party Leave] 📤 Рассылаем party_member_left ${memberSocketIds.length} членам группы...`);
           memberSocketIds.forEach(memberId => {
             if (memberId !== socket.id) {
+              console.log(`[Party Leave] 📤 Отправляем party_member_left игроку ${memberId}`);
               io.to(memberId).emit('party_member_left', JSON.stringify({
                 partyId: partyId,
                 leftSocketId: socket.id,
                 leftUsername: player.username,
                 timestamp: Date.now()
               }));
+              console.log(`[Party Leave] ✅ party_member_left отправлен игроку ${memberId}`);
+            } else {
+              console.log(`[Party Leave] ⏭️ Пропускаем отправку себе (${memberId})`);
             }
           });
+        } else {
+          console.log(`[Party Leave] ⚠️ memberSocketIds пустой или не массив!`);
         }
 
         // Подтверждаем выход самому игроку
