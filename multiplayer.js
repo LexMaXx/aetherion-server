@@ -2251,7 +2251,8 @@ module.exports = (io) => {
 
     /**
      * Синхронизация урона по врагу от клиента
-     * Получает урон, обновляет серверное состояние и рассылает ВСЕМ клиентам
+     * СЕРВЕР АВТОРИТЕТЕН: рассчитывает HP сам и рассылает ВСЕМ клиентам (включая атакующего)
+     * Это как player_damage в MMO - клиент не доверяется
      */
     socket.on('enemy_damage_sync', (data) => {
       try {
@@ -2271,46 +2272,75 @@ module.exports = (io) => {
           return;
         }
 
-        const { enemyId, damage, currentHealth, maxHealth, timestamp } = parsedData;
+        const { enemyId, damage, maxHealth, isCritical } = parsedData;
 
         if (!enemyId) {
           console.error('[Enemy Sync] ❌ No enemyId provided');
           return;
         }
 
-        // Обновляем серверное хранилище HP
-        const existingData = io.enemyHealthStorage.get(enemyId);
-
-        // Проверяем timestamp чтобы не применять устаревшие данные
-        if (existingData && existingData.lastUpdate > timestamp) {
-          console.log(`[Enemy Sync] ⏭️ Пропускаем устаревший урон для ${enemyId}`);
+        if (!damage || damage <= 0) {
+          console.error('[Enemy Sync] ❌ Invalid damage:', damage);
           return;
         }
 
-        // Сохраняем новое состояние HP
-        io.enemyHealthStorage.set(enemyId, {
-          currentHealth: currentHealth,
-          maxHealth: maxHealth,
-          lastUpdate: timestamp || Date.now(),
-          lastAttacker: player.username
-        });
+        // Получаем текущее состояние HP или инициализируем
+        let enemyData = io.enemyHealthStorage.get(enemyId);
 
-        console.log(`[Enemy Sync] 📥 ${player.username} нанёс урон ${enemyId}: -${damage} HP → ${currentHealth}/${maxHealth}`);
+        if (!enemyData) {
+          // Враг не был атакован ранее - инициализируем с maxHealth от клиента
+          enemyData = {
+            currentHealth: maxHealth || 2000,
+            maxHealth: maxHealth || 2000,
+            lastUpdate: Date.now(),
+            isDead: false
+          };
+          console.log(`[Enemy Sync] 🆕 Инициализирован враг ${enemyId} с HP ${enemyData.maxHealth}`);
+        }
 
-        // Рассылаем ВСЕМ клиентам в комнате (кроме отправителя)
+        // Если враг уже мёртв - игнорируем урон
+        if (enemyData.isDead || enemyData.currentHealth <= 0) {
+          console.log(`[Enemy Sync] ⏭️ Враг ${enemyId} уже мёртв, игнорируем урон`);
+          return;
+        }
+
+        // СЕРВЕР РАССЧИТЫВАЕТ HP (авторитетно!)
+        const oldHealth = enemyData.currentHealth;
+        enemyData.currentHealth = Math.max(0, enemyData.currentHealth - damage);
+        enemyData.lastUpdate = Date.now();
+        enemyData.lastAttacker = player.username;
+
+        // Проверяем смерть
+        const justDied = oldHealth > 0 && enemyData.currentHealth <= 0;
+        if (justDied) {
+          enemyData.isDead = true;
+          enemyData.killedBy = player.username;
+        }
+
+        // Сохраняем на сервере
+        io.enemyHealthStorage.set(enemyId, enemyData);
+
+        console.log(`[Enemy Sync] 📥 ${player.username} нанёс урон ${enemyId}: -${damage} HP → ${enemyData.currentHealth}/${enemyData.maxHealth}${justDied ? ' (УБИТ!)' : ''}`);
+
+        // Рассылаем ВСЕМ клиентам в комнате (ВКЛЮЧАЯ атакующего!)
+        // Это критически важно - все клиенты должны получить серверный HP
         if (player.roomId) {
-          socket.to(player.roomId).emit('enemy_hp_synced', JSON.stringify({
+          const syncData = JSON.stringify({
             enemyId: enemyId,
             damage: damage,
-            currentHealth: currentHealth,
-            maxHealth: maxHealth,
+            currentHealth: enemyData.currentHealth,
+            maxHealth: enemyData.maxHealth,
             attackerSocketId: socket.id,
             attackerName: player.username,
-            isCritical: false, // TODO: рассчитывать криты на сервере
+            isCritical: isCritical || false,
+            isDead: enemyData.isDead || false,
             timestamp: Date.now()
-          }));
+          });
 
-          console.log(`[Enemy Sync] 📤 Урон ${enemyId} разослан в комнату ${player.roomId}`);
+          // Отправляем ВСЕМ в комнате (io.to вместо socket.to)
+          io.to(player.roomId).emit('enemy_hp_synced', syncData);
+
+          console.log(`[Enemy Sync] 📤 HP ${enemyId} разослан ВСЕМ в комнате ${player.roomId}: ${enemyData.currentHealth}/${enemyData.maxHealth}`);
         }
 
       } catch (error) {
