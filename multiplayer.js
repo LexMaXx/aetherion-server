@@ -2440,28 +2440,34 @@ module.exports = (io) => {
           return;
         }
 
-        const { enemyId, maxHealth, timestamp } = parsedData;
+        const { enemyId, maxHealth, x, y, z, timestamp } = parsedData;
 
         if (!enemyId) {
           console.error('[Enemy Respawn] ❌ No enemyId provided');
           return;
         }
 
-        // Сбрасываем HP на серверe
+        // Сбрасываем HP и позицию на серверe
         io.enemyHealthStorage.set(enemyId, {
           currentHealth: maxHealth,
           maxHealth: maxHealth,
+          x: x,
+          y: y,
+          z: z,
           lastUpdate: timestamp || Date.now(),
           isDead: false
         });
 
-        console.log(`[Enemy Respawn] ♻️ ${enemyId} респавнулся с HP ${maxHealth}`);
+        console.log(`[Enemy Respawn] ♻️ ${enemyId} респавнулся с HP ${maxHealth} в позиции (${x}, ${y}, ${z})`);
 
         // Рассылаем ВСЕМ клиентам в комнате
         if (player.roomId) {
           io.to(player.roomId).emit('enemy_respawn_synced', JSON.stringify({
             enemyId: enemyId,
             maxHealth: maxHealth,
+            x: x,
+            y: y,
+            z: z,
             timestamp: Date.now()
           }));
 
@@ -2470,6 +2476,169 @@ module.exports = (io) => {
 
       } catch (error) {
         console.error('[Enemy Respawn] ❌ Error:', error.message);
+      }
+    });
+
+    // ═══════════════════════════════════════════
+    // ENEMY POSITION SYNC SYSTEM (СИНХРОНИЗАЦИЯ ПОЗИЦИИ МОНСТРОВ)
+    // ═══════════════════════════════════════════
+
+    // Хранилище хостов врагов по комнатам (roomId => socketId хоста)
+    if (!io.enemyHostByRoom) {
+      io.enemyHostByRoom = new Map();
+      console.log('[Enemy Host] 🗄️ Хранилище хостов врагов инициализировано');
+    }
+
+    /**
+     * Запрос статуса хоста врагов
+     * Первый игрок в комнате становится хостом
+     */
+    socket.on('enemy_request_host_status', (data) => {
+      try {
+        const player = activePlayers.get(socket.id);
+        if (!player || !player.roomId) {
+          console.warn(`[Enemy Host] ⚠️ Player not found or not in room: ${socket.id}`);
+          return;
+        }
+
+        const roomId = player.roomId;
+        let currentHost = io.enemyHostByRoom.get(roomId);
+
+        // Проверяем существует ли хост и подключен ли он
+        if (currentHost) {
+          const hostPlayer = activePlayers.get(currentHost);
+          if (!hostPlayer || hostPlayer.roomId !== roomId) {
+            // Хост отключился или сменил комнату - сбрасываем
+            currentHost = null;
+            io.enemyHostByRoom.delete(roomId);
+            console.log(`[Enemy Host] 🔄 Хост комнаты ${roomId} отключился, сбрасываем`);
+          }
+        }
+
+        // Если нет хоста - назначаем текущего игрока
+        let isHost = false;
+        if (!currentHost) {
+          io.enemyHostByRoom.set(roomId, socket.id);
+          isHost = true;
+          console.log(`[Enemy Host] 👑 ${player.username} назначен хостом врагов в комнате ${roomId}`);
+        } else if (currentHost === socket.id) {
+          isHost = true;
+        }
+
+        // Отправляем статус игроку
+        socket.emit('enemy_host_status', JSON.stringify({
+          isHost: isHost,
+          hostSocketId: io.enemyHostByRoom.get(roomId),
+          timestamp: Date.now()
+        }));
+
+        console.log(`[Enemy Host] 📤 Статус хоста отправлен ${player.username}: isHost=${isHost}`);
+
+      } catch (error) {
+        console.error('[Enemy Host] ❌ Error:', error.message);
+      }
+    });
+
+    /**
+     * Синхронизация позиции врага от хоста
+     */
+    socket.on('enemy_position_sync', (data) => {
+      try {
+        let parsedData = data;
+        if (typeof data === 'string') {
+          try {
+            parsedData = JSON.parse(data);
+          } catch (e) {
+            console.error('[Enemy Position] ❌ Failed to parse JSON:', e.message);
+            return;
+          }
+        }
+
+        const player = activePlayers.get(socket.id);
+        if (!player || !player.roomId) {
+          return; // Молча игнорируем если игрок не в комнате
+        }
+
+        // Проверяем что отправитель - хост
+        const roomHost = io.enemyHostByRoom.get(player.roomId);
+        if (roomHost !== socket.id) {
+          // Не хост - игнорируем (это нормально, не логируем)
+          return;
+        }
+
+        const { enemyId, x, y, z, rotY, isMoving, isDead } = parsedData;
+
+        if (!enemyId) {
+          return;
+        }
+
+        // Обновляем позицию в хранилище
+        const existingData = io.enemyHealthStorage.get(enemyId) || {};
+        io.enemyHealthStorage.set(enemyId, {
+          ...existingData,
+          x: x,
+          y: y,
+          z: z,
+          rotY: rotY,
+          isMoving: isMoving,
+          isDead: isDead,
+          lastPositionUpdate: Date.now()
+        });
+
+        // Рассылаем позицию ВСЕМ клиентам в комнате (кроме хоста)
+        socket.to(player.roomId).emit('enemy_position_synced', JSON.stringify({
+          enemyId: enemyId,
+          x: x,
+          y: y,
+          z: z,
+          rotY: rotY,
+          isMoving: isMoving,
+          isDead: isDead,
+          timestamp: Date.now()
+        }));
+
+      } catch (error) {
+        console.error('[Enemy Position] ❌ Error:', error.message);
+      }
+    });
+
+    /**
+     * Запрос текущих позиций всех врагов (при подключении)
+     */
+    socket.on('enemy_request_all_positions', (data) => {
+      try {
+        const player = activePlayers.get(socket.id);
+        if (!player || !player.roomId) {
+          return;
+        }
+
+        // Собираем все позиции врагов
+        const enemies = [];
+        for (const [enemyId, enemyData] of io.enemyHealthStorage.entries()) {
+          if (enemyData.x !== undefined) {
+            enemies.push({
+              enemyId: enemyId,
+              x: enemyData.x,
+              y: enemyData.y,
+              z: enemyData.z,
+              rotY: enemyData.rotY || 0,
+              isMoving: enemyData.isMoving || false,
+              isDead: enemyData.isDead || false,
+              currentHealth: enemyData.currentHealth,
+              maxHealth: enemyData.maxHealth
+            });
+          }
+        }
+
+        socket.emit('enemy_all_positions', JSON.stringify({
+          enemies: enemies,
+          timestamp: Date.now()
+        }));
+
+        console.log(`[Enemy Position] 📤 Отправлено ${enemies.length} позиций врагов клиенту ${player.username}`);
+
+      } catch (error) {
+        console.error('[Enemy Position] ❌ Error:', error.message);
       }
     });
 
