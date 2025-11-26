@@ -60,12 +60,6 @@ module.exports = (io) => {
         let maxHealth = 100;
         let maxMana = 100;
 
-        // Бонусы от экипировки - загружаем из сохранённых данных в Character.equipment
-        let equipmentHealthBonus = 0;
-        let equipmentManaBonus = 0;
-        let equipmentAttackBonus = 0;
-        let equipmentDefenseBonus = 0;
-
         if (userId && characterClass) {
           try {
             const Character = require('./models/Character');
@@ -75,77 +69,16 @@ module.exports = (io) => {
               characterStats = character.stats;
               characterLevel = character.level || 1;
 
-              // Рассчитываем базовые maxHealth и maxMana на основе статов
-              // HP = 200 + (Endurance * 40)
-              // MP = 50 + (Wisdom * 15)
+              // Рассчитываем maxHealth и maxMana на основе статов
+              // HP = 200 + (Endurance * 40) + equipment bonuses
+              // MP = 50 + (Wisdom * 15) + equipment bonuses
               const baseHealth = 200 + (characterStats.endurance * 40);
               const baseMana = 50 + (characterStats.wisdom * 15);
 
-              // ═══════════════════════════════════════════════════════════════════
-              // ЗАГРУЗКА БОНУСОВ ОТ ЭКИПИРОВКИ
-              // Жёстко закодированные предметы (TODO: вынести в отдельный модуль)
-              // ═══════════════════════════════════════════════════════════════════
-              if (character.equipment) {
-                // Простая база предметов по именам
-                // Формат: { healthBonus, manaBonus, attackBonus, defenseBonus }
-                const itemBonuses = {
-                  // Броня
-                  'Iron Armor': { health: 55, mana: 0, attack: 0, defense: 15 },
-                  'Steel Armor': { health: 80, mana: 0, attack: 0, defense: 25 },
-                  'Leather Armor': { health: 30, mana: 0, attack: 0, defense: 10 },
-                  'Bronze Armor': { health: 40, mana: 0, attack: 0, defense: 12 },
-                  'Mage Robe': { health: 20, mana: 30, attack: 5, defense: 5 },
-                  'Knight Armor': { health: 100, mana: 0, attack: 0, defense: 35 },
-                  // Шлемы
-                  'Iron Helmet': { health: 25, mana: 0, attack: 0, defense: 8 },
-                  'Steel Helmet': { health: 40, mana: 0, attack: 0, defense: 12 },
-                  'Leather Cap': { health: 15, mana: 0, attack: 0, defense: 5 },
-                  'Mage Hood': { health: 10, mana: 20, attack: 3, defense: 3 },
-                  // Оружие
-                  'Iron Sword': { health: 0, mana: 0, attack: 15, defense: 0 },
-                  'Steel Sword': { health: 0, mana: 0, attack: 25, defense: 0 },
-                  'Mage Staff': { health: 0, mana: 15, attack: 20, defense: 0 },
-                  'Bow': { health: 0, mana: 0, attack: 18, defense: 0 },
-                  'Dagger': { health: 0, mana: 0, attack: 12, defense: 0 },
-                  // Аксессуары
-                  'Ring of Health': { health: 30, mana: 0, attack: 0, defense: 0 },
-                  'Ring of Power': { health: 0, mana: 0, attack: 10, defense: 0 },
-                  'Amulet of Mana': { health: 0, mana: 25, attack: 0, defense: 0 },
-                  'Ring of Protection': { health: 0, mana: 0, attack: 0, defense: 8 }
-                };
+              maxHealth = baseHealth;
+              maxMana = baseMana;
 
-                // Функция для получения бонусов от предмета
-                const getItemBonuses = (itemName) => {
-                  if (!itemName || itemName === '') return { health: 0, mana: 0, attack: 0, defense: 0 };
-                  const item = itemBonuses[itemName];
-                  if (!item) {
-                    console.log(`[Join Room] ⚠️ Unknown item: ${itemName} - no bonuses applied`);
-                    return { health: 0, mana: 0, attack: 0, defense: 0 };
-                  }
-                  return item;
-                };
-
-                // Суммируем бонусы от всей экипировки
-                const weaponBonus = getItemBonuses(character.equipment.weapon);
-                const armorBonus = getItemBonuses(character.equipment.armor);
-                const helmetBonus = getItemBonuses(character.equipment.helmet);
-                const accessoryBonus = getItemBonuses(character.equipment.accessory);
-
-                equipmentHealthBonus = weaponBonus.health + armorBonus.health + helmetBonus.health + accessoryBonus.health;
-                equipmentManaBonus = weaponBonus.mana + armorBonus.mana + helmetBonus.mana + accessoryBonus.mana;
-                equipmentAttackBonus = weaponBonus.attack + armorBonus.attack + helmetBonus.attack + accessoryBonus.attack;
-                equipmentDefenseBonus = weaponBonus.defense + armorBonus.defense + helmetBonus.defense + accessoryBonus.defense;
-
-                console.log(`[Join Room] 🎽 Equipment loaded: W=${character.equipment.weapon || 'none'} A=${character.equipment.armor || 'none'} H=${character.equipment.helmet || 'none'} Acc=${character.equipment.accessory || 'none'}`);
-                console.log(`[Join Room] 🎽 Equipment bonuses: HP+${equipmentHealthBonus} MP+${equipmentManaBonus} ATK+${equipmentAttackBonus} DEF+${equipmentDefenseBonus}`);
-              }
-
-              // ФИНАЛЬНЫЕ значения = базовые + экипировка
-              maxHealth = baseHealth + equipmentHealthBonus;
-              maxMana = baseMana + equipmentManaBonus;
-
-              console.log(`[Join Room] 📊 Loaded stats for ${characterClass}: END=${characterStats.endurance} WIS=${characterStats.wisdom}`);
-              console.log(`[Join Room] 📊 Final HP=${maxHealth} (base ${baseHealth} + equip ${equipmentHealthBonus}), MP=${maxMana} (base ${baseMana} + equip ${equipmentManaBonus})`);
+              console.log(`[Join Room] 📊 Loaded stats for ${characterClass}: END=${characterStats.endurance} WIS=${characterStats.wisdom} → HP=${maxHealth} MP=${maxMana}`);
             } else {
               console.log(`[Join Room] ⚠️ Character not found in DB, using default stats`);
               characterStats = { strength: 1, perception: 1, endurance: 1, wisdom: 1, intelligence: 1, agility: 1, luck: 1 };
@@ -2176,28 +2109,20 @@ module.exports = (io) => {
 
         const { partyId, memberSocketIds } = parsedData;
 
-        console.log(`[Party Leave] 👋 ${player.username} (${socket.id}) покинул группу ${partyId}`);
-        console.log(`[Party Leave] 📝 memberSocketIds получены: ${JSON.stringify(memberSocketIds)}`);
+        console.log(`[Party Leave] 👋 ${player.username} покинул группу ${partyId}`);
 
         // Уведомляем всех членов группы о выходе
         if (memberSocketIds && Array.isArray(memberSocketIds)) {
-          console.log(`[Party Leave] 📤 Рассылаем party_member_left ${memberSocketIds.length} членам группы...`);
           memberSocketIds.forEach(memberId => {
             if (memberId !== socket.id) {
-              console.log(`[Party Leave] 📤 Отправляем party_member_left игроку ${memberId}`);
               io.to(memberId).emit('party_member_left', JSON.stringify({
                 partyId: partyId,
                 leftSocketId: socket.id,
                 leftUsername: player.username,
                 timestamp: Date.now()
               }));
-              console.log(`[Party Leave] ✅ party_member_left отправлен игроку ${memberId}`);
-            } else {
-              console.log(`[Party Leave] ⏭️ Пропускаем отправку себе (${memberId})`);
             }
           });
-        } else {
-          console.log(`[Party Leave] ⚠️ memberSocketIds пустой или не массив!`);
         }
 
         // Подтверждаем выход самому игроку
@@ -2309,6 +2234,242 @@ module.exports = (io) => {
 
       } catch (error) {
         console.error('[Party Sync] ❌ Error:', error.message);
+      }
+    });
+
+
+    // ═══════════════════════════════════════════
+    // ENEMY HP SYNC SYSTEM (СИНХРОНИЗАЦИЯ HP МОНСТРОВ)
+    // ═══════════════════════════════════════════
+
+    // Серверное хранилище HP врагов (enemyId => { currentHealth, maxHealth, lastUpdate })
+    // Используем глобальную Map вне socket.on для хранения между подключениями
+    if (!io.enemyHealthStorage) {
+      io.enemyHealthStorage = new Map();
+      console.log('[Enemy Sync] 🗄️ Серверное хранилище HP врагов инициализировано');
+    }
+
+    /**
+     * Синхронизация урона по врагу от клиента
+     * Получает урон, обновляет серверное состояние и рассылает ВСЕМ клиентам
+     */
+    socket.on('enemy_damage_sync', (data) => {
+      try {
+        let parsedData = data;
+        if (typeof data === 'string') {
+          try {
+            parsedData = JSON.parse(data);
+          } catch (e) {
+            console.error('[Enemy Sync] ❌ Failed to parse JSON:', e.message);
+            return;
+          }
+        }
+
+        const player = activePlayers.get(socket.id);
+        if (!player) {
+          console.warn(`[Enemy Sync] ⚠️ Player not found: ${socket.id}`);
+          return;
+        }
+
+        const { enemyId, damage, currentHealth, maxHealth, timestamp } = parsedData;
+
+        if (!enemyId) {
+          console.error('[Enemy Sync] ❌ No enemyId provided');
+          return;
+        }
+
+        // Обновляем серверное хранилище HP
+        const existingData = io.enemyHealthStorage.get(enemyId);
+
+        // Проверяем timestamp чтобы не применять устаревшие данные
+        if (existingData && existingData.lastUpdate > timestamp) {
+          console.log(`[Enemy Sync] ⏭️ Пропускаем устаревший урон для ${enemyId}`);
+          return;
+        }
+
+        // Сохраняем новое состояние HP
+        io.enemyHealthStorage.set(enemyId, {
+          currentHealth: currentHealth,
+          maxHealth: maxHealth,
+          lastUpdate: timestamp || Date.now(),
+          lastAttacker: player.username
+        });
+
+        console.log(`[Enemy Sync] 📥 ${player.username} нанёс урон ${enemyId}: -${damage} HP → ${currentHealth}/${maxHealth}`);
+
+        // Рассылаем ВСЕМ клиентам в комнате (кроме отправителя)
+        if (player.roomId) {
+          socket.to(player.roomId).emit('enemy_hp_synced', JSON.stringify({
+            enemyId: enemyId,
+            damage: damage,
+            currentHealth: currentHealth,
+            maxHealth: maxHealth,
+            attackerSocketId: socket.id,
+            attackerName: player.username,
+            isCritical: false, // TODO: рассчитывать криты на сервере
+            timestamp: Date.now()
+          }));
+
+          console.log(`[Enemy Sync] 📤 Урон ${enemyId} разослан в комнату ${player.roomId}`);
+        }
+
+      } catch (error) {
+        console.error('[Enemy Sync] ❌ Error:', error.message);
+      }
+    });
+
+    /**
+     * Синхронизация смерти врага
+     */
+    socket.on('enemy_death_sync', (data) => {
+      try {
+        let parsedData = data;
+        if (typeof data === 'string') {
+          try {
+            parsedData = JSON.parse(data);
+          } catch (e) {
+            console.error('[Enemy Death] ❌ Failed to parse JSON:', e.message);
+            return;
+          }
+        }
+
+        const player = activePlayers.get(socket.id);
+        if (!player) {
+          console.warn(`[Enemy Death] ⚠️ Player not found: ${socket.id}`);
+          return;
+        }
+
+        const { enemyId, killerSocketId, killerName, timestamp } = parsedData;
+
+        if (!enemyId) {
+          console.error('[Enemy Death] ❌ No enemyId provided');
+          return;
+        }
+
+        // Обновляем серверное хранилище - враг мёртв
+        io.enemyHealthStorage.set(enemyId, {
+          currentHealth: 0,
+          maxHealth: io.enemyHealthStorage.get(enemyId)?.maxHealth || 100,
+          lastUpdate: timestamp || Date.now(),
+          isDead: true,
+          killedBy: killerName
+        });
+
+        console.log(`[Enemy Death] 💀 ${enemyId} убит игроком ${killerName}`);
+
+        // Рассылаем ВСЕМ клиентам в комнате
+        if (player.roomId) {
+          io.to(player.roomId).emit('enemy_death_synced', JSON.stringify({
+            enemyId: enemyId,
+            killerSocketId: killerSocketId || socket.id,
+            killerName: killerName || player.username,
+            timestamp: Date.now()
+          }));
+
+          console.log(`[Enemy Death] 📤 Смерть ${enemyId} разослана в комнату ${player.roomId}`);
+        }
+
+      } catch (error) {
+        console.error('[Enemy Death] ❌ Error:', error.message);
+      }
+    });
+
+    /**
+     * Запрос текущего HP врага (при подключении нового клиента)
+     */
+    socket.on('enemy_request_health', (data) => {
+      try {
+        let parsedData = data;
+        if (typeof data === 'string') {
+          try {
+            parsedData = JSON.parse(data);
+          } catch (e) {
+            console.error('[Enemy Request] ❌ Failed to parse JSON:', e.message);
+            return;
+          }
+        }
+
+        const { enemyId } = parsedData;
+
+        if (!enemyId) {
+          console.error('[Enemy Request] ❌ No enemyId provided');
+          return;
+        }
+
+        // Ищем HP в серверном хранилище
+        const enemyData = io.enemyHealthStorage.get(enemyId);
+
+        if (enemyData) {
+          // Отправляем текущий HP запрашивающему клиенту
+          socket.emit('enemy_hp_response', JSON.stringify({
+            enemyId: enemyId,
+            currentHealth: enemyData.currentHealth,
+            maxHealth: enemyData.maxHealth,
+            isDead: enemyData.isDead || false,
+            timestamp: Date.now()
+          }));
+
+          console.log(`[Enemy Request] 📤 HP ${enemyId}: ${enemyData.currentHealth}/${enemyData.maxHealth} отправлен клиенту ${socket.id}`);
+        } else {
+          console.log(`[Enemy Request] ⚠️ HP для ${enemyId} не найден на сервере (враг не был атакован)`);
+        }
+
+      } catch (error) {
+        console.error('[Enemy Request] ❌ Error:', error.message);
+      }
+    });
+
+    /**
+     * Респавн врага (сброс HP)
+     */
+    socket.on('enemy_respawn_sync', (data) => {
+      try {
+        let parsedData = data;
+        if (typeof data === 'string') {
+          try {
+            parsedData = JSON.parse(data);
+          } catch (e) {
+            console.error('[Enemy Respawn] ❌ Failed to parse JSON:', e.message);
+            return;
+          }
+        }
+
+        const player = activePlayers.get(socket.id);
+        if (!player) {
+          console.warn(`[Enemy Respawn] ⚠️ Player not found: ${socket.id}`);
+          return;
+        }
+
+        const { enemyId, maxHealth, timestamp } = parsedData;
+
+        if (!enemyId) {
+          console.error('[Enemy Respawn] ❌ No enemyId provided');
+          return;
+        }
+
+        // Сбрасываем HP на серверe
+        io.enemyHealthStorage.set(enemyId, {
+          currentHealth: maxHealth,
+          maxHealth: maxHealth,
+          lastUpdate: timestamp || Date.now(),
+          isDead: false
+        });
+
+        console.log(`[Enemy Respawn] ♻️ ${enemyId} респавнулся с HP ${maxHealth}`);
+
+        // Рассылаем ВСЕМ клиентам в комнате
+        if (player.roomId) {
+          io.to(player.roomId).emit('enemy_respawn_synced', JSON.stringify({
+            enemyId: enemyId,
+            maxHealth: maxHealth,
+            timestamp: Date.now()
+          }));
+
+          console.log(`[Enemy Respawn] 📤 Респавн ${enemyId} разослан в комнату ${player.roomId}`);
+        }
+
+      } catch (error) {
+        console.error('[Enemy Respawn] ❌ Error:', error.message);
       }
     });
 
