@@ -60,6 +60,12 @@ module.exports = (io) => {
         let maxHealth = 100;
         let maxMana = 100;
 
+        // Бонусы от экипировки - загружаем из сохранённых данных в Character.equipment
+        let equipmentHealthBonus = 0;
+        let equipmentManaBonus = 0;
+        let equipmentAttackBonus = 0;
+        let equipmentDefenseBonus = 0;
+
         if (userId && characterClass) {
           try {
             const Character = require('./models/Character');
@@ -69,16 +75,77 @@ module.exports = (io) => {
               characterStats = character.stats;
               characterLevel = character.level || 1;
 
-              // Рассчитываем maxHealth и maxMana на основе статов
-              // HP = 200 + (Endurance * 40) + equipment bonuses
-              // MP = 50 + (Wisdom * 15) + equipment bonuses
+              // Рассчитываем базовые maxHealth и maxMana на основе статов
+              // HP = 200 + (Endurance * 40)
+              // MP = 50 + (Wisdom * 15)
               const baseHealth = 200 + (characterStats.endurance * 40);
               const baseMana = 50 + (characterStats.wisdom * 15);
 
-              maxHealth = baseHealth;
-              maxMana = baseMana;
+              // ═══════════════════════════════════════════════════════════════════
+              // ЗАГРУЗКА БОНУСОВ ОТ ЭКИПИРОВКИ
+              // Жёстко закодированные предметы (TODO: вынести в отдельный модуль)
+              // ═══════════════════════════════════════════════════════════════════
+              if (character.equipment) {
+                // Простая база предметов по именам
+                // Формат: { healthBonus, manaBonus, attackBonus, defenseBonus }
+                const itemBonuses = {
+                  // Броня
+                  'Iron Armor': { health: 55, mana: 0, attack: 0, defense: 15 },
+                  'Steel Armor': { health: 80, mana: 0, attack: 0, defense: 25 },
+                  'Leather Armor': { health: 30, mana: 0, attack: 0, defense: 10 },
+                  'Bronze Armor': { health: 40, mana: 0, attack: 0, defense: 12 },
+                  'Mage Robe': { health: 20, mana: 30, attack: 5, defense: 5 },
+                  'Knight Armor': { health: 100, mana: 0, attack: 0, defense: 35 },
+                  // Шлемы
+                  'Iron Helmet': { health: 25, mana: 0, attack: 0, defense: 8 },
+                  'Steel Helmet': { health: 40, mana: 0, attack: 0, defense: 12 },
+                  'Leather Cap': { health: 15, mana: 0, attack: 0, defense: 5 },
+                  'Mage Hood': { health: 10, mana: 20, attack: 3, defense: 3 },
+                  // Оружие
+                  'Iron Sword': { health: 0, mana: 0, attack: 15, defense: 0 },
+                  'Steel Sword': { health: 0, mana: 0, attack: 25, defense: 0 },
+                  'Mage Staff': { health: 0, mana: 15, attack: 20, defense: 0 },
+                  'Bow': { health: 0, mana: 0, attack: 18, defense: 0 },
+                  'Dagger': { health: 0, mana: 0, attack: 12, defense: 0 },
+                  // Аксессуары
+                  'Ring of Health': { health: 30, mana: 0, attack: 0, defense: 0 },
+                  'Ring of Power': { health: 0, mana: 0, attack: 10, defense: 0 },
+                  'Amulet of Mana': { health: 0, mana: 25, attack: 0, defense: 0 },
+                  'Ring of Protection': { health: 0, mana: 0, attack: 0, defense: 8 }
+                };
 
-              console.log(`[Join Room] 📊 Loaded stats for ${characterClass}: END=${characterStats.endurance} WIS=${characterStats.wisdom} → HP=${maxHealth} MP=${maxMana}`);
+                // Функция для получения бонусов от предмета
+                const getItemBonuses = (itemName) => {
+                  if (!itemName || itemName === '') return { health: 0, mana: 0, attack: 0, defense: 0 };
+                  const item = itemBonuses[itemName];
+                  if (!item) {
+                    console.log(`[Join Room] ⚠️ Unknown item: ${itemName} - no bonuses applied`);
+                    return { health: 0, mana: 0, attack: 0, defense: 0 };
+                  }
+                  return item;
+                };
+
+                // Суммируем бонусы от всей экипировки
+                const weaponBonus = getItemBonuses(character.equipment.weapon);
+                const armorBonus = getItemBonuses(character.equipment.armor);
+                const helmetBonus = getItemBonuses(character.equipment.helmet);
+                const accessoryBonus = getItemBonuses(character.equipment.accessory);
+
+                equipmentHealthBonus = weaponBonus.health + armorBonus.health + helmetBonus.health + accessoryBonus.health;
+                equipmentManaBonus = weaponBonus.mana + armorBonus.mana + helmetBonus.mana + accessoryBonus.mana;
+                equipmentAttackBonus = weaponBonus.attack + armorBonus.attack + helmetBonus.attack + accessoryBonus.attack;
+                equipmentDefenseBonus = weaponBonus.defense + armorBonus.defense + helmetBonus.defense + accessoryBonus.defense;
+
+                console.log(`[Join Room] 🎽 Equipment loaded: W=${character.equipment.weapon || 'none'} A=${character.equipment.armor || 'none'} H=${character.equipment.helmet || 'none'} Acc=${character.equipment.accessory || 'none'}`);
+                console.log(`[Join Room] 🎽 Equipment bonuses: HP+${equipmentHealthBonus} MP+${equipmentManaBonus} ATK+${equipmentAttackBonus} DEF+${equipmentDefenseBonus}`);
+              }
+
+              // ФИНАЛЬНЫЕ значения = базовые + экипировка
+              maxHealth = baseHealth + equipmentHealthBonus;
+              maxMana = baseMana + equipmentManaBonus;
+
+              console.log(`[Join Room] 📊 Loaded stats for ${characterClass}: END=${characterStats.endurance} WIS=${characterStats.wisdom}`);
+              console.log(`[Join Room] 📊 Final HP=${maxHealth} (base ${baseHealth} + equip ${equipmentHealthBonus}), MP=${maxMana} (base ${baseMana} + equip ${equipmentManaBonus})`);
             } else {
               console.log(`[Join Room] ⚠️ Character not found in DB, using default stats`);
               characterStats = { strength: 1, perception: 1, endurance: 1, wisdom: 1, intelligence: 1, agility: 1, luck: 1 };
