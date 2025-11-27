@@ -3574,6 +3574,9 @@ module.exports = (io) => {
   // ═══════════════════════════════════════════════════════════════════════════
   setInterval(() => {
     // Собираем все комнаты с врагами
+    // Проверяем что io.enemyHealthStorage инициализирован
+    if (!io.enemyHealthStorage) return;
+
     const roomEnemies = new Map(); // roomId -> [enemies]
 
     for (const [enemyId, enemyData] of io.enemyHealthStorage.entries()) {
@@ -3616,6 +3619,7 @@ module.exports = (io) => {
 
   // Логируем статус каждые 30 секунд
   setInterval(() => {
+    if (!io.enemyHealthStorage) return;
     const totalEnemies = io.enemyHealthStorage.size;
     const totalPlayers = activePlayers.size;
     if (totalEnemies > 0 || totalPlayers > 0) {
