@@ -2239,6 +2239,528 @@ module.exports = (io) => {
 
 
     // ═══════════════════════════════════════════
+    // ENEMY HP SYNC SYSTEM (СИНХРОНИЗАЦИЯ HP МОНСТРОВ)
+    // ═══════════════════════════════════════════
+
+    // Серверное хранилище HP врагов (enemyId => { currentHealth, maxHealth, lastUpdate })
+    // Используем глобальную Map вне socket.on для хранения между подключениями
+    if (!io.enemyHealthStorage) {
+      io.enemyHealthStorage = new Map();
+      console.log('[Enemy Sync] 🗄️ Серверное хранилище HP врагов инициализировано');
+    }
+
+    /**
+     * Синхронизация урона по врагу от клиента
+     * СЕРВЕР АВТОРИТЕТЕН: рассчитывает HP сам и рассылает ВСЕМ клиентам (включая атакующего)
+     * Это как player_damage в MMO - клиент не доверяется
+     */
+    socket.on('enemy_damage_sync', (data) => {
+      try {
+        let parsedData = data;
+        if (typeof data === 'string') {
+          try {
+            parsedData = JSON.parse(data);
+          } catch (e) {
+            console.error('[Enemy Sync] ❌ Failed to parse JSON:', e.message);
+            return;
+          }
+        }
+
+        const player = activePlayers.get(socket.id);
+        if (!player) {
+          console.warn(`[Enemy Sync] ⚠️ Player not found: ${socket.id}`);
+          return;
+        }
+
+        const { enemyId, damage, maxHealth, isCritical } = parsedData;
+
+        if (!enemyId) {
+          console.error('[Enemy Sync] ❌ No enemyId provided');
+          return;
+        }
+
+        if (!damage || damage <= 0) {
+          console.error('[Enemy Sync] ❌ Invalid damage:', damage);
+          return;
+        }
+
+        // Получаем текущее состояние HP или инициализируем
+        let enemyData = io.enemyHealthStorage.get(enemyId);
+
+        if (!enemyData) {
+          // Враг не был атакован ранее - инициализируем с maxHealth от клиента
+          enemyData = {
+            roomId: player.roomId, // КРИТИЧЕСКОЕ: Привязываем врага к комнате
+            currentHealth: maxHealth || 2000,
+            maxHealth: maxHealth || 2000,
+            lastUpdate: Date.now(),
+            isDead: false
+          };
+          console.log(`[Enemy Sync] 🆕 Инициализирован враг ${enemyId} в комнате ${player.roomId} с HP ${enemyData.maxHealth}`);
+        } else if (!enemyData.roomId) {
+          // Если roomId не был установлен ранее - добавляем
+          enemyData.roomId = player.roomId;
+        }
+
+        // Если враг уже мёртв - игнорируем урон
+        if (enemyData.isDead || enemyData.currentHealth <= 0) {
+          console.log(`[Enemy Sync] ⏭️ Враг ${enemyId} уже мёртв, игнорируем урон`);
+          return;
+        }
+
+        // СЕРВЕР РАССЧИТЫВАЕТ HP (авторитетно!)
+        const oldHealth = enemyData.currentHealth;
+        enemyData.currentHealth = Math.max(0, enemyData.currentHealth - damage);
+        enemyData.lastUpdate = Date.now();
+        enemyData.lastAttacker = player.username;
+
+        // Проверяем смерть
+        const justDied = oldHealth > 0 && enemyData.currentHealth <= 0;
+        if (justDied) {
+          enemyData.isDead = true;
+          enemyData.killedBy = player.username;
+        }
+
+        // Сохраняем на сервере
+        io.enemyHealthStorage.set(enemyId, enemyData);
+
+        console.log(`[Enemy Sync] 📥 ${player.username} нанёс урон ${enemyId}: -${damage} HP → ${enemyData.currentHealth}/${enemyData.maxHealth}${justDied ? ' (УБИТ!)' : ''}`);
+
+        // Рассылаем ВСЕМ клиентам в комнате (ВКЛЮЧАЯ атакующего!)
+        // Это критически важно - все клиенты должны получить серверный HP
+        if (player.roomId) {
+          const syncData = JSON.stringify({
+            enemyId: enemyId,
+            damage: damage,
+            currentHealth: enemyData.currentHealth,
+            maxHealth: enemyData.maxHealth,
+            attackerSocketId: socket.id,
+            attackerName: player.username,
+            isCritical: isCritical || false,
+            isDead: enemyData.isDead || false,
+            timestamp: Date.now()
+          });
+
+          // Отправляем ВСЕМ в комнате (io.to вместо socket.to)
+          io.to(player.roomId).emit('enemy_hp_synced', syncData);
+
+          console.log(`[Enemy Sync] 📤 HP ${enemyId} разослан ВСЕМ в комнате ${player.roomId}: ${enemyData.currentHealth}/${enemyData.maxHealth}`);
+        }
+
+      } catch (error) {
+        console.error('[Enemy Sync] ❌ Error:', error.message);
+      }
+    });
+
+    /**
+     * Синхронизация смерти врага
+     */
+    socket.on('enemy_death_sync', (data) => {
+      try {
+        let parsedData = data;
+        if (typeof data === 'string') {
+          try {
+            parsedData = JSON.parse(data);
+          } catch (e) {
+            console.error('[Enemy Death] ❌ Failed to parse JSON:', e.message);
+            return;
+          }
+        }
+
+        const player = activePlayers.get(socket.id);
+        if (!player) {
+          console.warn(`[Enemy Death] ⚠️ Player not found: ${socket.id}`);
+          return;
+        }
+
+        const { enemyId, killerSocketId, killerName, timestamp } = parsedData;
+
+        if (!enemyId) {
+          console.error('[Enemy Death] ❌ No enemyId provided');
+          return;
+        }
+
+        // Обновляем серверное хранилище - враг мёртв
+        io.enemyHealthStorage.set(enemyId, {
+          currentHealth: 0,
+          maxHealth: io.enemyHealthStorage.get(enemyId)?.maxHealth || 100,
+          lastUpdate: timestamp || Date.now(),
+          isDead: true,
+          killedBy: killerName
+        });
+
+        console.log(`[Enemy Death] 💀 ${enemyId} убит игроком ${killerName}`);
+
+        // Рассылаем ВСЕМ клиентам в комнате
+        if (player.roomId) {
+          io.to(player.roomId).emit('enemy_death_synced', JSON.stringify({
+            enemyId: enemyId,
+            killerSocketId: killerSocketId || socket.id,
+            killerName: killerName || player.username,
+            timestamp: Date.now()
+          }));
+
+          console.log(`[Enemy Death] 📤 Смерть ${enemyId} разослана в комнату ${player.roomId}`);
+        }
+
+      } catch (error) {
+        console.error('[Enemy Death] ❌ Error:', error.message);
+      }
+    });
+
+    /**
+     * Запрос текущего HP врага (при подключении нового клиента)
+     */
+    socket.on('enemy_request_health', (data) => {
+      try {
+        let parsedData = data;
+        if (typeof data === 'string') {
+          try {
+            parsedData = JSON.parse(data);
+          } catch (e) {
+            console.error('[Enemy Request] ❌ Failed to parse JSON:', e.message);
+            return;
+          }
+        }
+
+        const { enemyId } = parsedData;
+
+        if (!enemyId) {
+          console.error('[Enemy Request] ❌ No enemyId provided');
+          return;
+        }
+
+        // Ищем HP в серверном хранилище
+        const enemyData = io.enemyHealthStorage.get(enemyId);
+
+        if (enemyData) {
+          // Отправляем текущий HP запрашивающему клиенту
+          socket.emit('enemy_hp_response', JSON.stringify({
+            enemyId: enemyId,
+            currentHealth: enemyData.currentHealth,
+            maxHealth: enemyData.maxHealth,
+            isDead: enemyData.isDead || false,
+            timestamp: Date.now()
+          }));
+
+          console.log(`[Enemy Request] 📤 HP ${enemyId}: ${enemyData.currentHealth}/${enemyData.maxHealth} отправлен клиенту ${socket.id}`);
+        } else {
+          console.log(`[Enemy Request] ⚠️ HP для ${enemyId} не найден на сервере (враг не был атакован)`);
+        }
+
+      } catch (error) {
+        console.error('[Enemy Request] ❌ Error:', error.message);
+      }
+    });
+
+    /**
+     * Респавн врага (сброс HP)
+     */
+    socket.on('enemy_respawn_sync', (data) => {
+      try {
+        let parsedData = data;
+        if (typeof data === 'string') {
+          try {
+            parsedData = JSON.parse(data);
+          } catch (e) {
+            console.error('[Enemy Respawn] ❌ Failed to parse JSON:', e.message);
+            return;
+          }
+        }
+
+        const player = activePlayers.get(socket.id);
+        if (!player) {
+          console.warn(`[Enemy Respawn] ⚠️ Player not found: ${socket.id}`);
+          return;
+        }
+
+        const { enemyId, maxHealth, x, y, z, timestamp } = parsedData;
+
+        if (!enemyId) {
+          console.error('[Enemy Respawn] ❌ No enemyId provided');
+          return;
+        }
+
+        // Сбрасываем HP и позицию на серверe
+        io.enemyHealthStorage.set(enemyId, {
+          currentHealth: maxHealth,
+          maxHealth: maxHealth,
+          x: x,
+          y: y,
+          z: z,
+          lastUpdate: timestamp || Date.now(),
+          isDead: false
+        });
+
+        console.log(`[Enemy Respawn] ♻️ ${enemyId} респавнулся с HP ${maxHealth} в позиции (${x}, ${y}, ${z})`);
+
+        // Рассылаем ВСЕМ клиентам в комнате
+        if (player.roomId) {
+          io.to(player.roomId).emit('enemy_respawn_synced', JSON.stringify({
+            enemyId: enemyId,
+            maxHealth: maxHealth,
+            x: x,
+            y: y,
+            z: z,
+            timestamp: Date.now()
+          }));
+
+          console.log(`[Enemy Respawn] 📤 Респавн ${enemyId} разослан в комнату ${player.roomId}`);
+        }
+
+      } catch (error) {
+        console.error('[Enemy Respawn] ❌ Error:', error.message);
+      }
+    });
+
+    // ═══════════════════════════════════════════
+    // ENEMY POSITION SYNC SYSTEM (СИНХРОНИЗАЦИЯ ПОЗИЦИИ МОНСТРОВ)
+    // ═══════════════════════════════════════════
+
+    // Хранилище хостов врагов по комнатам (roomId => socketId хоста)
+    if (!io.enemyHostByRoom) {
+      io.enemyHostByRoom = new Map();
+      console.log('[Enemy Host] 🗄️ Хранилище хостов врагов инициализировано');
+    }
+
+    /**
+     * Запрос статуса хоста врагов
+     * Первый игрок в комнате становится хостом
+     */
+    socket.on('enemy_request_host_status', (data) => {
+      try {
+        const player = activePlayers.get(socket.id);
+        if (!player || !player.roomId) {
+          console.warn(`[Enemy Host] ⚠️ Player not found or not in room: ${socket.id}`);
+          return;
+        }
+
+        const roomId = player.roomId;
+        let currentHost = io.enemyHostByRoom.get(roomId);
+
+        // Проверяем существует ли хост и подключен ли он
+        if (currentHost) {
+          const hostPlayer = activePlayers.get(currentHost);
+          if (!hostPlayer || hostPlayer.roomId !== roomId) {
+            // Хост отключился или сменил комнату - сбрасываем
+            currentHost = null;
+            io.enemyHostByRoom.delete(roomId);
+            console.log(`[Enemy Host] 🔄 Хост комнаты ${roomId} отключился, сбрасываем`);
+          }
+        }
+
+        // Если нет хоста - назначаем текущего игрока
+        let isHost = false;
+        if (!currentHost) {
+          io.enemyHostByRoom.set(roomId, socket.id);
+          isHost = true;
+          console.log(`[Enemy Host] 👑 ${player.username} назначен хостом врагов в комнате ${roomId}`);
+        } else if (currentHost === socket.id) {
+          isHost = true;
+        }
+
+        // Отправляем статус игроку
+        socket.emit('enemy_host_status', JSON.stringify({
+          isHost: isHost,
+          hostSocketId: io.enemyHostByRoom.get(roomId),
+          timestamp: Date.now()
+        }));
+
+        console.log(`[Enemy Host] 📤 Статус хоста отправлен ${player.username}: isHost=${isHost}`);
+
+      } catch (error) {
+        console.error('[Enemy Host] ❌ Error:', error.message);
+      }
+    });
+
+    /**
+     * Синхронизация позиции врага от хоста
+     * НОВОЕ: Поддержка velocity для Dead Reckoning (как у player_update → player_moved)
+     */
+    socket.on('enemy_position_sync', (data) => {
+      try {
+        let parsedData = data;
+        if (typeof data === 'string') {
+          try {
+            parsedData = JSON.parse(data);
+          } catch (e) {
+            console.error('[Enemy Position] ❌ Failed to parse JSON:', e.message);
+            return;
+          }
+        }
+
+        const player = activePlayers.get(socket.id);
+        if (!player || !player.roomId) {
+          return; // Молча игнорируем если игрок не в комнате
+        }
+
+        // Проверяем что отправитель - хост
+        const roomHost = io.enemyHostByRoom.get(player.roomId);
+        if (roomHost !== socket.id) {
+          // Не хост - игнорируем (это нормально, не логируем)
+          return;
+        }
+
+        // НОВОЕ: Извлекаем velocity для Dead Reckoning
+        const { enemyId, x, y, z, rotY, velX, velY, velZ, isMoving, isDead, timestamp } = parsedData;
+
+        if (!enemyId) {
+          return;
+        }
+
+        // Обновляем позицию в хранилище (добавляем roomId для фильтрации!)
+        const existingData = io.enemyHealthStorage.get(enemyId) || {};
+        io.enemyHealthStorage.set(enemyId, {
+          ...existingData,
+          roomId: player.roomId, // КРИТИЧЕСКОЕ: Привязываем врага к комнате
+          x: x,
+          y: y,
+          z: z,
+          rotY: rotY,
+          velX: velX || 0,
+          velY: velY || 0,
+          velZ: velZ || 0,
+          isMoving: isMoving,
+          isDead: isDead,
+          lastPositionUpdate: Date.now()
+        });
+
+        // НОВОЕ: Рассылаем позицию ВСЕМ клиентам в комнате С velocity для Dead Reckoning
+        // Это идентично паттерну player_update → player_moved для NetworkPlayer
+        const positionData = JSON.stringify({
+          enemyId: enemyId,
+          x: x,
+          y: y,
+          z: z,
+          rotY: rotY,
+          velX: velX || 0,
+          velY: velY || 0,
+          velZ: velZ || 0,
+          isMoving: isMoving,
+          isDead: isDead,
+          timestamp: timestamp || Date.now()
+        });
+
+        socket.to(player.roomId).emit('enemy_position_synced', positionData);
+
+        // ДИАГНОСТИКА: Логируем каждую 100-ую позицию
+        if (Math.random() < 0.01) {
+          const roomSockets = io.sockets.adapter.rooms.get(player.roomId);
+          const roomSize = roomSockets ? roomSockets.size : 0;
+          console.log(`[Enemy Position] 📤 ${enemyId} → room ${player.roomId} (${roomSize} клиентов): pos=(${x.toFixed(1)},${y.toFixed(1)},${z.toFixed(1)})`);
+        }
+
+      } catch (error) {
+        console.error('[Enemy Position] ❌ Error:', error.message);
+      }
+    });
+
+    /**
+     * НОВОЕ: Синхронизация анимации врага от хоста
+     * Аналог update_animation → player_animation_changed для игроков
+     */
+    socket.on('enemy_animation_sync', (data) => {
+      try {
+        let parsedData = data;
+        if (typeof data === 'string') {
+          try {
+            parsedData = JSON.parse(data);
+          } catch (e) {
+            console.error('[Enemy Animation] ❌ Failed to parse JSON:', e.message);
+            return;
+          }
+        }
+
+        const player = activePlayers.get(socket.id);
+        if (!player || !player.roomId) {
+          return;
+        }
+
+        // Проверяем что отправитель - хост
+        const roomHost = io.enemyHostByRoom.get(player.roomId);
+        if (roomHost !== socket.id) {
+          return;
+        }
+
+        const { enemyId, animation, timestamp } = parsedData;
+
+        if (!enemyId || !animation) {
+          return;
+        }
+
+        // Сохраняем анимацию в хранилище
+        const existingData = io.enemyHealthStorage.get(enemyId) || {};
+        io.enemyHealthStorage.set(enemyId, {
+          ...existingData,
+          animation: animation,
+          lastAnimationUpdate: Date.now()
+        });
+
+        // Рассылаем анимацию ВСЕМ клиентам в комнате (кроме хоста)
+        socket.to(player.roomId).emit('enemy_animation_synced', JSON.stringify({
+          enemyId: enemyId,
+          animation: animation,
+          timestamp: timestamp || Date.now()
+        }));
+
+        // Логируем каждую 10-ую анимацию для отладки
+        if (Math.random() < 0.1) {
+          console.log(`[Enemy Animation] 🎬 ${enemyId} → ${animation}`);
+        }
+
+      } catch (error) {
+        console.error('[Enemy Animation] ❌ Error:', error.message);
+      }
+    });
+
+    /**
+     * Запрос текущих позиций всех врагов (при подключении)
+     * НОВОЕ: Включает velocity и animation для полной синхронизации
+     */
+    socket.on('enemy_request_all_positions', (data) => {
+      try {
+        const player = activePlayers.get(socket.id);
+        if (!player || !player.roomId) {
+          return;
+        }
+
+        // Собираем позиции врагов ТОЛЬКО из текущей комнаты
+        const enemies = [];
+        for (const [enemyId, enemyData] of io.enemyHealthStorage.entries()) {
+          // КРИТИЧЕСКОЕ: Фильтруем по roomId!
+          if (enemyData.x !== undefined && enemyData.roomId === player.roomId) {
+            enemies.push({
+              enemyId: enemyId,
+              x: enemyData.x,
+              y: enemyData.y,
+              z: enemyData.z,
+              rotY: enemyData.rotY || 0,
+              velX: enemyData.velX || 0,
+              velY: enemyData.velY || 0,
+              velZ: enemyData.velZ || 0,
+              isMoving: enemyData.isMoving || false,
+              isDead: enemyData.isDead || false,
+              currentHealth: enemyData.currentHealth,
+              maxHealth: enemyData.maxHealth,
+              animation: enemyData.animation || 'Idle'
+            });
+          }
+        }
+
+        socket.emit('enemy_all_positions', JSON.stringify({
+          enemies: enemies,
+          timestamp: Date.now()
+        }));
+
+        console.log(`[Enemy Position] 📤 Отправлено ${enemies.length} позиций врагов клиенту ${player.username}`);
+
+      } catch (error) {
+        console.error('[Enemy Position] ❌ Error:', error.message);
+      }
+    });
+
+
+    // ═══════════════════════════════════════════
     // CHAT SYSTEM (ОБЩИЙ ЧАТ И КОМАНДНЫЙ ЧАТ)
     // ═══════════════════════════════════════════
 
@@ -3044,5 +3566,60 @@ module.exports = (io) => {
       }
     }
   }, 5 * 60 * 1000);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // НОВОЕ: ПЕРИОДИЧЕСКАЯ РАССЫЛКА ПОЗИЦИЙ МОНСТРОВ ВСЕМ КЛИЕНТАМ
+  // Сервер хранит позиции и каждые 50мс рассылает их ВСЕМ игрокам в каждой комнате
+  // Это гарантирует синхронизацию даже если отдельные пакеты потеряются
+  // ═══════════════════════════════════════════════════════════════════════════
+  setInterval(() => {
+    // Собираем все комнаты с врагами
+    const roomEnemies = new Map(); // roomId -> [enemies]
+
+    for (const [enemyId, enemyData] of io.enemyHealthStorage.entries()) {
+      if (!enemyData.roomId || enemyData.x === undefined) continue;
+
+      if (!roomEnemies.has(enemyData.roomId)) {
+        roomEnemies.set(enemyData.roomId, []);
+      }
+
+      roomEnemies.get(enemyData.roomId).push({
+        enemyId: enemyId,
+        x: enemyData.x,
+        y: enemyData.y,
+        z: enemyData.z,
+        rotY: enemyData.rotY || 0,
+        velX: enemyData.velX || 0,
+        velY: enemyData.velY || 0,
+        velZ: enemyData.velZ || 0,
+        isMoving: enemyData.isMoving || false,
+        isDead: enemyData.isDead || false,
+        animation: enemyData.animation || 'Idle',
+        currentHealth: enemyData.currentHealth,
+        maxHealth: enemyData.maxHealth
+      });
+    }
+
+    // Рассылаем позиции ВСЕМ клиентам в каждой комнате
+    for (const [roomId, enemies] of roomEnemies.entries()) {
+      if (enemies.length === 0) continue;
+
+      const broadcastData = JSON.stringify({
+        enemies: enemies,
+        timestamp: Date.now()
+      });
+
+      // io.to() отправляет ВСЕМ в комнате включая хоста
+      io.to(roomId).emit('enemy_world_state', broadcastData);
+    }
+  }, 50); // 20 раз в секунду = 50мс
+
+  // Логируем статус каждые 30 секунд
+  setInterval(() => {
+    const totalEnemies = io.enemyHealthStorage.size;
+    const totalPlayers = activePlayers.size;
+    if (totalEnemies > 0 || totalPlayers > 0) {
+      console.log(`[World State] 🌍 Активно: ${totalPlayers} игроков, ${totalEnemies} врагов`);
+    }
+  }, 30000);
 };
-// Deploy trigger 1764181783
