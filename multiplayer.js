@@ -2250,6 +2250,64 @@ module.exports = (io) => {
     }
 
     /**
+     * НОВОЕ: Регистрация врага на сервере (вызывается хостом при старте)
+     * Это позволяет серверу знать о враге ДО первой атаки
+     * и гарантирует правильный HP для всех игроков
+     */
+    socket.on('enemy_register', (data) => {
+      try {
+        let parsedData = data;
+        if (typeof data === 'string') {
+          try {
+            parsedData = JSON.parse(data);
+          } catch (e) {
+            console.error('[Enemy Register] ❌ Failed to parse JSON:', e.message);
+            return;
+          }
+        }
+
+        const player = activePlayers.get(socket.id);
+        if (!player) {
+          return; // Молча игнорируем
+        }
+
+        // Только хост может регистрировать врагов
+        const roomHost = io.enemyHostByRoom?.get(player.roomId);
+        if (roomHost !== socket.id) {
+          return; // Не хост - игнорируем
+        }
+
+        const { enemyId, maxHealth, x, y, z } = parsedData;
+        if (!enemyId) return;
+
+        // Проверяем существует ли враг уже
+        const existingEnemy = io.enemyHealthStorage.get(enemyId);
+        if (existingEnemy && existingEnemy.currentHealth > 0) {
+          // Враг уже зарегистрирован и жив - не перезаписываем
+          return;
+        }
+
+        // Регистрируем врага с полным HP
+        io.enemyHealthStorage.set(enemyId, {
+          roomId: player.roomId,
+          currentHealth: maxHealth,
+          maxHealth: maxHealth,
+          x: x,
+          y: y,
+          z: z,
+          lastUpdate: Date.now(),
+          isDead: false,
+          registeredBy: player.username
+        });
+
+        console.log(`[Enemy Register] 📝 Враг ${enemyId} зарегистрирован хостом ${player.username} с HP ${maxHealth}`);
+
+      } catch (error) {
+        console.error('[Enemy Register] ❌ Error:', error.message);
+      }
+    });
+
+    /**
      * Синхронизация урона по врагу от клиента
      * СЕРВЕР АВТОРИТЕТЕН: рассчитывает HP сам и рассылает ВСЕМ клиентам (включая атакующего)
      * Это как player_damage в MMO - клиент не доверяется
@@ -2380,10 +2438,13 @@ module.exports = (io) => {
           return;
         }
 
-        // Обновляем серверное хранилище - враг мёртв
+        // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Сохраняем roomId при смерти!
+        const existingDeathData = io.enemyHealthStorage.get(enemyId) || {};
         io.enemyHealthStorage.set(enemyId, {
+          ...existingDeathData, // Сохраняем существующие данные (включая roomId и позицию!)
+          roomId: player.roomId, // Явно устанавливаем roomId
           currentHealth: 0,
-          maxHealth: io.enemyHealthStorage.get(enemyId)?.maxHealth || 100,
+          maxHealth: existingDeathData.maxHealth || 100,
           lastUpdate: timestamp || Date.now(),
           isDead: true,
           killedBy: killerName
@@ -2481,8 +2542,12 @@ module.exports = (io) => {
           return;
         }
 
-        // Сбрасываем HP и позицию на серверe
+        // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Сохраняем roomId при респавне!
+        // Раньше roomId терялся при полной перезаписи объекта
+        const existingData = io.enemyHealthStorage.get(enemyId) || {};
         io.enemyHealthStorage.set(enemyId, {
+          ...existingData, // Сохраняем существующие данные (включая roomId!)
+          roomId: player.roomId, // Явно устанавливаем roomId на случай если его не было
           currentHealth: maxHealth,
           maxHealth: maxHealth,
           x: x,
@@ -2532,6 +2597,14 @@ module.exports = (io) => {
         const player = activePlayers.get(socket.id);
         if (!player || !player.roomId) {
           console.warn(`[Enemy Host] ⚠️ Player not found or not in room: ${socket.id}`);
+          // КРИТИЧЕСКОЕ: Отправляем ответ с isHost=false чтобы клиент знал что запрос получен
+          // но не может быть обработан (игрок ещё не присоединился к комнате)
+          socket.emit('enemy_host_status', JSON.stringify({
+            isHost: false,
+            hostSocketId: null,
+            error: 'not_in_room',
+            timestamp: Date.now()
+          }));
           return;
         }
 
