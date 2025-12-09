@@ -3151,7 +3151,8 @@ module.exports = (io) => {
         const { characterClass, inventory } = parsedData;
 
         console.log(`[MMO Inventory] 💾 ${player.username} сохраняет инвентарь (${characterClass})`);
-        console.log(`[MMO Inventory] 📦 Items: ${inventory.items.length}, Gold: ${inventory.gold}`);
+        console.log(`[MMO Inventory] 📦 Items: ${inventory.items?.length || 0}, Gold: ${inventory.gold}`);
+        console.log(`[MMO Inventory] 🛡️ Equipment received:`, JSON.stringify(inventory.equipment || {}));
 
         const User = require('./models/User');
         const Character = require('./models/Character');
@@ -3192,6 +3193,7 @@ module.exports = (io) => {
         await character.save();
 
         console.log(`[MMO Inventory] ✅ Инвентарь сохранён для ${player.username}: ${character.inventory.length} предметов, ${character.gold} золота`);
+        console.log(`[MMO Inventory] 🛡️ Equipment saved:`, JSON.stringify(character.equipment || {}));
 
       } catch (error) {
         console.error('[MMO Inventory Save] ❌ Error:', error.message);
