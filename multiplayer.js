@@ -2282,12 +2282,36 @@ module.exports = (io) => {
 
         // Проверяем существует ли враг уже
         const existingEnemy = io.enemyHealthStorage.get(enemyId);
-        if (existingEnemy && existingEnemy.currentHealth > 0) {
-          // Враг уже зарегистрирован и жив - не перезаписываем
-          return;
+
+        // ИСПРАВЛЕНО: Если враг существует но его maxHealth МЕНЬШЕ нового - обновляем!
+        // Это исправляет баг когда враги сохранялись с HP=240 от старой сессии
+        if (existingEnemy) {
+          if (existingEnemy.currentHealth > 0 && existingEnemy.maxHealth >= maxHealth) {
+            // Враг уже зарегистрирован с правильным или большим HP - не трогаем
+            return;
+          }
+
+          // Враг существует но с неправильным maxHealth - обновляем!
+          if (existingEnemy.maxHealth < maxHealth) {
+            console.log(`[Enemy Register] 🔄 Обновляем HP врага ${enemyId}: ${existingEnemy.maxHealth} → ${maxHealth}`);
+            io.enemyHealthStorage.set(enemyId, {
+              ...existingEnemy,
+              roomId: player.roomId,
+              currentHealth: maxHealth,
+              maxHealth: maxHealth,
+              x: x || existingEnemy.x,
+              y: y || existingEnemy.y,
+              z: z || existingEnemy.z,
+              lastUpdate: Date.now(),
+              isDead: false,
+              registeredBy: player.username
+            });
+            console.log(`[Enemy Register] ✅ HP врага ${enemyId} обновлён до ${maxHealth}`);
+            return;
+          }
         }
 
-        // Регистрируем врага с полным HP
+        // Регистрируем нового врага с полным HP
         io.enemyHealthStorage.set(enemyId, {
           roomId: player.roomId,
           currentHealth: maxHealth,
@@ -2300,7 +2324,7 @@ module.exports = (io) => {
           registeredBy: player.username
         });
 
-        console.log(`[Enemy Register] 📝 Враг ${enemyId} зарегистрирован хостом ${player.username} с HP ${maxHealth}`);
+        console.log(`[Enemy Register] 📝 Новый враг ${enemyId} зарегистрирован хостом ${player.username} с HP ${maxHealth}`);
 
       } catch (error) {
         console.error('[Enemy Register] ❌ Error:', error.message);

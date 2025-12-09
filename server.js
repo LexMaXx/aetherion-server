@@ -60,7 +60,7 @@ app.use('/api/party', require('./routes/party'));
 app.get('/', (req, res) => {
   res.json({
     message: 'Aetherion Server is running!',
-    version: '2.4.0-enemy-host-fix',
+    version: '2.4.1-enemy-hp-fix',
     commit: 'pending',
     status: 'online',
     timestamp: new Date().toISOString(),
