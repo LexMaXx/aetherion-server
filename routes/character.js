@@ -344,19 +344,21 @@ router.post('/progress', auth, async (req, res) => {
         }
 
         // Обновляем данные прокачки
-        character.level = leveling.level || character.level;
-        character.experience = leveling.experience || character.experience;
-        character.availableStatPoints = leveling.availableStatPoints || character.availableStatPoints;
+        // ИСПРАВЛЕНИЕ: Используем !== undefined вместо ||, чтобы 0 сохранялся корректно
+        character.level = leveling.level !== undefined ? leveling.level : character.level;
+        character.experience = leveling.experience !== undefined ? leveling.experience : character.experience;
+        character.availableStatPoints = leveling.availableStatPoints !== undefined ? leveling.availableStatPoints : character.availableStatPoints;
 
         // Обновляем SPECIAL stats
+        // ИСПРАВЛЕНИЕ: Используем !== undefined вместо ||, чтобы 0 сохранялся корректно
         character.stats = character.stats || {};
-        character.stats.strength = stats.strength || character.stats.strength;
-        character.stats.perception = stats.perception || character.stats.perception;
-        character.stats.endurance = stats.endurance || character.stats.endurance;
-        character.stats.wisdom = stats.wisdom || character.stats.wisdom;
-        character.stats.intelligence = stats.intelligence || character.stats.intelligence;
-        character.stats.agility = stats.agility || character.stats.agility;
-        character.stats.luck = stats.luck || character.stats.luck;
+        character.stats.strength = stats.strength !== undefined ? stats.strength : character.stats.strength;
+        character.stats.perception = stats.perception !== undefined ? stats.perception : character.stats.perception;
+        character.stats.endurance = stats.endurance !== undefined ? stats.endurance : character.stats.endurance;
+        character.stats.wisdom = stats.wisdom !== undefined ? stats.wisdom : character.stats.wisdom;
+        character.stats.intelligence = stats.intelligence !== undefined ? stats.intelligence : character.stats.intelligence;
+        character.stats.agility = stats.agility !== undefined ? stats.agility : character.stats.agility;
+        character.stats.luck = stats.luck !== undefined ? stats.luck : character.stats.luck;
 
         character.lastPlayed = Date.now();
         await character.save();
