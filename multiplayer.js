@@ -2282,52 +2282,12 @@ module.exports = (io) => {
 
         // Проверяем существует ли враг уже
         const existingEnemy = io.enemyHealthStorage.get(enemyId);
-
-        // ИСПРАВЛЕНО: Если враг существует но его maxHealth МЕНЬШЕ нового - обновляем!
-        // Это исправляет баг когда враги сохранялись с HP=240 от старой сессии
-        if (existingEnemy) {
-          if (existingEnemy.currentHealth > 0 && existingEnemy.maxHealth >= maxHealth) {
-            // Враг уже зарегистрирован с правильным или большим HP - не трогаем
-            return;
-          }
-
-          // Враг существует но с неправильным maxHealth - обновляем!
-          if (existingEnemy.maxHealth < maxHealth) {
-            console.log(`[Enemy Register] 🔄 Обновляем HP врага ${enemyId}: ${existingEnemy.maxHealth} → ${maxHealth}`);
-            io.enemyHealthStorage.set(enemyId, {
-              ...existingEnemy,
-              roomId: player.roomId,
-              currentHealth: maxHealth,
-              maxHealth: maxHealth,
-              x: x || existingEnemy.x,
-              y: y || existingEnemy.y,
-              z: z || existingEnemy.z,
-              lastUpdate: Date.now(),
-              isDead: false,
-              registeredBy: player.username
-            });
-            console.log(`[Enemy Register] ✅ HP врага ${enemyId} обновлён до ${maxHealth}`);
-
-            // КРИТИЧЕСКОЕ: Рассылаем обновлённый HP ВСЕМ клиентам в комнате!
-            // Это исправляет баг когда клиент получил старый HP (240) до регистрации
-            io.to(player.roomId).emit('enemy_hp_synced', JSON.stringify({
-              enemyId: enemyId,
-              damage: 0,
-              currentHealth: maxHealth,
-              maxHealth: maxHealth,
-              attackerSocketId: null,
-              attackerName: 'System',
-              isCritical: false,
-              isDead: false,
-              timestamp: Date.now()
-            }));
-            console.log(`[Enemy Register] 📤 HP ${enemyId} (${maxHealth}) разослан ВСЕМ в комнате ${player.roomId}`);
-
-            return;
-          }
+        if (existingEnemy && existingEnemy.currentHealth > 0) {
+          // Враг уже зарегистрирован и жив - не перезаписываем
+          return;
         }
 
-        // Регистрируем нового врага с полным HP
+        // Регистрируем врага с полным HP
         io.enemyHealthStorage.set(enemyId, {
           roomId: player.roomId,
           currentHealth: maxHealth,
@@ -2340,21 +2300,7 @@ module.exports = (io) => {
           registeredBy: player.username
         });
 
-        console.log(`[Enemy Register] 📝 Новый враг ${enemyId} зарегистрирован хостом ${player.username} с HP ${maxHealth}`);
-
-        // КРИТИЧЕСКОЕ: Рассылаем HP нового врага ВСЕМ клиентам в комнате!
-        io.to(player.roomId).emit('enemy_hp_synced', JSON.stringify({
-          enemyId: enemyId,
-          damage: 0,
-          currentHealth: maxHealth,
-          maxHealth: maxHealth,
-          attackerSocketId: null,
-          attackerName: 'System',
-          isCritical: false,
-          isDead: false,
-          timestamp: Date.now()
-        }));
-        console.log(`[Enemy Register] 📤 HP нового врага ${enemyId} (${maxHealth}) разослан ВСЕМ в комнате ${player.roomId}`);
+        console.log(`[Enemy Register] 📝 Враг ${enemyId} зарегистрирован хостом ${player.username} с HP ${maxHealth}`);
 
       } catch (error) {
         console.error('[Enemy Register] ❌ Error:', error.message);
@@ -2501,7 +2447,11 @@ module.exports = (io) => {
           maxHealth: existingDeathData.maxHealth || 100,
           lastUpdate: timestamp || Date.now(),
           isDead: true,
-          killedBy: killerName
+          killedBy: killerName,
+          // КРИТИЧЕСКОЕ: Сбрасываем состояние движения при смерти!
+          // Иначе enemy_world_state будет отправлять isMoving=true даже для трупа
+          isMoving: false,
+          animation: 'Dead'
         });
 
         console.log(`[Enemy Death] 💀 ${enemyId} убит игроком ${killerName}`);
@@ -2608,7 +2558,10 @@ module.exports = (io) => {
           y: y,
           z: z,
           lastUpdate: timestamp || Date.now(),
-          isDead: false
+          isDead: false,
+          // КРИТИЧЕСКОЕ: Сбрасываем состояние анимации при респавне
+          isMoving: false,
+          animation: 'Idle'
         });
 
         console.log(`[Enemy Respawn] ♻️ ${enemyId} респавнулся с HP ${maxHealth} в позиции (${x}, ${y}, ${z})`);

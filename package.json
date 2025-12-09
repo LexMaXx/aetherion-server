@@ -1,6 +1,6 @@
 {
   "name": "aetherion-server",
-  "version": "1.0.0",
+  "version": "2.5.0-death-sync-fix",
   "description": "Aetherion MMO RPG Backend Server",
   "main": "server.js",
   "engines": {
