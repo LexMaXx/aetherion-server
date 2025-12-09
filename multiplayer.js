@@ -3496,14 +3496,26 @@ module.exports = (io) => {
           accessory: accessory || ""
         };
 
-        await character.save();
+        console.log(`[MMO Equipment] 💾 Saving to MongoDB... Character ID: ${character._id}`);
+        console.log(`[MMO Equipment] 💾 Equipment BEFORE save:`, JSON.stringify(character.equipment));
 
-        console.log(`[MMO Equipment] ✅ Equipment saved for ${character.characterClass}`);
+        const saveResult = await character.save();
+
+        console.log(`[MMO Equipment] ✅ character.save() completed`);
+
+        // ВЕРИФИКАЦИЯ: Перезагружаем из БД чтобы убедиться что данные записались
+        const verifyCharacter = await Character.findById(character._id);
+        console.log(`[MMO Equipment] 🔍 VERIFICATION - Equipment in DB after save:`, JSON.stringify(verifyCharacter.equipment));
+
+        if (verifyCharacter.equipment.armor !== armor || verifyCharacter.equipment.weapon !== weapon) {
+          console.error(`[MMO Equipment] ⚠️ MISMATCH! Sent: armor=${armor}, weapon=${weapon}`);
+          console.error(`[MMO Equipment] ⚠️ MISMATCH! In DB: armor=${verifyCharacter.equipment.armor}, weapon=${verifyCharacter.equipment.weapon}`);
+        }
 
         socket.emit('mmo_equipment_response', JSON.stringify({
           success: true,
           message: 'Equipment updated',
-          equipment: character.equipment
+          equipment: verifyCharacter.equipment
         }));
 
       } catch (error) {
@@ -3549,6 +3561,8 @@ module.exports = (io) => {
         }
 
         console.log(`[MMO Equipment] ✅ Loaded equipment for ${character.characterClass}`);
+        console.log(`[MMO Equipment] 📦 Equipment from DB:`, JSON.stringify(character.equipment));
+        console.log(`[MMO Equipment] 📦 Character _id: ${character._id}`);
 
         socket.emit('mmo_equipment_response', JSON.stringify({
           success: true,
