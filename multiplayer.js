@@ -2307,6 +2307,22 @@ module.exports = (io) => {
               registeredBy: player.username
             });
             console.log(`[Enemy Register] ✅ HP врага ${enemyId} обновлён до ${maxHealth}`);
+
+            // КРИТИЧЕСКОЕ: Рассылаем обновлённый HP ВСЕМ клиентам в комнате!
+            // Это исправляет баг когда клиент получил старый HP (240) до регистрации
+            io.to(player.roomId).emit('enemy_hp_synced', JSON.stringify({
+              enemyId: enemyId,
+              damage: 0,
+              currentHealth: maxHealth,
+              maxHealth: maxHealth,
+              attackerSocketId: null,
+              attackerName: 'System',
+              isCritical: false,
+              isDead: false,
+              timestamp: Date.now()
+            }));
+            console.log(`[Enemy Register] 📤 HP ${enemyId} (${maxHealth}) разослан ВСЕМ в комнате ${player.roomId}`);
+
             return;
           }
         }
@@ -2325,6 +2341,20 @@ module.exports = (io) => {
         });
 
         console.log(`[Enemy Register] 📝 Новый враг ${enemyId} зарегистрирован хостом ${player.username} с HP ${maxHealth}`);
+
+        // КРИТИЧЕСКОЕ: Рассылаем HP нового врага ВСЕМ клиентам в комнате!
+        io.to(player.roomId).emit('enemy_hp_synced', JSON.stringify({
+          enemyId: enemyId,
+          damage: 0,
+          currentHealth: maxHealth,
+          maxHealth: maxHealth,
+          attackerSocketId: null,
+          attackerName: 'System',
+          isCritical: false,
+          isDead: false,
+          timestamp: Date.now()
+        }));
+        console.log(`[Enemy Register] 📤 HP нового врага ${enemyId} (${maxHealth}) разослан ВСЕМ в комнате ${player.roomId}`);
 
       } catch (error) {
         console.error('[Enemy Register] ❌ Error:', error.message);
